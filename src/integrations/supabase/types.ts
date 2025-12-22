@@ -180,6 +180,7 @@ export type Database = {
           company_id: string
           created_at: string
           document_name: string
+          file_path: string | null
           id: string
           is_completed: boolean
           matter_id: string
@@ -189,6 +190,7 @@ export type Database = {
           company_id: string
           created_at?: string
           document_name: string
+          file_path?: string | null
           id?: string
           is_completed?: boolean
           matter_id: string
@@ -198,6 +200,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           document_name?: string
+          file_path?: string | null
           id?: string
           is_completed?: boolean
           matter_id?: string
