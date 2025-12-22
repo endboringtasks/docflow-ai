@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -80,6 +81,7 @@ const statusOptions = [
 ];
 
 const MigrationMatters = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentCompany } = useCompany();
   const [searchQuery, setSearchQuery] = useState("");
@@ -496,7 +498,7 @@ const MigrationMatters = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                onClick={() => setSelectedMatter(matter)}
+                onClick={() => navigate(`/app/migration/matters/${matter.id}`)}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-10 h-10 rounded-lg gradient-bg flex items-center justify-center">
