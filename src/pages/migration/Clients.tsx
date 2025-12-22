@@ -13,7 +13,8 @@ import {
   Phone,
   FolderOpen,
   Loader2,
-  Trash2
+  Trash2,
+  Pencil
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -64,6 +65,13 @@ const MigrationClients = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+  const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
+  const [editForm, setEditForm] = useState({
+    clientType: "personal" as "personal" | "corporate",
+    fullName: "",
+    email: "",
+    phone: "",
+  });
   const [newClient, setNewClient] = useState({
     clientType: "personal" as "personal" | "corporate",
     fullName: "",
@@ -168,6 +176,42 @@ const MigrationClients = () => {
     },
   });
 
+  // Update client mutation
+  const updateClientMutation = useMutation({
+    mutationFn: async (clientData: {
+      id: string;
+      client_type: "personal" | "corporate";
+      full_name: string;
+      email: string | null;
+      phone: string | null;
+    }) => {
+      const { data, error } = await supabase
+        .from("clients")
+        .update({
+          client_type: clientData.client_type,
+          full_name: clientData.full_name,
+          email: clientData.email,
+          phone: clientData.phone,
+        })
+        .eq("id", clientData.id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
+      setClientToEdit(null);
+      toast.success("Client updated successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to update client", {
+        description: error.message,
+      });
+    },
+  });
+
   const filteredClients = clients.filter(client =>
     client.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     client.email?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -181,6 +225,28 @@ const MigrationClients = () => {
       full_name: newClient.fullName.trim(),
       email: newClient.email.trim() || null,
       phone: newClient.phone.trim() || null,
+    });
+  };
+
+  const handleEditClient = (client: Client) => {
+    setEditForm({
+      clientType: client.client_type,
+      fullName: client.full_name,
+      email: client.email || "",
+      phone: client.phone || "",
+    });
+    setClientToEdit(client);
+  };
+
+  const handleUpdateClient = () => {
+    if (!clientToEdit || !editForm.fullName.trim()) return;
+    
+    updateClientMutation.mutate({
+      id: clientToEdit.id,
+      client_type: editForm.clientType,
+      full_name: editForm.fullName.trim(),
+      email: editForm.email.trim() || null,
+      phone: editForm.phone.trim() || null,
     });
   };
 
@@ -387,14 +453,23 @@ const MigrationClients = () => {
                         <Badge variant="outline">{client.matters_count}</Badge>
                       </td>
                       <td className="p-4">
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => setClientToDelete(client)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => handleEditClient(client)}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setClientToDelete(client)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </td>
                     </motion.tr>
                   ))}
@@ -453,6 +528,89 @@ const MigrationClients = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Edit Client Dialog */}
+        <Dialog open={!!clientToEdit} onOpenChange={() => setClientToEdit(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Client</DialogTitle>
+              <DialogDescription>
+                Update client information.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Client Type</Label>
+                <Select 
+                  value={editForm.clientType} 
+                  onValueChange={(value: "personal" | "corporate") => setEditForm({...editForm, clientType: value})}
+                >
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="personal">Personal</SelectItem>
+                    <SelectItem value="corporate">Corporate</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{editForm.clientType === "personal" ? "Full Name" : "Company Name"}</Label>
+                <Input
+                  value={editForm.fullName}
+                  onChange={(e) => setEditForm({...editForm, fullName: e.target.value})}
+                  placeholder={editForm.clientType === "personal" ? "John Smith" : "Acme Corp Pty Ltd"}
+                  className="bg-secondary border-border"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                  placeholder="email@example.com"
+                  className="bg-secondary border-border"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input
+                  type="tel"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                  placeholder="+61 400 123 456"
+                  className="bg-secondary border-border"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setClientToEdit(null)}>
+                Cancel
+              </Button>
+              <Button 
+                variant="gradient" 
+                className="flex-1" 
+                onClick={handleUpdateClient} 
+                disabled={!editForm.fullName.trim() || updateClientMutation.isPending}
+              >
+                {updateClientMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
