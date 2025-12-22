@@ -7,9 +7,7 @@ import {
   Plus, 
   Search, 
   FileText,
-  Clock,
   CheckCircle,
-  AlertCircle,
   User,
   Loader2
 } from "lucide-react";
@@ -61,6 +59,12 @@ const visaSubclasses = [
   { value: "820", label: "Partner Visa (820)" },
   { value: "188", label: "Business Innovation (188)" },
   { value: "600", label: "Visitor Visa (600)" },
+];
+
+const statusOptions = [
+  { value: "draft", label: "Draft", description: "Application is being prepared" },
+  { value: "active", label: "Active", description: "Application is in progress" },
+  { value: "done", label: "Done", description: "Application is completed" },
 ];
 
 const MigrationMatters = () => {
@@ -173,6 +177,43 @@ const MigrationMatters = () => {
     },
   });
 
+  // Update matter status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ matterId, status }: { matterId: string; status: "draft" | "active" | "done" }) => {
+      const { data, error } = await supabase
+        .from("matters")
+        .update({ status })
+        .eq("id", matterId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats", currentCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["recent-matters", currentCompany?.id] });
+      
+      // Update selected matter in state
+      if (selectedMatter && selectedMatter.id === data.id) {
+        setSelectedMatter({
+          ...selectedMatter,
+          status: data.status as "draft" | "active" | "done",
+        });
+      }
+      
+      toast.success("Status updated!", {
+        description: `Application status changed to ${data.status}`,
+      });
+    },
+    onError: (error) => {
+      toast.error("Failed to update status", {
+        description: error.message,
+      });
+    },
+  });
+
   const filteredMatters = matters.filter(matter => {
     const matchesSearch = matter.matter_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       matter.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -189,6 +230,10 @@ const MigrationMatters = () => {
       matter_name: newMatter.matterName.trim(),
       visa_subclass: newMatter.visaSubclass,
     });
+  };
+
+  const handleStatusChange = (matterId: string, newStatus: "draft" | "active" | "done") => {
+    updateStatusMutation.mutate({ matterId, status: newStatus });
   };
 
   const getStatusColor = (status: Matter["status"]) => {
@@ -428,6 +473,31 @@ const MigrationMatters = () => {
                   </TabsList>
                   
                   <TabsContent value="overview" className="mt-6 space-y-6">
+                    {/* Status Update Section */}
+                    <div className="glass rounded-lg p-4">
+                      <Label className="text-sm text-muted-foreground mb-3 block">Update Status</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {statusOptions.map((option) => (
+                          <Button
+                            key={option.value}
+                            variant={selectedMatter.status === option.value ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handleStatusChange(selectedMatter.id, option.value as "draft" | "active" | "done")}
+                            disabled={updateStatusMutation.isPending}
+                            className="gap-2"
+                          >
+                            {updateStatusMutation.isPending && updateStatusMutation.variables?.matterId === selectedMatter.id && updateStatusMutation.variables?.status === option.value ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : null}
+                            {option.label}
+                          </Button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {statusOptions.find(o => o.value === selectedMatter.status)?.description}
+                      </p>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div className="glass rounded-lg p-4">
                         <p className="text-sm text-muted-foreground mb-1">Created</p>
@@ -442,8 +512,10 @@ const MigrationMatters = () => {
                         <p className="font-medium">{selectedMatter.drive_folder_id ? "Linked" : "Pending"}</p>
                       </div>
                       <div className="glass rounded-lg p-4">
-                        <p className="text-sm text-muted-foreground mb-1">Status</p>
-                        <p className="font-medium capitalize">{selectedMatter.status}</p>
+                        <p className="text-sm text-muted-foreground mb-1">Current Status</p>
+                        <Badge variant={getStatusColor(selectedMatter.status)} className="mt-1">
+                          {selectedMatter.status}
+                        </Badge>
                       </div>
                     </div>
                   </TabsContent>
