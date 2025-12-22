@@ -175,6 +175,51 @@ export type Database = {
           },
         ]
       }
+      document_checklist: {
+        Row: {
+          company_id: string
+          created_at: string
+          document_name: string
+          id: string
+          is_completed: boolean
+          matter_id: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          document_name: string
+          id?: string
+          is_completed?: boolean
+          matter_id: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          document_name?: string
+          id?: string
+          is_completed?: boolean
+          matter_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_checklist_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_checklist_matter_id_fkey"
+            columns: ["matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       matters: {
         Row: {
           client_id: string

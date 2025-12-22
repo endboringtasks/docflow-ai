@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,7 @@ interface Matter {
   status: "draft" | "active" | "done";
   drive_folder_id: string | null;
   created_at: string;
+  company_id: string;
 }
 
 interface Client {
@@ -73,6 +74,16 @@ interface DocumentItem {
   category: string;
   required: boolean;
   completed: boolean;
+}
+
+interface DbDocumentItem {
+  id: string;
+  matter_id: string;
+  company_id: string;
+  document_name: string;
+  is_completed: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 const visaSubclasses = [
@@ -93,44 +104,73 @@ const statusOptions = [
 ];
 
 // Default document checklist based on visa subclass
-const getDefaultDocuments = (visaSubclass: string | null): DocumentItem[] => {
-  const baseDocuments: DocumentItem[] = [
-    { id: "1", name: "Passport (certified copy)", category: "Identity", required: true, completed: false },
-    { id: "2", name: "Birth Certificate", category: "Identity", required: true, completed: false },
-    { id: "3", name: "Passport Photos", category: "Identity", required: true, completed: false },
-    { id: "4", name: "Police Clearance Certificate", category: "Character", required: true, completed: false },
-    { id: "5", name: "Health Examination Results", category: "Health", required: true, completed: false },
+const getDefaultDocuments = (visaSubclass: string | null): Omit<DocumentItem, "id">[] => {
+  const baseDocuments = [
+    { name: "Passport (certified copy)", category: "Identity", required: true, completed: false },
+    { name: "Birth Certificate", category: "Identity", required: true, completed: false },
+    { name: "Passport Photos", category: "Identity", required: true, completed: false },
+    { name: "Police Clearance Certificate", category: "Character", required: true, completed: false },
+    { name: "Health Examination Results", category: "Health", required: true, completed: false },
   ];
 
-  const additionalDocsByVisa: Record<string, DocumentItem[]> = {
+  const additionalDocsByVisa: Record<string, Omit<DocumentItem, "id">[]> = {
     "482": [
-      { id: "6", name: "Employment Contract", category: "Employment", required: true, completed: false },
-      { id: "7", name: "Skills Assessment", category: "Skills", required: true, completed: false },
-      { id: "8", name: "English Language Test Results", category: "English", required: true, completed: false },
-      { id: "9", name: "Qualifications/Degrees", category: "Education", required: true, completed: false },
-      { id: "10", name: "Resume/CV", category: "Employment", required: true, completed: false },
+      { name: "Employment Contract", category: "Employment", required: true, completed: false },
+      { name: "Skills Assessment", category: "Skills", required: true, completed: false },
+      { name: "English Language Test Results", category: "English", required: true, completed: false },
+      { name: "Qualifications/Degrees", category: "Education", required: true, completed: false },
+      { name: "Resume/CV", category: "Employment", required: true, completed: false },
     ],
     "186": [
-      { id: "6", name: "Nomination Approval", category: "Nomination", required: true, completed: false },
-      { id: "7", name: "Skills Assessment", category: "Skills", required: true, completed: false },
-      { id: "8", name: "English Language Test Results", category: "English", required: true, completed: false },
-      { id: "9", name: "Employment References", category: "Employment", required: true, completed: false },
+      { name: "Nomination Approval", category: "Nomination", required: true, completed: false },
+      { name: "Skills Assessment", category: "Skills", required: true, completed: false },
+      { name: "English Language Test Results", category: "English", required: true, completed: false },
+      { name: "Employment References", category: "Employment", required: true, completed: false },
     ],
     "500": [
-      { id: "6", name: "Confirmation of Enrolment (CoE)", category: "Education", required: true, completed: false },
-      { id: "7", name: "English Language Test Results", category: "English", required: true, completed: false },
-      { id: "8", name: "Financial Evidence", category: "Financial", required: true, completed: false },
-      { id: "9", name: "OSHC Policy", category: "Insurance", required: true, completed: false },
+      { name: "Confirmation of Enrolment (CoE)", category: "Education", required: true, completed: false },
+      { name: "English Language Test Results", category: "English", required: true, completed: false },
+      { name: "Financial Evidence", category: "Financial", required: true, completed: false },
+      { name: "OSHC Policy", category: "Insurance", required: true, completed: false },
     ],
     "820": [
-      { id: "6", name: "Relationship Evidence", category: "Relationship", required: true, completed: false },
-      { id: "7", name: "Sponsor's Identity Documents", category: "Sponsor", required: true, completed: false },
-      { id: "8", name: "Form 888 Statutory Declarations", category: "Relationship", required: true, completed: false },
-      { id: "9", name: "Joint Financial Records", category: "Financial", required: true, completed: false },
+      { name: "Relationship Evidence", category: "Relationship", required: true, completed: false },
+      { name: "Sponsor's Identity Documents", category: "Sponsor", required: true, completed: false },
+      { name: "Form 888 Statutory Declarations", category: "Relationship", required: true, completed: false },
+      { name: "Joint Financial Records", category: "Financial", required: true, completed: false },
     ],
   };
 
   return [...baseDocuments, ...(additionalDocsByVisa[visaSubclass || ""] || [])];
+};
+
+// Parse document name to extract category and required status
+const parseDocumentName = (name: string): { displayName: string; category: string; required: boolean } => {
+  // Check if it's a custom document
+  if (name.startsWith("[Custom] ")) {
+    return { displayName: name.replace("[Custom] ", ""), category: "Custom", required: false };
+  }
+  
+  // Check for category prefix pattern like "[Category:Required] Name"
+  const match = name.match(/^\[([^:]+):?(required|optional)?\]\s*(.+)$/i);
+  if (match) {
+    return { 
+      displayName: match[3], 
+      category: match[1], 
+      required: match[2]?.toLowerCase() === "required" 
+    };
+  }
+  
+  // Default: treat as standard required document
+  return { displayName: name, category: "General", required: true };
+};
+
+// Format document for storage
+const formatDocumentForStorage = (doc: Omit<DocumentItem, "id" | "completed">): string => {
+  if (doc.category === "Custom") {
+    return `[Custom] ${doc.name}`;
+  }
+  return `[${doc.category}:${doc.required ? "required" : "optional"}] ${doc.name}`;
 };
 
 const MatterDetail = () => {
@@ -141,8 +181,8 @@ const MatterDetail = () => {
   
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [newDocName, setNewDocName] = useState("");
+  const [documentsInitialized, setDocumentsInitialized] = useState(false);
   
   const [editForm, setEditForm] = useState({
     matterName: "",
@@ -162,12 +202,6 @@ const MatterDetail = () => {
         .maybeSingle();
       
       if (error) throw error;
-      
-      // Initialize documents when matter loads
-      if (data) {
-        setDocuments(getDefaultDocuments(data.visa_subclass));
-      }
-      
       return data as Matter | null;
     },
     enabled: !!matterId,
@@ -189,6 +223,139 @@ const MatterDetail = () => {
       return data as Client | null;
     },
     enabled: !!matter?.client_id,
+  });
+
+  // Fetch document checklist from database
+  const { data: dbDocuments, isLoading: isLoadingDocuments } = useQuery({
+    queryKey: ["document-checklist", matterId],
+    queryFn: async () => {
+      if (!matterId) return [];
+      
+      const { data, error } = await supabase
+        .from("document_checklist")
+        .select("*")
+        .eq("matter_id", matterId)
+        .order("created_at", { ascending: true });
+      
+      if (error) throw error;
+      return data as DbDocumentItem[];
+    },
+    enabled: !!matterId,
+  });
+
+  // Initialize documents in database if none exist
+  const initializeDocumentsMutation = useMutation({
+    mutationFn: async (docs: Omit<DocumentItem, "id">[]) => {
+      if (!matterId || !matter?.company_id) throw new Error("Missing IDs");
+      
+      const documentsToInsert = docs.map(doc => ({
+        matter_id: matterId,
+        company_id: matter.company_id,
+        document_name: formatDocumentForStorage(doc),
+        is_completed: false,
+      }));
+      
+      const { data, error } = await supabase
+        .from("document_checklist")
+        .insert(documentsToInsert)
+        .select();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
+      setDocumentsInitialized(true);
+    },
+    onError: (error) => {
+      console.error("Failed to initialize documents:", error);
+    },
+  });
+
+  // Initialize documents when matter loads and no documents exist
+  useEffect(() => {
+    if (matter && dbDocuments !== undefined && dbDocuments.length === 0 && !documentsInitialized && !initializeDocumentsMutation.isPending) {
+      const defaultDocs = getDefaultDocuments(matter.visa_subclass);
+      initializeDocumentsMutation.mutate(defaultDocs);
+    }
+  }, [matter, dbDocuments, documentsInitialized]);
+
+  // Transform DB documents to UI format
+  const documents: DocumentItem[] = (dbDocuments || []).map(doc => {
+    const parsed = parseDocumentName(doc.document_name);
+    return {
+      id: doc.id,
+      name: parsed.displayName,
+      category: parsed.category,
+      required: parsed.required,
+      completed: doc.is_completed,
+    };
+  });
+
+  // Toggle document completion
+  const toggleDocumentMutation = useMutation({
+    mutationFn: async ({ docId, isCompleted }: { docId: string; isCompleted: boolean }) => {
+      const { error } = await supabase
+        .from("document_checklist")
+        .update({ is_completed: isCompleted })
+        .eq("id", docId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
+    },
+    onError: (error) => {
+      toast.error("Failed to update document", { description: error.message });
+    },
+  });
+
+  // Add custom document
+  const addDocumentMutation = useMutation({
+    mutationFn: async (docName: string) => {
+      if (!matterId || !matter?.company_id) throw new Error("Missing IDs");
+      
+      const { data, error } = await supabase
+        .from("document_checklist")
+        .insert({
+          matter_id: matterId,
+          company_id: matter.company_id,
+          document_name: `[Custom] ${docName}`,
+          is_completed: false,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
+      setNewDocName("");
+      toast.success("Document added to checklist");
+    },
+    onError: (error) => {
+      toast.error("Failed to add document", { description: error.message });
+    },
+  });
+
+  // Remove document
+  const removeDocumentMutation = useMutation({
+    mutationFn: async (docId: string) => {
+      const { error } = await supabase
+        .from("document_checklist")
+        .delete()
+        .eq("id", docId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
+      toast.success("Document removed");
+    },
+    onError: (error) => {
+      toast.error("Failed to remove document", { description: error.message });
+    },
   });
 
   // Update matter mutation
@@ -294,32 +461,17 @@ const MatterDetail = () => {
     });
   };
 
-  const handleToggleDocument = (docId: string) => {
-    setDocuments(docs => 
-      docs.map(doc => 
-        doc.id === docId ? { ...doc, completed: !doc.completed } : doc
-      )
-    );
+  const handleToggleDocument = (docId: string, currentCompleted: boolean) => {
+    toggleDocumentMutation.mutate({ docId, isCompleted: !currentCompleted });
   };
 
   const handleAddDocument = () => {
     if (!newDocName.trim()) return;
-    
-    const newDoc: DocumentItem = {
-      id: `custom-${Date.now()}`,
-      name: newDocName.trim(),
-      category: "Custom",
-      required: false,
-      completed: false,
-    };
-    
-    setDocuments([...documents, newDoc]);
-    setNewDocName("");
-    toast.success("Document added to checklist");
+    addDocumentMutation.mutate(newDocName.trim());
   };
 
   const handleRemoveDocument = (docId: string) => {
-    setDocuments(docs => docs.filter(doc => doc.id !== docId));
+    removeDocumentMutation.mutate(docId);
   };
 
   const getStatusColor = (status: Matter["status"]) => {
@@ -343,7 +495,7 @@ const MatterDetail = () => {
   const requiredCompleted = documents.filter(d => d.required && d.completed).length;
   const progress = documents.length > 0 ? Math.round((completedCount / documents.length) * 100) : 0;
 
-  const isLoading = isLoadingMatter || isLoadingClient;
+  const isLoading = isLoadingMatter || isLoadingClient || isLoadingDocuments;
 
   if (isLoading) {
     return (
@@ -516,7 +668,8 @@ const MatterDetail = () => {
                       <div className="flex items-center gap-3">
                         <Checkbox
                           checked={doc.completed}
-                          onCheckedChange={() => handleToggleDocument(doc.id)}
+                          onCheckedChange={() => handleToggleDocument(doc.id, doc.completed)}
+                          disabled={toggleDocumentMutation.isPending}
                         />
                         <span className={doc.completed ? "line-through text-muted-foreground" : ""}>
                           {doc.name}
@@ -525,12 +678,13 @@ const MatterDetail = () => {
                           <Badge variant="destructive" className="text-xs">Required</Badge>
                         )}
                       </div>
-                      {!doc.required && doc.id.startsWith("custom-") && (
+                      {doc.category === "Custom" && (
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-destructive"
                           onClick={() => handleRemoveDocument(doc.id)}
+                          disabled={removeDocumentMutation.isPending}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -552,8 +706,16 @@ const MatterDetail = () => {
                   className="bg-secondary border-border"
                   onKeyDown={(e) => e.key === "Enter" && handleAddDocument()}
                 />
-                <Button variant="outline" onClick={handleAddDocument} disabled={!newDocName.trim()}>
-                  <Plus className="w-4 h-4 mr-2" />
+                <Button 
+                  variant="outline" 
+                  onClick={handleAddDocument} 
+                  disabled={!newDocName.trim() || addDocumentMutation.isPending}
+                >
+                  {addDocumentMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Plus className="w-4 h-4 mr-2" />
+                  )}
                   Add
                 </Button>
               </div>
