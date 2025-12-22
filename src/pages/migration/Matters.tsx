@@ -10,7 +10,8 @@ import {
   CheckCircle,
   User,
   Loader2,
-  Trash2
+  Trash2,
+  Pencil
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -86,6 +87,11 @@ const MigrationMatters = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedMatter, setSelectedMatter] = useState<Matter | null>(null);
   const [matterToDelete, setMatterToDelete] = useState<Matter | null>(null);
+  const [matterToEdit, setMatterToEdit] = useState<Matter | null>(null);
+  const [editForm, setEditForm] = useState({
+    matterName: "",
+    visaSubclass: "",
+  });
   const [newMatter, setNewMatter] = useState({
     clientId: "",
     matterName: "",
@@ -250,6 +256,48 @@ const MigrationMatters = () => {
     },
   });
 
+  // Update matter details mutation
+  const updateMatterMutation = useMutation({
+    mutationFn: async (matterData: {
+      id: string;
+      matter_name: string;
+      visa_subclass: string | null;
+    }) => {
+      const { data, error } = await supabase
+        .from("matters")
+        .update({
+          matter_name: matterData.matter_name,
+          visa_subclass: matterData.visa_subclass,
+        })
+        .eq("id", matterData.id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
+      setMatterToEdit(null);
+      
+      // Update selected matter if it's the one being edited
+      if (selectedMatter && selectedMatter.id === data.id) {
+        setSelectedMatter({
+          ...selectedMatter,
+          matter_name: data.matter_name,
+          visa_subclass: data.visa_subclass,
+        });
+      }
+      
+      toast.success("Application updated successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to update application", {
+        description: error.message,
+      });
+    },
+  });
+
   const filteredMatters = matters.filter(matter => {
     const matchesSearch = matter.matter_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       matter.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -270,6 +318,24 @@ const MigrationMatters = () => {
 
   const handleStatusChange = (matterId: string, newStatus: "draft" | "active" | "done") => {
     updateStatusMutation.mutate({ matterId, status: newStatus });
+  };
+
+  const handleEditMatter = (matter: Matter) => {
+    setEditForm({
+      matterName: matter.matter_name,
+      visaSubclass: matter.visa_subclass || "",
+    });
+    setMatterToEdit(matter);
+  };
+
+  const handleUpdateMatter = () => {
+    if (!matterToEdit || !editForm.matterName.trim()) return;
+    
+    updateMatterMutation.mutate({
+      id: matterToEdit.id,
+      matter_name: editForm.matterName.trim(),
+      visa_subclass: editForm.visaSubclass || null,
+    });
   };
 
   const getStatusColor = (status: Matter["status"]) => {
@@ -549,15 +615,24 @@ const MigrationMatters = () => {
                       </div>
                       <div className="glass rounded-lg p-4">
                         <p className="text-sm text-muted-foreground mb-1">Actions</p>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => setMatterToDelete(selectedMatter)}
-                          className="mt-1"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </Button>
+                        <div className="flex gap-2 mt-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditMatter(selectedMatter)}
+                          >
+                            <Pencil className="w-4 h-4 mr-2" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => setMatterToDelete(selectedMatter)}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </TabsContent>
@@ -616,6 +691,70 @@ const MigrationMatters = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Edit Matter Dialog */}
+        <Dialog open={!!matterToEdit} onOpenChange={() => setMatterToEdit(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Application</DialogTitle>
+              <DialogDescription>
+                Update application details.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Application Name</Label>
+                <Input
+                  value={editForm.matterName}
+                  onChange={(e) => setEditForm({...editForm, matterName: e.target.value})}
+                  placeholder="e.g., Skilled Worker Application"
+                  className="bg-secondary border-border"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Visa Subclass</Label>
+                <Select 
+                  value={editForm.visaSubclass} 
+                  onValueChange={(value) => setEditForm({...editForm, visaSubclass: value})}
+                >
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue placeholder="Select visa type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {visaSubclasses.map(visa => (
+                      <SelectItem key={visa.value} value={visa.value}>
+                        {visa.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setMatterToEdit(null)}>
+                Cancel
+              </Button>
+              <Button 
+                variant="gradient" 
+                className="flex-1" 
+                onClick={handleUpdateMatter} 
+                disabled={!editForm.matterName.trim() || updateMatterMutation.isPending}
+              >
+                {updateMatterMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
