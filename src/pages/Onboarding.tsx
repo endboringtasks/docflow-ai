@@ -1,0 +1,245 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Zap, FileCheck, Users, Clipboard, ArrowRight, Check, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
+
+type Niche = "migration" | "audit" | "hr";
+
+interface NicheOption {
+  id: Niche;
+  title: string;
+  subtitle: string;
+  description: string;
+  icon: React.ElementType;
+  available: boolean;
+}
+
+const niches: NicheOption[] = [
+  {
+    id: "migration",
+    title: "Migration Services",
+    subtitle: "Docflow AI – Migration",
+    description: "Visa applications, client management, document validation",
+    icon: FileCheck,
+    available: true,
+  },
+  {
+    id: "audit",
+    title: "Audit Services",
+    subtitle: "Docflow AI – Audit",
+    description: "Audit engagements, document requests, review workflows",
+    icon: Clipboard,
+    available: false,
+  },
+  {
+    id: "hr",
+    title: "HR Services",
+    subtitle: "Docflow AI – HR",
+    description: "Employee management, onboarding, compliance tracking",
+    icon: Users,
+    available: false,
+  },
+];
+
+const Onboarding = () => {
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const [companyName, setCompanyName] = useState("");
+  const [selectedNiche, setSelectedNiche] = useState<Niche | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleContinue = async () => {
+    if (step === 1 && companyName.trim()) {
+      setStep(2);
+    } else if (step === 2 && selectedNiche) {
+      setIsLoading(true);
+      
+      // Simulate company creation - will be replaced with Supabase
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      toast.success("Company created successfully!", {
+        description: `Welcome to Docflow AI – ${selectedNiche.charAt(0).toUpperCase() + selectedNiche.slice(1)}`,
+      });
+      
+      navigate(`/app/${selectedNiche}/dashboard`);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center p-8">
+      <div className="absolute inset-0 bg-hero-gradient opacity-30" />
+      
+      <motion.div 
+        className="relative z-10 w-full max-w-2xl"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        {/* Header */}
+        <div className="text-center mb-12">
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <div className="w-14 h-14 gradient-bg rounded-2xl flex items-center justify-center">
+              <Zap className="w-7 h-7 text-primary-foreground" />
+            </div>
+          </div>
+          <h1 className="text-3xl font-bold mb-2">Set up your workspace</h1>
+          <p className="text-muted-foreground">Let's get your company configured in just a few steps</p>
+        </div>
+
+        {/* Progress */}
+        <div className="flex items-center justify-center gap-4 mb-12">
+          {[1, 2].map((s) => (
+            <div key={s} className="flex items-center gap-2">
+              <div 
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${
+                  s < step ? "gradient-bg text-primary-foreground" : 
+                  s === step ? "border-2 border-primary text-primary" : 
+                  "border border-border text-muted-foreground"
+                }`}
+              >
+                {s < step ? <Check className="w-4 h-4" /> : s}
+              </div>
+              <span className={`text-sm ${s === step ? "text-foreground" : "text-muted-foreground"}`}>
+                {s === 1 ? "Company" : "Industry"}
+              </span>
+              {s < 2 && <div className="w-12 h-px bg-border" />}
+            </div>
+          ))}
+        </div>
+
+        {/* Form Content */}
+        <div className="glass rounded-2xl p-8">
+          <AnimatePresence mode="wait">
+            {step === 1 && (
+              <motion.div
+                key="step1"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <h2 className="text-2xl font-bold mb-2">What's your company name?</h2>
+                <p className="text-muted-foreground mb-8">
+                  This will be your workspace name in Docflow AI
+                </p>
+                
+                <div className="space-y-2 mb-8">
+                  <label className="text-sm font-medium">Company name</label>
+                  <Input
+                    type="text"
+                    placeholder="Acme Corp"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    className="h-12 bg-secondary border-border"
+                    autoFocus
+                  />
+                </div>
+                
+                <Button 
+                  variant="gradient" 
+                  className="w-full h-12"
+                  onClick={handleContinue}
+                  disabled={!companyName.trim()}
+                >
+                  Continue
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </motion.div>
+            )}
+
+            {step === 2 && (
+              <motion.div
+                key="step2"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <h2 className="text-2xl font-bold mb-2">Select your industry</h2>
+                <p className="text-muted-foreground mb-8">
+                  Choose the solution that best fits <span className="text-foreground font-medium">{companyName}</span>
+                </p>
+                
+                <div className="grid gap-4 mb-8">
+                  {niches.map((niche) => (
+                    <button
+                      key={niche.id}
+                      onClick={() => niche.available && setSelectedNiche(niche.id)}
+                      disabled={!niche.available}
+                      className={`relative w-full text-left p-6 rounded-xl border transition-all ${
+                        selectedNiche === niche.id
+                          ? "border-primary bg-primary/10 shadow-glow"
+                          : niche.available
+                          ? "border-border bg-secondary/50 hover:border-primary/50"
+                          : "border-border bg-secondary/30 opacity-60 cursor-not-allowed"
+                      }`}
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                          selectedNiche === niche.id ? "gradient-bg" : "bg-secondary"
+                        }`}>
+                          <niche.icon className={`w-6 h-6 ${
+                            selectedNiche === niche.id ? "text-primary-foreground" : "text-muted-foreground"
+                          }`} />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-semibold">{niche.title}</h3>
+                            {!niche.available && (
+                              <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-primary mb-1">{niche.subtitle}</p>
+                          <p className="text-sm text-muted-foreground">{niche.description}</p>
+                        </div>
+                        {selectedNiche === niche.id && (
+                          <div className="w-6 h-6 rounded-full gradient-bg flex items-center justify-center">
+                            <Check className="w-4 h-4 text-primary-foreground" />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="flex gap-4">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 h-12"
+                    onClick={() => setStep(1)}
+                  >
+                    Back
+                  </Button>
+                  <Button 
+                    variant="gradient" 
+                    className="flex-1 h-12"
+                    onClick={handleContinue}
+                    disabled={!selectedNiche || isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Creating workspace...
+                      </>
+                    ) : (
+                      <>
+                        Create Workspace
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+export default Onboarding;
