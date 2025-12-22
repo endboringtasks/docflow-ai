@@ -6,14 +6,14 @@ import { Input } from "@/components/ui/input";
 import { 
   Plus, 
   Search, 
-  MoreHorizontal,
   User,
   Users,
   Building2,
   Mail,
   Phone,
   FolderOpen,
-  Loader2
+  Loader2,
+  Trash2
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -24,6 +24,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -53,6 +63,7 @@ const MigrationClients = () => {
   const { currentCompany } = useCompany();
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
   const [newClient, setNewClient] = useState({
     clientType: "personal" as "personal" | "corporate",
     fullName: "",
@@ -135,7 +146,29 @@ const MigrationClients = () => {
     },
   });
 
-  const filteredClients = clients.filter(client => 
+  // Delete client mutation
+  const deleteClientMutation = useMutation({
+    mutationFn: async (clientId: string) => {
+      const { error } = await supabase
+        .from("clients")
+        .delete()
+        .eq("id", clientId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
+      setClientToDelete(null);
+      toast.success("Client deleted successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to delete client", {
+        description: error.message,
+      });
+    },
+  });
+
+  const filteredClients = clients.filter(client =>
     client.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     client.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -354,8 +387,13 @@ const MigrationClients = () => {
                         <Badge variant="outline">{client.matters_count}</Badge>
                       </td>
                       <td className="p-4">
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="w-4 h-4" />
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setClientToDelete(client)}
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </td>
                     </motion.tr>
@@ -381,6 +419,40 @@ const MigrationClients = () => {
             )}
           </div>
         )}
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={!!clientToDelete} onOpenChange={() => setClientToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Client</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{clientToDelete?.full_name}"? This action cannot be undone.
+                {clientToDelete && clientToDelete.matters_count > 0 && (
+                  <span className="block mt-2 text-destructive font-medium">
+                    Warning: This client has {clientToDelete.matters_count} associated application(s) that must be deleted first.
+                  </span>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => clientToDelete && deleteClientMutation.mutate(clientToDelete.id)}
+                disabled={deleteClientMutation.isPending}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleteClientMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );

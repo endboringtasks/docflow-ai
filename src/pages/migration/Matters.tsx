@@ -9,7 +9,8 @@ import {
   FileText,
   CheckCircle,
   User,
-  Loader2
+  Loader2,
+  Trash2
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -20,6 +21,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -74,6 +85,7 @@ const MigrationMatters = () => {
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "active" | "done">("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedMatter, setSelectedMatter] = useState<Matter | null>(null);
+  const [matterToDelete, setMatterToDelete] = useState<Matter | null>(null);
   const [newMatter, setNewMatter] = useState({
     clientId: "",
     matterName: "",
@@ -209,6 +221,30 @@ const MigrationMatters = () => {
     },
     onError: (error) => {
       toast.error("Failed to update status", {
+        description: error.message,
+      });
+    },
+  });
+
+  // Delete matter mutation
+  const deleteMatterMutation = useMutation({
+    mutationFn: async (matterId: string) => {
+      const { error } = await supabase
+        .from("matters")
+        .delete()
+        .eq("id", matterId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
+      setMatterToDelete(null);
+      setSelectedMatter(null);
+      toast.success("Application deleted successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to delete application", {
         description: error.message,
       });
     },
@@ -512,10 +548,16 @@ const MigrationMatters = () => {
                         <p className="font-medium">{selectedMatter.drive_folder_id ? "Linked" : "Pending"}</p>
                       </div>
                       <div className="glass rounded-lg p-4">
-                        <p className="text-sm text-muted-foreground mb-1">Current Status</p>
-                        <Badge variant={getStatusColor(selectedMatter.status)} className="mt-1">
-                          {selectedMatter.status}
-                        </Badge>
+                        <p className="text-sm text-muted-foreground mb-1">Actions</p>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => setMatterToDelete(selectedMatter)}
+                          className="mt-1"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete
+                        </Button>
                       </div>
                     </div>
                   </TabsContent>
@@ -545,6 +587,35 @@ const MigrationMatters = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={!!matterToDelete} onOpenChange={() => setMatterToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Application</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{matterToDelete?.matter_name}"? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => matterToDelete && deleteMatterMutation.mutate(matterToDelete.id)}
+                disabled={deleteMatterMutation.isPending}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleteMatterMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );
