@@ -6,12 +6,12 @@ import { Input } from "@/components/ui/input";
 import { 
   Plus, 
   Search, 
-  MoreHorizontal,
   FileText,
   Clock,
   CheckCircle,
   AlertCircle,
-  User
+  User,
+  Loader2
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -32,34 +32,25 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useCompany } from "@/hooks/useCompany";
 
 interface Matter {
   id: string;
-  clientId: string;
-  clientName: string;
-  matterName: string;
-  visaSubclass: string;
+  client_id: string;
+  client_name: string;
+  matter_name: string;
+  visa_subclass: string | null;
   status: "draft" | "active" | "done";
-  driveFolderId: string | null;
-  createdAt: string;
-  progress: number;
+  drive_folder_id: string | null;
+  created_at: string;
 }
 
-const mockClients = [
-  { id: "1", name: "John Smith" },
-  { id: "2", name: "Sarah Chen" },
-  { id: "3", name: "Tech Solutions Pty Ltd" },
-  { id: "4", name: "Ahmed Hassan" },
-  { id: "5", name: "Maria Garcia" },
-];
-
-const mockMatters: Matter[] = [
-  { id: "1", clientId: "1", clientName: "John Smith", matterName: "Skilled Worker Application", visaSubclass: "482", status: "active", driveFolderId: "folder_1", createdAt: "2024-01-20", progress: 75 },
-  { id: "2", clientId: "2", clientName: "Sarah Chen", matterName: "Partner Visa Application", visaSubclass: "820", status: "active", driveFolderId: "folder_2", createdAt: "2024-01-25", progress: 45 },
-  { id: "3", clientId: "4", clientName: "Ahmed Hassan", matterName: "Student Visa Application", visaSubclass: "500", status: "draft", driveFolderId: null, createdAt: "2024-02-10", progress: 20 },
-  { id: "4", clientId: "5", clientName: "Maria Garcia", matterName: "Business Innovation Visa", visaSubclass: "188", status: "done", driveFolderId: "folder_4", createdAt: "2024-01-15", progress: 100 },
-  { id: "5", clientId: "1", clientName: "John Smith", matterName: "ENS Nomination", visaSubclass: "186", status: "active", driveFolderId: "folder_5", createdAt: "2024-02-05", progress: 60 },
-];
+interface Client {
+  id: string;
+  full_name: string;
+}
 
 const visaSubclasses = [
   { value: "482", label: "Temporary Skill Shortage (482)" },
@@ -73,7 +64,8 @@ const visaSubclasses = [
 ];
 
 const MigrationMatters = () => {
-  const [matters, setMatters] = useState<Matter[]>(mockMatters);
+  const queryClient = useQueryClient();
+  const { currentCompany } = useCompany();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "active" | "done">("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -84,10 +76,107 @@ const MigrationMatters = () => {
     visaSubclass: "",
   });
 
+  // Fetch clients for the dropdown
+  const { data: clients = [] } = useQuery({
+    queryKey: ["clients", currentCompany?.id],
+    queryFn: async () => {
+      if (!currentCompany?.id) return [];
+      
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, full_name")
+        .eq("company_id", currentCompany.id)
+        .order("full_name");
+      
+      if (error) throw error;
+      return data as Client[];
+    },
+    enabled: !!currentCompany?.id,
+  });
+
+  // Fetch matters with client names
+  const { data: matters = [], isLoading } = useQuery({
+    queryKey: ["matters", currentCompany?.id],
+    queryFn: async () => {
+      if (!currentCompany?.id) return [];
+      
+      const { data, error } = await supabase
+        .from("matters")
+        .select(`
+          id,
+          client_id,
+          matter_name,
+          visa_subclass,
+          status,
+          drive_folder_id,
+          created_at,
+          clients (
+            full_name
+          )
+        `)
+        .eq("company_id", currentCompany.id)
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      
+      return (data || []).map(matter => ({
+        id: matter.id,
+        client_id: matter.client_id,
+        client_name: (matter.clients as any)?.full_name || "Unknown",
+        matter_name: matter.matter_name,
+        visa_subclass: matter.visa_subclass,
+        status: matter.status as "draft" | "active" | "done",
+        drive_folder_id: matter.drive_folder_id,
+        created_at: matter.created_at,
+      })) as Matter[];
+    },
+    enabled: !!currentCompany?.id,
+  });
+
+  // Create matter mutation
+  const createMatterMutation = useMutation({
+    mutationFn: async (matterData: {
+      client_id: string;
+      matter_name: string;
+      visa_subclass: string;
+    }) => {
+      if (!currentCompany?.id) throw new Error("No company selected");
+      
+      const { data, error } = await supabase
+        .from("matters")
+        .insert({
+          company_id: currentCompany.id,
+          client_id: matterData.client_id,
+          matter_name: matterData.matter_name,
+          visa_subclass: matterData.visa_subclass,
+          status: "draft",
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
+      setIsCreateOpen(false);
+      setNewMatter({ clientId: "", matterName: "", visaSubclass: "" });
+      toast.success("Visa application created!", {
+        description: "A webhook can be configured to create the matter folder.",
+      });
+    },
+    onError: (error) => {
+      toast.error("Failed to create application", {
+        description: error.message,
+      });
+    },
+  });
+
   const filteredMatters = matters.filter(matter => {
-    const matchesSearch = matter.matterName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      matter.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      matter.visaSubclass.includes(searchQuery);
+    const matchesSearch = matter.matter_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      matter.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      matter.visa_subclass?.includes(searchQuery);
     const matchesStatus = statusFilter === "all" || matter.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -95,34 +184,11 @@ const MigrationMatters = () => {
   const handleCreateMatter = () => {
     if (!newMatter.clientId || !newMatter.matterName.trim() || !newMatter.visaSubclass) return;
     
-    const client = mockClients.find(c => c.id === newMatter.clientId);
-    const matter: Matter = {
-      id: Date.now().toString(),
-      clientId: newMatter.clientId,
-      clientName: client?.name || "",
-      matterName: newMatter.matterName,
-      visaSubclass: newMatter.visaSubclass,
-      status: "draft",
-      driveFolderId: null,
-      createdAt: new Date().toISOString().split("T")[0],
-      progress: 0,
-    };
-    
-    setMatters([matter, ...matters]);
-    setIsCreateOpen(false);
-    setNewMatter({ clientId: "", matterName: "", visaSubclass: "" });
-    
-    toast.success("Visa application created!", {
-      description: "A webhook has been triggered to create the matter folder.",
+    createMatterMutation.mutate({
+      client_id: newMatter.clientId,
+      matter_name: newMatter.matterName.trim(),
+      visa_subclass: newMatter.visaSubclass,
     });
-  };
-
-  const getStatusIcon = (status: Matter["status"]) => {
-    switch (status) {
-      case "draft": return <Clock className="w-4 h-4 text-muted-foreground" />;
-      case "active": return <AlertCircle className="w-4 h-4 text-warning" />;
-      case "done": return <CheckCircle className="w-4 h-4 text-success" />;
-    }
   };
 
   const getStatusColor = (status: Matter["status"]) => {
@@ -131,6 +197,14 @@ const MigrationMatters = () => {
       case "active": return "default";
       case "done": return "success";
     }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-AU", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   };
 
   return (
@@ -145,7 +219,7 @@ const MigrationMatters = () => {
           
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
-              <Button variant="gradient">
+              <Button variant="gradient" disabled={clients.length === 0}>
                 <Plus className="w-4 h-4 mr-2" />
                 New Application
               </Button>
@@ -154,7 +228,7 @@ const MigrationMatters = () => {
               <DialogHeader>
                 <DialogTitle>Create New Visa Application</DialogTitle>
                 <DialogDescription>
-                  Start a new visa application for an existing client. A folder structure will be created in Google Drive.
+                  Start a new visa application for an existing client. A folder structure can be created in Google Drive via webhook.
                 </DialogDescription>
               </DialogHeader>
               
@@ -169,9 +243,9 @@ const MigrationMatters = () => {
                       <SelectValue placeholder="Choose a client" />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockClients.map(client => (
+                      {clients.map(client => (
                         <SelectItem key={client.id} value={client.id}>
-                          {client.name}
+                          {client.full_name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -216,9 +290,16 @@ const MigrationMatters = () => {
                   variant="gradient" 
                   className="flex-1" 
                   onClick={handleCreateMatter} 
-                  disabled={!newMatter.clientId || !newMatter.matterName.trim() || !newMatter.visaSubclass}
+                  disabled={!newMatter.clientId || !newMatter.matterName.trim() || !newMatter.visaSubclass || createMatterMutation.isPending}
                 >
-                  Create Application
+                  {createMatterMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Create Application"
+                  )}
                 </Button>
               </div>
             </DialogContent>
@@ -251,58 +332,65 @@ const MigrationMatters = () => {
           </div>
         </div>
 
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        )}
+
         {/* Matters Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredMatters.map((matter, index) => (
-            <motion.div
-              key={matter.id}
-              className="card-gradient rounded-xl border border-border/50 p-6 hover:border-primary/50 transition-all cursor-pointer"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              onClick={() => setSelectedMatter(matter)}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-10 h-10 rounded-lg gradient-bg flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-primary-foreground" />
+        {!isLoading && (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredMatters.map((matter, index) => (
+              <motion.div
+                key={matter.id}
+                className="card-gradient rounded-xl border border-border/50 p-6 hover:border-primary/50 transition-all cursor-pointer"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                onClick={() => setSelectedMatter(matter)}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-10 h-10 rounded-lg gradient-bg flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-primary-foreground" />
+                  </div>
+                  <Badge variant={getStatusColor(matter.status)}>
+                    {matter.status}
+                  </Badge>
                 </div>
-                <Badge variant={getStatusColor(matter.status)}>
-                  {matter.status}
-                </Badge>
-              </div>
-              
-              <h3 className="font-semibold mb-1 line-clamp-1">{matter.matterName}</h3>
-              <p className="text-sm text-primary mb-2">Subclass {matter.visaSubclass}</p>
-              
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                <User className="w-4 h-4" />
-                {matter.clientName}
-              </div>
+                
+                <h3 className="font-semibold mb-1 line-clamp-1">{matter.matter_name}</h3>
+                {matter.visa_subclass && (
+                  <p className="text-sm text-primary mb-2">Subclass {matter.visa_subclass}</p>
+                )}
+                
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                  <User className="w-4 h-4" />
+                  {matter.client_name}
+                </div>
 
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Progress</span>
-                  <span className="font-medium">{matter.progress}%</span>
-                </div>
-                <div className="h-2 rounded-full bg-secondary overflow-hidden">
-                  <div 
-                    className="h-full rounded-full gradient-bg transition-all duration-500"
-                    style={{ width: `${matter.progress}%` }}
-                  />
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+                <p className="text-xs text-muted-foreground">
+                  Created {formatDate(matter.created_at)}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+        )}
 
-        {filteredMatters.length === 0 && (
+        {!isLoading && filteredMatters.length === 0 && (
           <div className="card-gradient rounded-xl border border-border/50 p-12 text-center">
             <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="font-semibold mb-2">No applications found</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              {searchQuery || statusFilter !== "all" ? "Try different filters" : "Create your first visa application"}
+              {searchQuery || statusFilter !== "all" 
+                ? "Try different filters" 
+                : clients.length === 0 
+                  ? "Add a client first before creating applications"
+                  : "Create your first visa application"
+              }
             </p>
-            {!searchQuery && statusFilter === "all" && (
+            {!searchQuery && statusFilter === "all" && clients.length > 0 && (
               <Button variant="gradient" onClick={() => setIsCreateOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 New Application
@@ -321,12 +409,14 @@ const MigrationMatters = () => {
                     <Badge variant={getStatusColor(selectedMatter.status)}>
                       {selectedMatter.status}
                     </Badge>
-                    <Badge variant="outline">Subclass {selectedMatter.visaSubclass}</Badge>
+                    {selectedMatter.visa_subclass && (
+                      <Badge variant="outline">Subclass {selectedMatter.visa_subclass}</Badge>
+                    )}
                   </div>
-                  <DialogTitle className="text-2xl">{selectedMatter.matterName}</DialogTitle>
+                  <DialogTitle className="text-2xl">{selectedMatter.matter_name}</DialogTitle>
                   <DialogDescription className="flex items-center gap-2">
                     <User className="w-4 h-4" />
-                    {selectedMatter.clientName}
+                    {selectedMatter.client_name}
                   </DialogDescription>
                 </DialogHeader>
                 
@@ -341,15 +431,15 @@ const MigrationMatters = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="glass rounded-lg p-4">
                         <p className="text-sm text-muted-foreground mb-1">Created</p>
-                        <p className="font-medium">{selectedMatter.createdAt}</p>
+                        <p className="font-medium">{formatDate(selectedMatter.created_at)}</p>
                       </div>
                       <div className="glass rounded-lg p-4">
-                        <p className="text-sm text-muted-foreground mb-1">Progress</p>
-                        <p className="font-medium">{selectedMatter.progress}%</p>
+                        <p className="text-sm text-muted-foreground mb-1">Visa Subclass</p>
+                        <p className="font-medium">{selectedMatter.visa_subclass || "N/A"}</p>
                       </div>
                       <div className="glass rounded-lg p-4">
                         <p className="text-sm text-muted-foreground mb-1">Drive Folder</p>
-                        <p className="font-medium">{selectedMatter.driveFolderId ? "Linked" : "Pending"}</p>
+                        <p className="font-medium">{selectedMatter.drive_folder_id ? "Linked" : "Pending"}</p>
                       </div>
                       <div className="glass rounded-lg p-4">
                         <p className="text-sm text-muted-foreground mb-1">Status</p>

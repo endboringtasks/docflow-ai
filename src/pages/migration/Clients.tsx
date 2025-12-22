@@ -12,7 +12,8 @@ import {
   Building2,
   Mail,
   Phone,
-  FolderOpen
+  FolderOpen,
+  Loader2
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -32,28 +33,24 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useCompany } from "@/hooks/useCompany";
 
 interface Client {
   id: string;
-  clientType: "personal" | "corporate";
-  fullName: string;
+  client_type: "personal" | "corporate";
+  full_name: string;
   email: string | null;
   phone: string | null;
-  driveFolderId: string | null;
-  createdAt: string;
-  mattersCount: number;
+  drive_folder_id: string | null;
+  created_at: string;
+  matters_count: number;
 }
 
-const mockClients: Client[] = [
-  { id: "1", clientType: "personal", fullName: "John Smith", email: "john@email.com", phone: "+61 400 123 456", driveFolderId: "folder_abc", createdAt: "2024-01-15", mattersCount: 2 },
-  { id: "2", clientType: "personal", fullName: "Sarah Chen", email: "sarah.chen@email.com", phone: "+61 400 234 567", driveFolderId: "folder_def", createdAt: "2024-01-20", mattersCount: 1 },
-  { id: "3", clientType: "corporate", fullName: "Tech Solutions Pty Ltd", email: "contact@techsolutions.com", phone: "+61 2 9876 5432", driveFolderId: null, createdAt: "2024-02-01", mattersCount: 3 },
-  { id: "4", clientType: "personal", fullName: "Ahmed Hassan", email: "ahmed.h@email.com", phone: null, driveFolderId: "folder_ghi", createdAt: "2024-02-10", mattersCount: 1 },
-  { id: "5", clientType: "personal", fullName: "Maria Garcia", email: "maria.garcia@email.com", phone: "+61 400 345 678", driveFolderId: "folder_jkl", createdAt: "2024-02-15", mattersCount: 1 },
-];
-
 const MigrationClients = () => {
-  const [clients, setClients] = useState<Client[]>(mockClients);
+  const queryClient = useQueryClient();
+  const { currentCompany } = useCompany();
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newClient, setNewClient] = useState({
@@ -63,31 +60,102 @@ const MigrationClients = () => {
     phone: "",
   });
 
+  // Fetch clients with matters count
+  const { data: clients = [], isLoading } = useQuery({
+    queryKey: ["clients", currentCompany?.id],
+    queryFn: async () => {
+      if (!currentCompany?.id) return [];
+      
+      const { data: clientsData, error: clientsError } = await supabase
+        .from("clients")
+        .select("*")
+        .eq("company_id", currentCompany.id)
+        .order("created_at", { ascending: false });
+      
+      if (clientsError) throw clientsError;
+
+      // Get matters count for each client
+      const { data: mattersData, error: mattersError } = await supabase
+        .from("matters")
+        .select("client_id")
+        .eq("company_id", currentCompany.id);
+      
+      if (mattersError) throw mattersError;
+
+      const mattersCounts = (mattersData || []).reduce((acc, matter) => {
+        acc[matter.client_id] = (acc[matter.client_id] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      return (clientsData || []).map(client => ({
+        ...client,
+        matters_count: mattersCounts[client.id] || 0,
+      })) as Client[];
+    },
+    enabled: !!currentCompany?.id,
+  });
+
+  // Create client mutation
+  const createClientMutation = useMutation({
+    mutationFn: async (clientData: {
+      client_type: "personal" | "corporate";
+      full_name: string;
+      email: string | null;
+      phone: string | null;
+    }) => {
+      if (!currentCompany?.id) throw new Error("No company selected");
+      
+      const { data, error } = await supabase
+        .from("clients")
+        .insert({
+          company_id: currentCompany.id,
+          client_type: clientData.client_type,
+          full_name: clientData.full_name,
+          email: clientData.email,
+          phone: clientData.phone,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
+      setIsCreateOpen(false);
+      setNewClient({ clientType: "personal", fullName: "", email: "", phone: "" });
+      toast.success("Client created!", {
+        description: "A webhook can be configured to create the Google Drive folder.",
+      });
+    },
+    onError: (error) => {
+      toast.error("Failed to create client", {
+        description: error.message,
+      });
+    },
+  });
+
   const filteredClients = clients.filter(client => 
-    client.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    client.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     client.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleCreateClient = () => {
     if (!newClient.fullName.trim()) return;
     
-    const client: Client = {
-      id: Date.now().toString(),
-      clientType: newClient.clientType,
-      fullName: newClient.fullName,
-      email: newClient.email || null,
-      phone: newClient.phone || null,
-      driveFolderId: null,
-      createdAt: new Date().toISOString().split("T")[0],
-      mattersCount: 0,
-    };
-    
-    setClients([client, ...clients]);
-    setIsCreateOpen(false);
-    setNewClient({ clientType: "personal", fullName: "", email: "", phone: "" });
-    
-    toast.success("Client created!", {
-      description: "A webhook has been triggered to create the Google Drive folder.",
+    createClientMutation.mutate({
+      client_type: newClient.clientType,
+      full_name: newClient.fullName.trim(),
+      email: newClient.email.trim() || null,
+      phone: newClient.phone.trim() || null,
+    });
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-AU", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
@@ -112,7 +180,7 @@ const MigrationClients = () => {
               <DialogHeader>
                 <DialogTitle>Create New Client</DialogTitle>
                 <DialogDescription>
-                  Add a new visa applicant to your practice. A Google Drive folder will be created automatically.
+                  Add a new visa applicant to your practice. A Google Drive folder can be created automatically via webhook.
                 </DialogDescription>
               </DialogHeader>
               
@@ -170,8 +238,20 @@ const MigrationClients = () => {
                 <Button variant="outline" className="flex-1" onClick={() => setIsCreateOpen(false)}>
                   Cancel
                 </Button>
-                <Button variant="gradient" className="flex-1" onClick={handleCreateClient} disabled={!newClient.fullName.trim()}>
-                  Create Client
+                <Button 
+                  variant="gradient" 
+                  className="flex-1" 
+                  onClick={handleCreateClient} 
+                  disabled={!newClient.fullName.trim() || createClientMutation.isPending}
+                >
+                  {createClientMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Create Client"
+                  )}
                 </Button>
               </div>
             </DialogContent>
@@ -192,106 +272,115 @@ const MigrationClients = () => {
           </div>
         </div>
 
-        {/* Clients Table */}
-        <div className="card-gradient rounded-xl border border-border/50 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border/50">
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Client</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground hidden sm:table-cell">Type</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground hidden md:table-cell">Contact</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground hidden lg:table-cell">Drive Folder</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Applications</th>
-                  <th className="p-4"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/50">
-                {filteredClients.map((client, index) => (
-                  <motion.tr 
-                    key={client.id}
-                    className="hover:bg-secondary/30 transition-colors"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                  >
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          client.clientType === "corporate" ? "bg-accent/20" : "bg-primary/20"
-                        }`}>
-                          {client.clientType === "corporate" 
-                            ? <Building2 className="w-5 h-5 text-accent" />
-                            : <User className="w-5 h-5 text-primary" />
-                          }
-                        </div>
-                        <div>
-                          <p className="font-medium">{client.fullName}</p>
-                          <p className="text-sm text-muted-foreground">Added {client.createdAt}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4 hidden sm:table-cell">
-                      <Badge variant={client.clientType === "corporate" ? "secondary" : "outline"}>
-                        {client.clientType}
-                      </Badge>
-                    </td>
-                    <td className="p-4 hidden md:table-cell">
-                      <div className="space-y-1">
-                        {client.email && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Mail className="w-3 h-3" />
-                            {client.email}
-                          </div>
-                        )}
-                        {client.phone && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Phone className="w-3 h-3" />
-                            {client.phone}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-4 hidden lg:table-cell">
-                      {client.driveFolderId ? (
-                        <Badge variant="success" className="gap-1">
-                          <FolderOpen className="w-3 h-3" />
-                          Linked
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">Pending</Badge>
-                      )}
-                    </td>
-                    <td className="p-4">
-                      <Badge variant="outline">{client.mattersCount}</Badge>
-                    </td>
-                    <td className="p-4">
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
+        )}
 
-          {filteredClients.length === 0 && (
-            <div className="p-12 text-center">
-              <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-semibold mb-2">No clients found</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                {searchQuery ? "Try a different search term" : "Get started by adding your first client"}
-              </p>
-              {!searchQuery && (
-                <Button variant="gradient" onClick={() => setIsCreateOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Client
-                </Button>
-              )}
+        {/* Clients Table */}
+        {!isLoading && (
+          <div className="card-gradient rounded-xl border border-border/50 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border/50">
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Client</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground hidden sm:table-cell">Type</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground hidden md:table-cell">Contact</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground hidden lg:table-cell">Drive Folder</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Applications</th>
+                    <th className="p-4"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {filteredClients.map((client, index) => (
+                    <motion.tr 
+                      key={client.id}
+                      className="hover:bg-secondary/30 transition-colors"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            client.client_type === "corporate" ? "bg-accent/20" : "bg-primary/20"
+                          }`}>
+                            {client.client_type === "corporate" 
+                              ? <Building2 className="w-5 h-5 text-accent" />
+                              : <User className="w-5 h-5 text-primary" />
+                            }
+                          </div>
+                          <div>
+                            <p className="font-medium">{client.full_name}</p>
+                            <p className="text-sm text-muted-foreground">Added {formatDate(client.created_at)}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4 hidden sm:table-cell">
+                        <Badge variant={client.client_type === "corporate" ? "secondary" : "outline"}>
+                          {client.client_type}
+                        </Badge>
+                      </td>
+                      <td className="p-4 hidden md:table-cell">
+                        <div className="space-y-1">
+                          {client.email && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Mail className="w-3 h-3" />
+                              {client.email}
+                            </div>
+                          )}
+                          {client.phone && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Phone className="w-3 h-3" />
+                              {client.phone}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4 hidden lg:table-cell">
+                        {client.drive_folder_id ? (
+                          <Badge variant="success" className="gap-1">
+                            <FolderOpen className="w-3 h-3" />
+                            Linked
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">Pending</Badge>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        <Badge variant="outline">{client.matters_count}</Badge>
+                      </td>
+                      <td className="p-4">
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-        </div>
+
+            {filteredClients.length === 0 && (
+              <div className="p-12 text-center">
+                <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="font-semibold mb-2">No clients found</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {searchQuery ? "Try a different search term" : "Get started by adding your first client"}
+                </p>
+                {!searchQuery && (
+                  <Button variant="gradient" onClick={() => setIsCreateOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Client
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </AppLayout>
   );
