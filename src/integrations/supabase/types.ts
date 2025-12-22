@@ -14,16 +14,243 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      automation_events: {
+        Row: {
+          client_id: string | null
+          company_id: string
+          created_at: string
+          event_type: string
+          id: string
+          matter_id: string | null
+          payload: Json | null
+        }
+        Insert: {
+          client_id?: string | null
+          company_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          matter_id?: string | null
+          payload?: Json | null
+        }
+        Update: {
+          client_id?: string | null
+          company_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          matter_id?: string | null
+          payload?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_events_matter_id_fkey"
+            columns: ["matter_id"]
+            isOneToOne: false
+            referencedRelation: "matters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          client_type: Database["public"]["Enums"]["client_type"]
+          company_id: string
+          created_at: string
+          drive_folder_id: string | null
+          email: string | null
+          full_name: string
+          id: string
+          phone: string | null
+        }
+        Insert: {
+          client_type?: Database["public"]["Enums"]["client_type"]
+          company_id: string
+          created_at?: string
+          drive_folder_id?: string | null
+          email?: string | null
+          full_name: string
+          id?: string
+          phone?: string | null
+        }
+        Update: {
+          client_type?: Database["public"]["Enums"]["client_type"]
+          company_id?: string
+          created_at?: string
+          drive_folder_id?: string | null
+          email?: string | null
+          full_name?: string
+          id?: string
+          phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companies: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          niche: Database["public"]["Enums"]["niche_type"]
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subscription_plan: Database["public"]["Enums"]["subscription_plan"]
+          subscription_status: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          niche: Database["public"]["Enums"]["niche_type"]
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_plan?: Database["public"]["Enums"]["subscription_plan"]
+          subscription_status?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          niche?: Database["public"]["Enums"]["niche_type"]
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_plan?: Database["public"]["Enums"]["subscription_plan"]
+          subscription_status?: string | null
+        }
+        Relationships: []
+      }
+      company_members: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["company_role"]
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["company_role"]
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["company_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      matters: {
+        Row: {
+          client_id: string
+          company_id: string
+          created_at: string
+          drive_folder_id: string | null
+          id: string
+          matter_name: string
+          status: Database["public"]["Enums"]["matter_status"]
+          visa_subclass: string | null
+        }
+        Insert: {
+          client_id: string
+          company_id: string
+          created_at?: string
+          drive_folder_id?: string | null
+          id?: string
+          matter_name: string
+          status?: Database["public"]["Enums"]["matter_status"]
+          visa_subclass?: string | null
+        }
+        Update: {
+          client_id?: string
+          company_id?: string
+          created_at?: string
+          drive_folder_id?: string | null
+          id?: string
+          matter_name?: string
+          status?: Database["public"]["Enums"]["matter_status"]
+          visa_subclass?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matters_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matters_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_company_role: {
+        Args: {
+          _company_id: string
+          _role: Database["public"]["Enums"]["company_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_company_admin_or_owner: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_company_member: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      client_type: "personal" | "corporate"
+      company_role: "owner" | "admin" | "member" | "guest"
+      matter_status: "draft" | "active" | "done"
+      niche_type: "migration" | "audit" | "hr"
+      subscription_plan: "free" | "basic" | "pro" | "enterprise"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +377,12 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      client_type: ["personal", "corporate"],
+      company_role: ["owner", "admin", "member", "guest"],
+      matter_status: ["draft", "active", "done"],
+      niche_type: ["migration", "audit", "hr"],
+      subscription_plan: ["free", "basic", "pro", "enterprise"],
+    },
   },
 } as const
