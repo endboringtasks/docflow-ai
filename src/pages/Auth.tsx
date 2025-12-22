@@ -6,6 +6,7 @@ import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useCompany } from "@/hooks/useCompany";
 import { z } from "zod";
 
 type AuthStep = "email" | "otp";
@@ -16,6 +17,7 @@ const Auth = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { currentCompany, loading: companyLoading } = useCompany();
   const { signInWithOtp, verifyOtp } = useAuth();
   const isSignup = searchParams.get("signup") === "true";
   
@@ -25,12 +27,18 @@ const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
 
-  // Redirect if already authenticated
+  // Redirect based on authentication and company status
   useEffect(() => {
-    if (!authLoading && user) {
-      navigate("/onboarding");
+    if (!authLoading && !companyLoading && user) {
+      if (currentCompany) {
+        // Existing user with company → go to dashboard
+        navigate(`/app/${currentCompany.niche}/dashboard`);
+      } else {
+        // New user without company → go to onboarding
+        navigate("/onboarding");
+      }
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, currentCompany, companyLoading, navigate]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,7 +114,7 @@ const Auth = () => {
     setIsLoading(false);
   };
 
-  if (authLoading) {
+  if (authLoading || companyLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
