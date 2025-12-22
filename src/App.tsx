@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { CompanyProvider } from "@/hooks/useCompany";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
@@ -30,25 +31,71 @@ const App = () => (
               {/* Public */}
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
-              <Route path="/onboarding" element={<Onboarding />} />
               
-              {/* Migration Niche */}
-              <Route path="/app/migration/dashboard" element={<MigrationDashboard />} />
-              <Route path="/app/migration/clients" element={<MigrationClients />} />
-              <Route path="/app/migration/matters" element={<MigrationMatters />} />
+              {/* Protected: Onboarding */}
+              <Route path="/onboarding" element={
+                <ProtectedRoute>
+                  <Onboarding />
+                </ProtectedRoute>
+              } />
               
-              {/* Audit Niche (Stubs) */}
-              <Route path="/app/audit/dashboard" element={<AuditDashboard />} />
-              <Route path="/app/audit/clients" element={<AuditDashboard />} />
-              <Route path="/app/audit/engagements" element={<AuditDashboard />} />
+              {/* Protected: Migration Niche */}
+              <Route path="/app/migration/dashboard" element={
+                <ProtectedRoute>
+                  <MigrationDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/app/migration/clients" element={
+                <ProtectedRoute>
+                  <MigrationClients />
+                </ProtectedRoute>
+              } />
+              <Route path="/app/migration/matters" element={
+                <ProtectedRoute>
+                  <MigrationMatters />
+                </ProtectedRoute>
+              } />
               
-              {/* HR Niche (Stubs) */}
-              <Route path="/app/hr/dashboard" element={<HRDashboard />} />
-              <Route path="/app/hr/employees" element={<HRDashboard />} />
-              <Route path="/app/hr/cases" element={<HRDashboard />} />
+              {/* Protected: Audit Niche (Stubs) */}
+              <Route path="/app/audit/dashboard" element={
+                <ProtectedRoute>
+                  <AuditDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/app/audit/clients" element={
+                <ProtectedRoute>
+                  <AuditDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/app/audit/engagements" element={
+                <ProtectedRoute>
+                  <AuditDashboard />
+                </ProtectedRoute>
+              } />
               
-              {/* Billing */}
-              <Route path="/app/billing" element={<Billing />} />
+              {/* Protected: HR Niche (Stubs) */}
+              <Route path="/app/hr/dashboard" element={
+                <ProtectedRoute>
+                  <HRDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/app/hr/employees" element={
+                <ProtectedRoute>
+                  <HRDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/app/hr/cases" element={
+                <ProtectedRoute>
+                  <HRDashboard />
+                </ProtectedRoute>
+              } />
+              
+              {/* Protected: Billing */}
+              <Route path="/app/billing" element={
+                <ProtectedRoute>
+                  <Billing />
+                </ProtectedRoute>
+              } />
               
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
