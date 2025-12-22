@@ -11,6 +11,7 @@ import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import MigrationDashboard from "./pages/migration/Dashboard";
 import MigrationClients from "./pages/migration/Clients";
+import MigrationClientDetail from "./pages/migration/ClientDetail";
 import MigrationMatters from "./pages/migration/Matters";
 import AuditDashboard from "./pages/audit/Dashboard";
 import HRDashboard from "./pages/hr/Dashboard";
@@ -48,6 +49,11 @@ const App = () => (
               <Route path="/app/migration/clients" element={
                 <ProtectedRoute>
                   <MigrationClients />
+                </ProtectedRoute>
+              } />
+              <Route path="/app/migration/clients/:clientId" element={
+                <ProtectedRoute>
+                  <MigrationClientDetail />
                 </ProtectedRoute>
               } />
               <Route path="/app/migration/matters" element={

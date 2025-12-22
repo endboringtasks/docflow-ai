@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +61,7 @@ interface Client {
 }
 
 const MigrationClients = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentCompany } = useCompany();
   const [searchQuery, setSearchQuery] = useState("");
@@ -402,7 +404,10 @@ const MigrationClients = () => {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
                     >
-                      <td className="p-4">
+                      <td 
+                        className="p-4 cursor-pointer"
+                        onClick={() => navigate(`/app/migration/clients/${client.id}`)}
+                      >
                         <div className="flex items-center gap-3">
                           <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                             client.client_type === "corporate" ? "bg-accent/20" : "bg-primary/20"
@@ -413,7 +418,7 @@ const MigrationClients = () => {
                             }
                           </div>
                           <div>
-                            <p className="font-medium">{client.full_name}</p>
+                            <p className="font-medium hover:text-primary transition-colors">{client.full_name}</p>
                             <p className="text-sm text-muted-foreground">Added {formatDate(client.created_at)}</p>
                           </div>
                         </div>
