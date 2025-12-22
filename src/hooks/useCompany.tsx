@@ -49,6 +49,9 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Ensure loading is true when starting fetch
+    setLoading(true);
+
     try {
       const { data, error } = await supabase
         .from("company_members")
