@@ -15,7 +15,11 @@ import {
   Trash2,
   CheckCircle2,
   Circle,
-  Plus
+  Plus,
+  Upload,
+  Download,
+  X,
+  File
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -74,6 +78,7 @@ interface DocumentItem {
   category: string;
   required: boolean;
   completed: boolean;
+  filePath: string | null;
 }
 
 interface DbDocumentItem {
@@ -82,6 +87,7 @@ interface DbDocumentItem {
   company_id: string;
   document_name: string;
   is_completed: boolean;
+  file_path: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -104,8 +110,8 @@ const statusOptions = [
 ];
 
 // Default document checklist based on visa subclass
-const getDefaultDocuments = (visaSubclass: string | null): Omit<DocumentItem, "id">[] => {
-  const baseDocuments = [
+const getDefaultDocuments = (visaSubclass: string | null): Omit<DocumentItem, "id" | "filePath">[] => {
+  const baseDocuments: Omit<DocumentItem, "id" | "filePath">[] = [
     { name: "Passport (certified copy)", category: "Identity", required: true, completed: false },
     { name: "Birth Certificate", category: "Identity", required: true, completed: false },
     { name: "Passport Photos", category: "Identity", required: true, completed: false },
@@ -113,7 +119,7 @@ const getDefaultDocuments = (visaSubclass: string | null): Omit<DocumentItem, "i
     { name: "Health Examination Results", category: "Health", required: true, completed: false },
   ];
 
-  const additionalDocsByVisa: Record<string, Omit<DocumentItem, "id">[]> = {
+  const additionalDocsByVisa: Record<string, Omit<DocumentItem, "id" | "filePath">[]> = {
     "482": [
       { name: "Employment Contract", category: "Employment", required: true, completed: false },
       { name: "Skills Assessment", category: "Skills", required: true, completed: false },
@@ -166,7 +172,7 @@ const parseDocumentName = (name: string): { displayName: string; category: strin
 };
 
 // Format document for storage
-const formatDocumentForStorage = (doc: Omit<DocumentItem, "id" | "completed">): string => {
+const formatDocumentForStorage = (doc: Omit<DocumentItem, "id" | "completed" | "filePath">): string => {
   if (doc.category === "Custom") {
     return `[Custom] ${doc.name}`;
   }
@@ -245,7 +251,7 @@ const MatterDetail = () => {
 
   // Initialize documents in database if none exist
   const initializeDocumentsMutation = useMutation({
-    mutationFn: async (docs: Omit<DocumentItem, "id">[]) => {
+    mutationFn: async (docs: Omit<DocumentItem, "id" | "filePath">[]) => {
       if (!matterId || !matter?.company_id) throw new Error("Missing IDs");
       
       const documentsToInsert = docs.map(doc => ({
@@ -289,6 +295,7 @@ const MatterDetail = () => {
       category: parsed.category,
       required: parsed.required,
       completed: doc.is_completed,
+      filePath: doc.file_path,
     };
   });
 
@@ -342,6 +349,15 @@ const MatterDetail = () => {
   // Remove document
   const removeDocumentMutation = useMutation({
     mutationFn: async (docId: string) => {
+      // First get the document to check if it has a file
+      const doc = dbDocuments?.find(d => d.id === docId);
+      if (doc?.file_path) {
+        // Delete the file from storage
+        await supabase.storage
+          .from("document-attachments")
+          .remove([doc.file_path]);
+      }
+      
       const { error } = await supabase
         .from("document_checklist")
         .delete()
@@ -355,6 +371,61 @@ const MatterDetail = () => {
     },
     onError: (error) => {
       toast.error("Failed to remove document", { description: error.message });
+    },
+  });
+
+  // Upload file for a document
+  const uploadFileMutation = useMutation({
+    mutationFn: async ({ docId, file }: { docId: string; file: File }) => {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${docId}/${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("document-attachments")
+        .upload(filePath, file);
+      
+      if (uploadError) throw uploadError;
+      
+      const { error: updateError } = await supabase
+        .from("document_checklist")
+        .update({ file_path: filePath })
+        .eq("id", docId);
+      
+      if (updateError) throw updateError;
+      
+      return filePath;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
+      toast.success("File uploaded successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to upload file", { description: error.message });
+    },
+  });
+
+  // Remove file from a document
+  const removeFileMutation = useMutation({
+    mutationFn: async ({ docId, filePath }: { docId: string; filePath: string }) => {
+      const { error: removeError } = await supabase.storage
+        .from("document-attachments")
+        .remove([filePath]);
+      
+      if (removeError) throw removeError;
+      
+      const { error: updateError } = await supabase
+        .from("document_checklist")
+        .update({ file_path: null })
+        .eq("id", docId);
+      
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
+      toast.success("File removed");
+    },
+    onError: (error) => {
+      toast.error("Failed to remove file", { description: error.message });
     },
   });
 
@@ -472,6 +543,41 @@ const MatterDetail = () => {
 
   const handleRemoveDocument = (docId: string) => {
     removeDocumentMutation.mutate(docId);
+  };
+
+  const handleFileUpload = (docId: string, file: File) => {
+    uploadFileMutation.mutate({ docId, file });
+  };
+
+  const handleFileRemove = (docId: string, filePath: string) => {
+    removeFileMutation.mutate({ docId, filePath });
+  };
+
+  const getFileDownloadUrl = (filePath: string) => {
+    const { data } = supabase.storage
+      .from("document-attachments")
+      .getPublicUrl(filePath);
+    return data.publicUrl;
+  };
+
+  const handleDownloadFile = async (filePath: string, fileName: string) => {
+    const { data, error } = await supabase.storage
+      .from("document-attachments")
+      .download(filePath);
+    
+    if (error) {
+      toast.error("Failed to download file", { description: error.message });
+      return;
+    }
+    
+    const url = URL.createObjectURL(data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const getStatusColor = (status: Matter["status"]) => {
@@ -657,7 +763,7 @@ const MatterDetail = () => {
                   {docs.map((doc) => (
                     <motion.div
                       key={doc.id}
-                      className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                      className={`p-3 rounded-lg border transition-colors ${
                         doc.completed 
                           ? "bg-primary/5 border-primary/20" 
                           : "bg-secondary/50 border-border/50"
@@ -665,29 +771,94 @@ const MatterDetail = () => {
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                     >
-                      <div className="flex items-center gap-3">
-                        <Checkbox
-                          checked={doc.completed}
-                          onCheckedChange={() => handleToggleDocument(doc.id, doc.completed)}
-                          disabled={toggleDocumentMutation.isPending}
-                        />
-                        <span className={doc.completed ? "line-through text-muted-foreground" : ""}>
-                          {doc.name}
-                        </span>
-                        {doc.required && (
-                          <Badge variant="destructive" className="text-xs">Required</Badge>
-                        )}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            checked={doc.completed}
+                            onCheckedChange={() => handleToggleDocument(doc.id, doc.completed)}
+                            disabled={toggleDocumentMutation.isPending}
+                          />
+                          <span className={doc.completed ? "line-through text-muted-foreground" : ""}>
+                            {doc.name}
+                          </span>
+                          {doc.required && (
+                            <Badge variant="destructive" className="text-xs">Required</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {/* File actions */}
+                          {doc.filePath ? (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-primary"
+                                onClick={() => handleDownloadFile(doc.filePath!, doc.name)}
+                                title="Download file"
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                onClick={() => handleFileRemove(doc.id, doc.filePath!)}
+                                disabled={removeFileMutation.isPending}
+                                title="Remove file"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <label className="cursor-pointer">
+                              <input
+                                type="file"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleFileUpload(doc.id, file);
+                                  e.target.value = "";
+                                }}
+                                disabled={uploadFileMutation.isPending}
+                              />
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                asChild
+                                disabled={uploadFileMutation.isPending}
+                              >
+                                <span title="Upload file">
+                                  {uploadFileMutation.isPending ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <Upload className="w-4 h-4" />
+                                  )}
+                                </span>
+                              </Button>
+                            </label>
+                          )}
+                          {doc.category === "Custom" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleRemoveDocument(doc.id)}
+                              disabled={removeDocumentMutation.isPending}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      {doc.category === "Custom" && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => handleRemoveDocument(doc.id)}
-                          disabled={removeDocumentMutation.isPending}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                      {/* File indicator */}
+                      {doc.filePath && (
+                        <div className="mt-2 ml-8 flex items-center gap-2 text-sm text-muted-foreground">
+                          <File className="w-3 h-3" />
+                          <span className="truncate max-w-[200px]">
+                            {doc.filePath.split('/').pop()}
+                          </span>
+                        </div>
                       )}
                     </motion.div>
                   ))}
