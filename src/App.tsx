@@ -17,6 +17,7 @@ import MigrationMatterDetail from "./pages/migration/MatterDetail";
 import AuditDashboard from "./pages/audit/Dashboard";
 import HRDashboard from "./pages/hr/Dashboard";
 import Billing from "./pages/Billing";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -106,6 +107,13 @@ const App = () => (
               <Route path="/app/billing" element={
                 <ProtectedRoute>
                   <Billing />
+                </ProtectedRoute>
+              } />
+              
+              {/* Protected: Settings */}
+              <Route path="/app/settings" element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               } />
               
