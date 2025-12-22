@@ -425,7 +425,7 @@ const ClientDetail = () => {
                     variant="outline" 
                     size="sm" 
                     className="flex-1"
-                    onClick={() => navigate("/app/migration/matters")}
+                    onClick={() => navigate(`/app/migration/matters/${matter.id}`)}
                   >
                     View Details
                   </Button>
