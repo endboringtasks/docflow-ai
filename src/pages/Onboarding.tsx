@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +6,8 @@ import { Zap, FileCheck, Users, Clipboard, ArrowRight, Check, Loader2 } from "lu
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { useCompany } from "@/hooks/useCompany";
 
 type Niche = "migration" | "audit" | "hr";
 
@@ -47,10 +49,27 @@ const niches: NicheOption[] = [
 
 const Onboarding = () => {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const { currentCompany, loading: companyLoading, createCompany } = useCompany();
+  
   const [step, setStep] = useState(1);
   const [companyName, setCompanyName] = useState("");
   const [selectedNiche, setSelectedNiche] = useState<Niche | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Redirect to auth if not logged in
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/auth");
+    }
+  }, [user, authLoading, navigate]);
+
+  // Redirect to dashboard if user already has a company
+  useEffect(() => {
+    if (!companyLoading && currentCompany) {
+      navigate(`/app/${currentCompany.niche}/dashboard`);
+    }
+  }, [currentCompany, companyLoading, navigate]);
 
   const handleContinue = async () => {
     if (step === 1 && companyName.trim()) {
@@ -58,8 +77,15 @@ const Onboarding = () => {
     } else if (step === 2 && selectedNiche) {
       setIsLoading(true);
       
-      // Simulate company creation - will be replaced with Supabase
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const { error, company } = await createCompany(companyName.trim(), selectedNiche);
+      
+      if (error) {
+        toast.error("Failed to create workspace", {
+          description: error.message,
+        });
+        setIsLoading(false);
+        return;
+      }
       
       toast.success("Company created successfully!", {
         description: `Welcome to Docflow AI – ${selectedNiche.charAt(0).toUpperCase() + selectedNiche.slice(1)}`,
@@ -68,6 +94,20 @@ const Onboarding = () => {
       navigate(`/app/${selectedNiche}/dashboard`);
     }
   };
+
+  // Show loading while checking auth/company state
+  if (authLoading || companyLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Don't render if user already has a company (will redirect)
+  if (currentCompany) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-8">
