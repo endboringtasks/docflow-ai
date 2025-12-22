@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCompany } from "@/hooks/useCompany";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/layout/AppLayout";
+import { TeamMembers } from "@/components/settings/TeamMembers";
 
 const Settings = () => {
   const { user } = useAuth();
@@ -202,6 +203,9 @@ const Settings = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Team Members */}
+        <TeamMembers />
       </div>
     </AppLayout>
   );
