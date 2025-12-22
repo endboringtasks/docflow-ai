@@ -1,1 +1,10 @@
 project_id = "wevdjmdlsrljanttykzu"
+
+[functions.webhook-client-folder]
+verify_jwt = false
+
+[functions.webhook-matter-folder]
+verify_jwt = false
+
+[functions.webhook-automation-event]
+verify_jwt = false
