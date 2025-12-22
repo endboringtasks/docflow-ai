@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -6,27 +6,56 @@ import { Zap, ArrowLeft, Mail, KeyRound, Loader2 } from "lucide-react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { z } from "zod";
 
 type AuthStep = "email" | "otp";
+
+const emailSchema = z.string().email("Please enter a valid email address");
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const { signInWithOtp, verifyOtp } = useAuth();
   const isSignup = searchParams.get("signup") === "true";
   
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [emailError, setEmailError] = useState("");
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate("/onboarding");
+    }
+  }, [user, authLoading, navigate]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    setEmailError("");
+    
+    // Validate email
+    const result = emailSchema.safeParse(email);
+    if (!result.success) {
+      setEmailError(result.error.errors[0].message);
+      return;
+    }
     
     setIsLoading(true);
     
-    // Simulate OTP send - will be replaced with Supabase
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const { error } = await signInWithOtp(email);
+    
+    if (error) {
+      console.error("OTP send error:", error.message);
+      toast.error("Failed to send verification code", {
+        description: error.message,
+      });
+      setIsLoading(false);
+      return;
+    }
     
     toast.success("Verification code sent!", {
       description: `Check your email at ${email}`,
@@ -42,17 +71,49 @@ const Auth = () => {
     
     setIsLoading(true);
     
-    // Simulate verification - will be replaced with Supabase
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const { error } = await verifyOtp(email, otp);
+    
+    if (error) {
+      console.error("OTP verification error:", error.message);
+      toast.error("Invalid verification code", {
+        description: "Please check the code and try again.",
+      });
+      setIsLoading(false);
+      return;
+    }
     
     toast.success("Welcome!", {
-      description: "Redirecting to your dashboard...",
+      description: "Redirecting...",
     });
     
-    // For demo, redirect to onboarding
-    navigate("/onboarding");
+    // Navigation will be handled by the useEffect watching user state
+  };
+
+  const handleResendCode = async () => {
+    setIsLoading(true);
+    
+    const { error } = await signInWithOtp(email);
+    
+    if (error) {
+      toast.error("Failed to resend code", {
+        description: error.message,
+      });
+    } else {
+      toast.success("New code sent!", {
+        description: `Check your email at ${email}`,
+      });
+    }
+    
     setIsLoading(false);
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -104,11 +165,17 @@ const Auth = () => {
                     type="email"
                     placeholder="you@company.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 h-12 bg-secondary border-border"
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setEmailError("");
+                    }}
+                    className={`pl-10 h-12 bg-secondary border-border ${emailError ? "border-destructive" : ""}`}
                     required
                   />
                 </div>
+                {emailError && (
+                  <p className="text-sm text-destructive">{emailError}</p>
+                )}
               </div>
               
               <Button 
@@ -134,7 +201,10 @@ const Auth = () => {
                   <label className="text-sm font-medium">Verification code</label>
                   <button
                     type="button"
-                    onClick={() => setStep("email")}
+                    onClick={() => {
+                      setStep("email");
+                      setOtp("");
+                    }}
                     className="text-sm text-primary hover:underline"
                   >
                     Change email
@@ -149,6 +219,7 @@ const Auth = () => {
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                     className="pl-10 h-12 bg-secondary border-border text-center text-2xl tracking-[0.5em] font-mono"
                     maxLength={6}
+                    autoFocus
                     required
                   />
                 </div>
@@ -175,8 +246,9 @@ const Auth = () => {
 
               <button
                 type="button"
-                onClick={handleEmailSubmit}
-                className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+                onClick={handleResendCode}
+                disabled={isLoading}
+                className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               >
                 Didn't receive a code? Resend
               </button>
