@@ -8,14 +8,13 @@ import {
   CreditCard, 
   Settings, 
   LogOut, 
-  ChevronDown,
-  Building2,
   Menu,
-  X
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { CompanySwitcher } from "@/components/CompanySwitcher";
+import { useAuth } from "@/hooks/useAuth";
+import { useCompany } from "@/hooks/useCompany";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -55,12 +54,18 @@ const nicheConfig = {
 const AppLayout = ({ children, niche }: AppLayoutProps) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { signOut } = useAuth();
+  const { currentCompany, currentRole } = useCompany();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const config = nicheConfig[niche];
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     navigate("/");
   };
+
+  // Show billing only to owners
+  const showBilling = currentRole === "owner";
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -94,16 +99,7 @@ const AppLayout = ({ children, niche }: AppLayoutProps) => {
 
         {/* Company Switcher */}
         <div className="p-4 border-b border-sidebar-border">
-          <button className="w-full flex items-center gap-3 p-3 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors">
-            <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-              <Building2 className="w-4 h-4 text-primary" />
-            </div>
-            <div className="flex-1 text-left">
-              <p className="text-sm font-medium text-sidebar-foreground">Demo Company</p>
-              <p className="text-xs text-sidebar-foreground/60">Owner</p>
-            </div>
-            <ChevronDown className="w-4 h-4 text-sidebar-foreground/60" />
-          </button>
+          <CompanySwitcher />
         </div>
 
         {/* Navigation */}
@@ -131,14 +127,18 @@ const AppLayout = ({ children, niche }: AppLayoutProps) => {
 
         {/* Bottom Section */}
         <div className="p-4 border-t border-sidebar-border space-y-1">
-          <Link
-            to="/app/billing"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-          >
-            <CreditCard className="w-5 h-5" />
-            Billing
-            <Badge variant="secondary" className="ml-auto text-xs">Pro</Badge>
-          </Link>
+          {showBilling && (
+            <Link
+              to="/app/billing"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+            >
+              <CreditCard className="w-5 h-5" />
+              Billing
+              <Badge variant="secondary" className="ml-auto text-xs capitalize">
+                {currentCompany?.subscription_plan || "free"}
+              </Badge>
+            </Link>
+          )}
           <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
             <Settings className="w-5 h-5" />
             Settings
