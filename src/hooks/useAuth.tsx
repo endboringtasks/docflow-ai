@@ -39,7 +39,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithOtp = async (email: string) => {
-    const redirectUrl = `${window.location.origin}/onboarding`;
+    // Redirect to auth page - it will handle routing based on company status
+    const redirectUrl = `${window.location.origin}/auth`;
     
     const { error } = await supabase.auth.signInWithOtp({
       email,
