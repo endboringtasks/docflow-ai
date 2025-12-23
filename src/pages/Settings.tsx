@@ -11,6 +11,7 @@ import { useCompany } from "@/hooks/useCompany";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/layout/AppLayout";
 import { TeamMembers } from "@/components/settings/TeamMembers";
+import { UserProfile } from "@/components/settings/UserProfile";
 
 const Settings = () => {
   const { user } = useAuth();
@@ -66,6 +67,9 @@ const Settings = () => {
             Manage your account and company settings
           </p>
         </div>
+
+        {/* User Profile */}
+        <UserProfile />
 
         {/* Account Details */}
         <Card>

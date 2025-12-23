@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompany } from "@/hooks/useCompany";
+import { PendingInvitations } from "@/components/auth/PendingInvitations";
 import { z } from "zod";
 
 type AuthStep = "email" | "otp";
@@ -161,44 +162,49 @@ const Auth = () => {
         </div>
 
         {step === "email" ? (
-          <form onSubmit={handleEmailSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Email address</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input
-                  type="email"
-                  placeholder="you@company.com"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setEmailError("");
-                  }}
-                  className={`pl-10 h-12 bg-secondary border-border ${emailError ? "border-destructive" : ""}`}
-                  required
-                />
+          <div className="space-y-6">
+            <form onSubmit={handleEmailSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Email address</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setEmailError("");
+                    }}
+                    className={`pl-10 h-12 bg-secondary border-border ${emailError ? "border-destructive" : ""}`}
+                    required
+                  />
+                </div>
+                {emailError && (
+                  <p className="text-sm text-destructive">{emailError}</p>
+                )}
               </div>
-              {emailError && (
-                <p className="text-sm text-destructive">{emailError}</p>
-              )}
-            </div>
-            
-            <Button 
-              type="submit" 
-              variant="gradient" 
-              className="w-full h-12"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Sending code...
-                </>
-              ) : (
-                "Continue with Email"
-              )}
-            </Button>
-          </form>
+              
+              <Button 
+                type="submit" 
+                variant="gradient" 
+                className="w-full h-12"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Sending code...
+                  </>
+                ) : (
+                  "Continue with Email"
+                )}
+              </Button>
+            </form>
+
+            {/* Show pending invitations on the auth page */}
+            <PendingInvitations />
+          </div>
         ) : (
           <form onSubmit={handleOtpSubmit} className="space-y-6">
             <div className="space-y-2">
