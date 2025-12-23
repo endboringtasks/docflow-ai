@@ -177,13 +177,32 @@ const MigrationClients = () => {
 
   // Delete client mutation
   const deleteClientMutation = useMutation({
-    mutationFn: async (clientId: string) => {
+    mutationFn: async (client: Client) => {
       const { error } = await supabase
         .from("clients")
         .delete()
-        .eq("id", clientId);
+        .eq("id", client.id);
       
       if (error) throw error;
+
+      // Dispatch webhook for client.deleted event
+      try {
+        await supabase.functions.invoke("dispatch-webhook", {
+          body: {
+            event_type: "client.deleted",
+            data: {
+              client_id: client.id,
+              company_id: currentCompany?.id,
+              client_type: client.client_type,
+              full_name: client.full_name,
+              email: client.email,
+              phone: client.phone,
+            },
+          },
+        });
+      } catch (webhookError) {
+        console.warn("Failed to dispatch webhook:", webhookError);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
@@ -219,6 +238,27 @@ const MigrationClients = () => {
         .single();
       
       if (error) throw error;
+
+      // Dispatch webhook for client.updated event
+      try {
+        await supabase.functions.invoke("dispatch-webhook", {
+          body: {
+            event_type: "client.updated",
+            data: {
+              client_id: data.id,
+              company_id: data.company_id,
+              client_type: data.client_type,
+              full_name: data.full_name,
+              email: data.email,
+              phone: data.phone,
+              updated_at: new Date().toISOString(),
+            },
+          },
+        });
+      } catch (webhookError) {
+        console.warn("Failed to dispatch webhook:", webhookError);
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -536,7 +576,7 @@ const MigrationClients = () => {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => clientToDelete && deleteClientMutation.mutate(clientToDelete.id)}
+                onClick={() => clientToDelete && deleteClientMutation.mutate(clientToDelete)}
                 disabled={deleteClientMutation.isPending}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
