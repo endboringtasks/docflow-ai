@@ -6,6 +6,43 @@ const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Find a folder by name in a parent folder
+async function findFolder(
+  accessToken: string,
+  folderName: string,
+  parentId?: string
+): Promise<{ id: string; name: string } | null> {
+  let query = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  
+  if (parentId) {
+    query += ` and '${parentId}' in parents`;
+  } else {
+    query += ` and 'root' in parents`;
+  }
+
+  const response = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    console.error("Failed to search for folder:", await response.text());
+    return null;
+  }
+
+  const data = await response.json();
+  if (data.files && data.files.length > 0) {
+    console.log(`Found existing folder: ${folderName} (${data.files[0].id})`);
+    return { id: data.files[0].id, name: data.files[0].name };
+  }
+
+  return null;
+}
+
 // Create a folder in Google Drive
 async function createDriveFolder(
   accessToken: string,
@@ -41,28 +78,44 @@ async function createDriveFolder(
   return { id: folder.id, name: folder.name };
 }
 
-// Create the default folder structure: DocFlow AI > Migration Services > Clients
-async function createDefaultFolderStructure(accessToken: string): Promise<{ id: string; name: string }> {
-  console.log("Creating default folder structure...");
+// Find or create a folder
+async function findOrCreateFolder(
+  accessToken: string,
+  folderName: string,
+  parentId?: string
+): Promise<{ id: string; name: string }> {
+  // First try to find existing folder
+  const existingFolder = await findFolder(accessToken, folderName, parentId);
+  if (existingFolder) {
+    return existingFolder;
+  }
 
-  // Create DocFlow AI folder at root
-  const docflowFolder = await createDriveFolder(accessToken, "DocFlow AI");
+  // Create if not found
+  return await createDriveFolder(accessToken, folderName, parentId);
+}
 
-  // Create Migration Services folder inside DocFlow AI
-  const migrationFolder = await createDriveFolder(
+// Create or find the default folder structure: DocFlow AI > Migration Services > Clients
+async function ensureDefaultFolderStructure(accessToken: string): Promise<{ id: string; name: string }> {
+  console.log("Ensuring default folder structure exists...");
+
+  // Find or create DocFlow AI folder at root
+  const docflowFolder = await findOrCreateFolder(accessToken, "DocFlow AI");
+
+  // Find or create Migration Services folder inside DocFlow AI
+  const migrationFolder = await findOrCreateFolder(
     accessToken,
     "Migration Services",
     docflowFolder.id
   );
 
-  // Create Clients folder inside Migration Services
-  const clientsFolder = await createDriveFolder(
+  // Find or create Clients folder inside Migration Services
+  const clientsFolder = await findOrCreateFolder(
     accessToken,
     "Clients",
     migrationFolder.id
   );
 
-  console.log("Folder structure created successfully. Clients folder ID:", clientsFolder.id);
+  console.log("Folder structure ready. Clients folder ID:", clientsFolder.id);
   return clientsFolder;
 }
 
@@ -141,7 +194,7 @@ serve(async (req) => {
     let rootFolderName: string | null = null;
 
     try {
-      const clientsFolder = await createDefaultFolderStructure(access_token);
+      const clientsFolder = await ensureDefaultFolderStructure(access_token);
       rootFolderId = clientsFolder.id;
       rootFolderName = "DocFlow AI / Migration Services / Clients";
     } catch (folderError) {
