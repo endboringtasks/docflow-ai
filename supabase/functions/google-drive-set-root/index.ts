@@ -36,6 +36,21 @@ serve(async (req) => {
       throw new Error("Company ID required");
     }
 
+    // Verify user is a member of the company
+    const { data: membership } = await supabase
+      .from("company_members")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("company_id", companyId)
+      .maybeSingle();
+
+    if (!membership) {
+      return new Response(
+        JSON.stringify({ error: "Access denied. You are not a member of this company." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Update the root folder using service role
     const serviceClient = createClient(
       supabaseUrl,

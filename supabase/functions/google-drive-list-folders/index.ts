@@ -39,6 +39,29 @@ serve(async (req) => {
       throw new Error("Company ID required");
     }
 
+    // Validate parentId format if provided (Google Drive folder IDs are alphanumeric with hyphens/underscores)
+    if (parentId && !/^[a-zA-Z0-9_-]+$/.test(parentId)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid folder ID format" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Verify user is a member of the company
+    const { data: membership } = await supabase
+      .from("company_members")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("company_id", companyId)
+      .maybeSingle();
+
+    if (!membership) {
+      return new Response(
+        JSON.stringify({ error: "Access denied. You are not a member of this company." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get the connection with tokens
     const serviceClient = createClient(
       supabaseUrl,
@@ -93,7 +116,7 @@ serve(async (req) => {
         .eq("company_id", companyId);
     }
 
-    // List folders from Google Drive
+    // List folders from Google Drive - parentId already validated above
     const query = parentId 
       ? `'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
       : `'root' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
