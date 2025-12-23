@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.google-drive-callback]
 verify_jwt = false
+
+[functions.google-drive-list-folders]
+verify_jwt = false
+
+[functions.google-drive-set-root]
+verify_jwt = false
