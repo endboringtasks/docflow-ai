@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -14,11 +15,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Users as UsersIcon, Shield } from "lucide-react";
+import { Search, Users as UsersIcon, Shield, UserCheck, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { useImpersonation } from "@/hooks/useImpersonation";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function AdminUsers() {
   const [search, setSearch] = useState("");
+  const { user: currentUser } = useAuth();
+  const { startImpersonation, isLoading: impersonationLoading } = useImpersonation();
+  const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
+
+  const handleImpersonate = async (userId: string) => {
+    setImpersonatingUserId(userId);
+    await startImpersonation(userId);
+    setImpersonatingUserId(null);
+  };
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["admin-users"],
@@ -107,6 +119,7 @@ export default function AdminUsers() {
                     <TableHead>Companies</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Joined</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -149,11 +162,28 @@ export default function AdminUsers() {
                       <TableCell className="text-muted-foreground">
                         {format(new Date(user.created_at), "MMM d, yyyy")}
                       </TableCell>
+                      <TableCell>
+                        {user.id !== currentUser?.id && !user.isPlatformAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleImpersonate(user.id)}
+                            disabled={impersonationLoading && impersonatingUserId === user.id}
+                          >
+                            {impersonationLoading && impersonatingUserId === user.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <UserCheck className="w-4 h-4" />
+                            )}
+                            <span className="ml-2 hidden lg:inline">Impersonate</span>
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                   {filteredUsers?.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                         No users found
                       </TableCell>
                     </TableRow>

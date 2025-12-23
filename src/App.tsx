@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { CompanyProvider } from "@/hooks/useCompany";
+import { ImpersonationProvider } from "@/hooks/useImpersonation";
+import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminProtectedRoute } from "@/components/admin/AdminProtectedRoute";
 import Index from "./pages/Index";
@@ -34,11 +36,13 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <CompanyProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
+        <ImpersonationProvider>
+          <TooltipProvider>
+            <ImpersonationBanner />
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
               {/* Public */}
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
@@ -137,8 +141,9 @@ const App = () => (
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
+            </BrowserRouter>
+          </TooltipProvider>
+        </ImpersonationProvider>
       </CompanyProvider>
     </AuthProvider>
   </QueryClientProvider>
