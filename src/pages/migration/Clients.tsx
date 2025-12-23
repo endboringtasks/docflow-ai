@@ -140,6 +140,19 @@ const MigrationClients = () => {
       
       if (error) throw error;
 
+      // Fetch company's Google Drive connection to get root folder ID
+      let rootFolderId: string | null = null;
+      try {
+        const { data: driveConnection } = await supabase
+          .from("google_drive_connections")
+          .select("root_folder_id")
+          .eq("company_id", currentCompany.id)
+          .single();
+        rootFolderId = driveConnection?.root_folder_id ?? null;
+      } catch (e) {
+        console.warn("Could not fetch drive connection:", e);
+      }
+
       // Dispatch webhook for client.created event
       try {
         await supabase.functions.invoke("dispatch-webhook", {
@@ -153,6 +166,7 @@ const MigrationClients = () => {
               email: data.email,
               phone: data.phone,
               drive_folder_id: data.drive_folder_id,
+              root_folder_id: rootFolderId,
               created_at: data.created_at,
             },
           },
