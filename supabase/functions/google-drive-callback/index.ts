@@ -98,7 +98,8 @@ serve(async (req) => {
     console.log("Successfully saved Google Drive connection for company:", companyId);
 
     // Redirect back to settings with success using the app origin
-    const redirectUrl = origin ? `${origin}/settings?drive_connected=true` : `/settings?drive_connected=true`;
+    const appSettingsPath = "/app/settings";
+    const redirectUrl = origin ? `${origin}${appSettingsPath}?drive_connected=true` : `${appSettingsPath}?drive_connected=true`;
     return new Response(null, {
       status: 302,
       headers: {
@@ -112,7 +113,10 @@ serve(async (req) => {
 });
 
 function redirectWithError(message: string, origin: string) {
-  const redirectUrl = origin ? `${origin}/settings?drive_error=${encodeURIComponent(message)}` : `/settings?drive_error=${encodeURIComponent(message)}`;
+  const appSettingsPath = "/app/settings";
+  const redirectUrl = origin
+    ? `${origin}${appSettingsPath}?drive_error=${encodeURIComponent(message)}`
+    : `${appSettingsPath}?drive_error=${encodeURIComponent(message)}`;
   return new Response(null, {
     status: 302,
     headers: {
