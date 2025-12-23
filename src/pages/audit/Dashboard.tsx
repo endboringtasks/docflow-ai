@@ -2,10 +2,17 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Clipboard, Clock } from "lucide-react";
 import { motion } from "framer-motion";
+import { SEO } from "@/components/SEO";
 
 const AuditDashboard = () => {
   return (
-    <AppLayout niche="audit">
+    <>
+      <SEO 
+        title="Audit Dashboard"
+        description="Streamline audit engagements with Docflow AI. Automated document requests, review workflows, and real-time status tracking."
+        noIndex
+      />
+      <AppLayout niche="audit">
       <div className="p-6 lg:p-8">
         <motion.div 
           className="max-w-2xl mx-auto text-center py-24"
@@ -47,6 +54,7 @@ const AuditDashboard = () => {
         </motion.div>
       </div>
     </AppLayout>
+    </>
   );
 };
 

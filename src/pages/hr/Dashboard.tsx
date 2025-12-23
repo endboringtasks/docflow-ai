@@ -2,10 +2,17 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Users, Clock } from "lucide-react";
 import { motion } from "framer-motion";
+import { SEO } from "@/components/SEO";
 
 const HRDashboard = () => {
   return (
-    <AppLayout niche="hr">
+    <>
+      <SEO 
+        title="HR Dashboard"
+        description="Simplify employee lifecycle management with Docflow AI. Automated onboarding, offboarding, and compliance documentation."
+        noIndex
+      />
+      <AppLayout niche="hr">
       <div className="p-6 lg:p-8">
         <motion.div 
           className="max-w-2xl mx-auto text-center py-24"
@@ -47,6 +54,7 @@ const HRDashboard = () => {
         </motion.div>
       </div>
     </AppLayout>
+    </>
   );
 };
 
