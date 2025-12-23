@@ -139,15 +139,34 @@ const MigrationClients = () => {
         .single();
       
       if (error) throw error;
+
+      // Dispatch webhook for client.created event
+      try {
+        await supabase.functions.invoke("dispatch-webhook", {
+          body: {
+            event_type: "client.created",
+            data: {
+              client_id: data.id,
+              company_id: currentCompany.id,
+              client_type: data.client_type,
+              full_name: data.full_name,
+              email: data.email,
+              phone: data.phone,
+              created_at: data.created_at,
+            },
+          },
+        });
+      } catch (webhookError) {
+        console.warn("Failed to dispatch webhook:", webhookError);
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
       setIsCreateOpen(false);
       setNewClient({ clientType: "personal", fullName: "", email: "", phone: "" });
-      toast.success("Client created!", {
-        description: "A webhook can be configured to create the Google Drive folder.",
-      });
+      toast.success("Client created!");
     },
     onError: (error) => {
       toast.error("Failed to create client", {

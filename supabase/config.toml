@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.admin-impersonate]
 verify_jwt = true
+
+[functions.dispatch-webhook]
+verify_jwt = false
