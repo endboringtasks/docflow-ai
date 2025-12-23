@@ -6,8 +6,16 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { CompanyProvider } from "@/hooks/useCompany";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AdminProtectedRoute } from "@/components/admin/AdminProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import AdminDashboard from "./pages/admin/Dashboard";
+import AdminCompanies from "./pages/admin/Companies";
+import AdminUsers from "./pages/admin/Users";
+import AdminBilling from "./pages/admin/Billing";
+import AdminWebhooks from "./pages/admin/Webhooks";
+import AdminSettings from "./pages/admin/Settings";
+import AdminAuditLogs from "./pages/admin/AuditLogs";
 import Onboarding from "./pages/Onboarding";
 import MigrationDashboard from "./pages/migration/Dashboard";
 import MigrationClients from "./pages/migration/Clients";
@@ -116,6 +124,15 @@ const App = () => (
                   <Settings />
                 </ProtectedRoute>
               } />
+              
+              {/* Admin Panel */}
+              <Route path="/admin" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
+              <Route path="/admin/companies" element={<AdminProtectedRoute><AdminCompanies /></AdminProtectedRoute>} />
+              <Route path="/admin/users" element={<AdminProtectedRoute><AdminUsers /></AdminProtectedRoute>} />
+              <Route path="/admin/billing" element={<AdminProtectedRoute><AdminBilling /></AdminProtectedRoute>} />
+              <Route path="/admin/webhooks" element={<AdminProtectedRoute><AdminWebhooks /></AdminProtectedRoute>} />
+              <Route path="/admin/settings" element={<AdminProtectedRoute><AdminSettings /></AdminProtectedRoute>} />
+              <Route path="/admin/audit-logs" element={<AdminProtectedRoute><AdminAuditLogs /></AdminProtectedRoute>} />
               
               {/* Catch-all */}
               <Route path="*" element={<NotFound />} />
