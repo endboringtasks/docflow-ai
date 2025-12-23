@@ -60,7 +60,7 @@ serve(async (req) => {
     const redirectUri = `${SUPABASE_URL}/functions/v1/google-drive-callback`;
     
     const scopes = [
-      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/drive",
       "https://www.googleapis.com/auth/userinfo.email",
     ].join(" ");
 
