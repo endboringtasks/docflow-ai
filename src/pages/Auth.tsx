@@ -144,8 +144,8 @@ const Auth = () => {
             <Zap className="w-6 h-6 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">End Boring Tasks</h1>
-            <p className="text-sm text-muted-foreground">Powered by Docflow AI</p>
+            <h1 className="text-2xl font-bold">Docflow AI</h1>
+            <p className="text-sm text-muted-foreground">Powered by End Boring Tasks</p>
           </div>
         </div>
 

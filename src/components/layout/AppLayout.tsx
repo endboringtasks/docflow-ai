@@ -91,7 +91,7 @@ const AppLayout = ({ children, niche }: AppLayoutProps) => {
               <Zap className="w-5 h-5 text-primary-foreground" />
             </div>
             <div>
-              <p className="font-bold text-sidebar-foreground">End Boring Tasks</p>
+              <p className="font-bold text-sidebar-foreground">Docflow AI</p>
               <p className="text-xs text-sidebar-foreground/60">{config.subtitle}</p>
             </div>
           </Link>
