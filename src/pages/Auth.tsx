@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Zap, ArrowLeft, Mail, KeyRound, Loader2 } from "lucide-react";
-import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import { Link, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,6 +17,7 @@ const emailSchema = z.string().email("Please enter a valid email address");
 const Auth = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth();
   const { currentCompany, loading: companyLoading } = useCompany();
   const { signInWithOtp, verifyOtp } = useAuth();
@@ -40,6 +41,38 @@ const Auth = () => {
       }
     }
   }, [user, authLoading, currentCompany, companyLoading, navigate]);
+
+  // Handle magic-link errors in URL fragment (e.g. #error_code=otp_expired)
+  useEffect(() => {
+    if (!location.hash) return;
+
+    const hashParams = new URLSearchParams(location.hash.replace(/^#/, ""));
+    const errorCode = hashParams.get("error_code");
+    const errorDescription = hashParams.get("error_description");
+
+    if (!errorCode) return;
+
+    if (errorCode === "otp_expired") {
+      toast.error("Email link expired", {
+        description:
+          "Request a new code. Tip: some email clients/security scanners pre-open links; entering the 6-digit code is more reliable.",
+      });
+    } else {
+      toast.error("Authentication error", {
+        description: errorDescription || errorCode,
+      });
+    }
+
+    // Clear fragment so the toast doesn't repeat on refresh/back
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname + window.location.search
+    );
+
+    setStep("email");
+    setOtp("");
+  }, [location.hash]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,8 +188,8 @@ const Auth = () => {
           </h2>
           <p className="text-muted-foreground">
             {step === "email" 
-              ? "Enter your email to receive a verification code" 
-              : "Enter the 6-digit code we sent to your email"
+              ? "Enter your email to receive a 6-digit verification code" 
+              : "Enter the 6-digit code from the email (this works even if the email link says expired)"
             }
           </p>
         </div>
@@ -237,8 +270,11 @@ const Auth = () => {
               <p className="text-xs text-muted-foreground">
                 Sent to <span className="text-foreground">{email}</span>
               </p>
+              <p className="text-xs text-muted-foreground">
+                If clicking the email button shows “expired”, just enter the 6-digit code above.
+              </p>
             </div>
-            
+
             <Button 
               type="submit" 
               variant="gradient" 
