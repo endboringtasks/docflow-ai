@@ -13,9 +13,10 @@ interface ImpersonationContextType {
   isImpersonating: boolean;
   impersonatedUser: ImpersonationTarget | null;
   startImpersonation: (targetUserId: string) => Promise<void>;
-  endImpersonation: () => Promise<void>;
+  endImpersonation: (showToast?: boolean) => Promise<void>;
+  extendSession: () => void;
   isLoading: boolean;
-  timeRemaining: number | null; // seconds remaining
+  timeRemaining: number | null;
 }
 
 const ImpersonationContext = createContext<ImpersonationContextType | undefined>(undefined);
@@ -192,6 +193,15 @@ export function ImpersonationProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const extendSession = useCallback(() => {
+    if (!isImpersonating) return;
+    
+    // Reset the start time to now
+    localStorage.setItem(IMPERSONATION_START_KEY, Date.now().toString());
+    setTimeRemaining(IMPERSONATION_TIMEOUT_MS / 1000);
+    toast.success("Session extended by 1 hour");
+  }, [isImpersonating]);
+
   return (
     <ImpersonationContext.Provider
       value={{
@@ -199,6 +209,7 @@ export function ImpersonationProvider({ children }: { children: ReactNode }) {
         impersonatedUser,
         startImpersonation,
         endImpersonation,
+        extendSession,
         isLoading,
         timeRemaining,
       }}
