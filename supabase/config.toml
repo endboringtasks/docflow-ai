@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.google-drive-set-root]
 verify_jwt = false
+
+[functions.admin-impersonate]
+verify_jwt = true
