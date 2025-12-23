@@ -167,6 +167,11 @@ export function GoogleDriveConnection() {
                     <Folder className="w-3 h-3" />
                     Root: {connection.root_folder_name || "My Drive"}
                   </div>
+                  {connection.root_folder_id && (
+                    <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                      ID: {connection.root_folder_id}
+                    </p>
+                  )}
                 </div>
               </div>
               

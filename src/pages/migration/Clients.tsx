@@ -152,6 +152,7 @@ const MigrationClients = () => {
               full_name: data.full_name,
               email: data.email,
               phone: data.phone,
+              drive_folder_id: data.drive_folder_id,
               created_at: data.created_at,
             },
           },
@@ -197,6 +198,7 @@ const MigrationClients = () => {
               full_name: client.full_name,
               email: client.email,
               phone: client.phone,
+              drive_folder_id: client.drive_folder_id,
             },
           },
         });
@@ -251,6 +253,7 @@ const MigrationClients = () => {
               full_name: data.full_name,
               email: data.email,
               phone: data.phone,
+              drive_folder_id: data.drive_folder_id,
               updated_at: new Date().toISOString(),
             },
           },
