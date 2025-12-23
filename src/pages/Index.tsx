@@ -395,9 +395,9 @@ const Index = () => {
               © {new Date().getFullYear()} Docflow AI by End Boring Tasks. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm text-muted-foreground">
-              <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
-              <a href="#" className="hover:text-foreground transition-colors">Terms</a>
-              <a href="#" className="hover:text-foreground transition-colors">Contact</a>
+              <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+              <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
+              <a href="mailto:support@endboringtasks.com" className="hover:text-foreground transition-colors">Contact</a>
             </div>
           </div>
         </div>
