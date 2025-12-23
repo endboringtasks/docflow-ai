@@ -1,6 +1,6 @@
 import { useImpersonation } from "@/hooks/useImpersonation";
 import { Button } from "@/components/ui/button";
-import { UserX, Loader2, Clock } from "lucide-react";
+import { UserX, Loader2, Clock, RefreshCw } from "lucide-react";
 
 function formatTimeRemaining(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
@@ -9,7 +9,7 @@ function formatTimeRemaining(seconds: number): string {
 }
 
 export function ImpersonationBanner() {
-  const { isImpersonating, impersonatedUser, endImpersonation, isLoading, timeRemaining } = useImpersonation();
+  const { isImpersonating, impersonatedUser, endImpersonation, extendSession, isLoading, timeRemaining } = useImpersonation();
 
   if (!isImpersonating || !impersonatedUser) {
     return null;
@@ -34,17 +34,28 @@ export function ImpersonationBanner() {
             </div>
           )}
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => endImpersonation()}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <Loader2 className="w-4 h-4 animate-spin mr-2" />
-          ) : null}
-          End Impersonation
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={extendSession}
+            className="bg-transparent border-destructive-foreground/30 text-destructive-foreground hover:bg-destructive-foreground/10"
+          >
+            <RefreshCw className="w-3 h-3 mr-1" />
+            Extend 1hr
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => endImpersonation()}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : null}
+            End
+          </Button>
+        </div>
       </div>
     </div>
   );

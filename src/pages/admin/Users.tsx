@@ -15,21 +15,47 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Search, Users as UsersIcon, Shield, UserCheck, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { useImpersonation } from "@/hooks/useImpersonation";
 import { useAuth } from "@/hooks/useAuth";
+
+interface UserToImpersonate {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+}
 
 export default function AdminUsers() {
   const [search, setSearch] = useState("");
   const { user: currentUser } = useAuth();
   const { startImpersonation, isLoading: impersonationLoading } = useImpersonation();
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [userToImpersonate, setUserToImpersonate] = useState<UserToImpersonate | null>(null);
 
-  const handleImpersonate = async (userId: string) => {
-    setImpersonatingUserId(userId);
-    await startImpersonation(userId);
+  const openConfirmDialog = (user: UserToImpersonate) => {
+    setUserToImpersonate(user);
+    setConfirmDialogOpen(true);
+  };
+
+  const handleConfirmImpersonate = async () => {
+    if (!userToImpersonate) return;
+    setConfirmDialogOpen(false);
+    setImpersonatingUserId(userToImpersonate.id);
+    await startImpersonation(userToImpersonate.id);
     setImpersonatingUserId(null);
+    setUserToImpersonate(null);
   };
 
   const { data: users, isLoading } = useQuery({
@@ -167,7 +193,7 @@ export default function AdminUsers() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleImpersonate(user.id)}
+                            onClick={() => openConfirmDialog({ id: user.id, email: user.email, display_name: user.display_name })}
                             disabled={impersonationLoading && impersonatingUserId === user.id}
                           >
                             {impersonationLoading && impersonatingUserId === user.id ? (
@@ -194,6 +220,35 @@ export default function AdminUsers() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Impersonation Confirmation Dialog */}
+      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Impersonation</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                You are about to impersonate{" "}
+                <span className="font-semibold">
+                  {userToImpersonate?.display_name || userToImpersonate?.email}
+                </span>
+              </p>
+              <p className="text-sm">
+                This will log you into their account for support purposes. Your actions will be performed as this user. The session will automatically expire after 1 hour.
+              </p>
+              <p className="text-sm text-destructive font-medium">
+                This action is logged for security purposes.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmImpersonate}>
+              Start Impersonation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 }
