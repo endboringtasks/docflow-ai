@@ -15,20 +15,32 @@ serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+    console.log("Auth header present:", !!authHeader);
+    
     if (!authHeader) {
       throw new Error("No authorization header");
     }
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    
+    console.log("SUPABASE_URL present:", !!supabaseUrl);
+    console.log("SUPABASE_ANON_KEY present:", !!supabaseAnonKey);
+
     const supabase = createClient(
-      SUPABASE_URL,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
+      supabaseUrl!,
+      supabaseAnonKey!,
       { global: { headers: { Authorization: authHeader } } }
     );
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    console.log("User error:", userError?.message);
+    console.log("User found:", !!user);
+    
     if (userError || !user) {
-      throw new Error("Unauthorized");
+      throw new Error(`Unauthorized: ${userError?.message || "No user found"}`);
     }
 
     const { companyId } = await req.json();
