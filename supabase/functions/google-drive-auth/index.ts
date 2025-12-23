@@ -34,11 +34,12 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
+    const jwt = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
+    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt);
+
     console.log("User error:", userError?.message);
     console.log("User found:", !!user);
-    
+
     if (userError || !user) {
       throw new Error(`Unauthorized: ${userError?.message || "No user found"}`);
     }
