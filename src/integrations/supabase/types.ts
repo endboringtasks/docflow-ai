@@ -223,6 +223,56 @@ export type Database = {
           },
         ]
       }
+      google_drive_connections: {
+        Row: {
+          access_token: string
+          company_id: string
+          connected_by: string
+          connected_email: string | null
+          created_at: string
+          id: string
+          refresh_token: string
+          root_folder_id: string | null
+          root_folder_name: string | null
+          token_expires_at: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          company_id: string
+          connected_by: string
+          connected_email?: string | null
+          created_at?: string
+          id?: string
+          refresh_token: string
+          root_folder_id?: string | null
+          root_folder_name?: string | null
+          token_expires_at: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          company_id?: string
+          connected_by?: string
+          connected_email?: string | null
+          created_at?: string
+          id?: string
+          refresh_token?: string
+          root_folder_id?: string | null
+          root_folder_name?: string | null
+          token_expires_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_drive_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       matters: {
         Row: {
           client_id: string
