@@ -87,7 +87,7 @@ export function GoogleDriveConnection() {
 
     try {
       const { data, error } = await supabase.functions.invoke("google-drive-auth", {
-        body: { companyId: currentCompany.id },
+        body: { companyId: currentCompany.id, origin: window.location.origin },
       });
 
       if (error) throw error;

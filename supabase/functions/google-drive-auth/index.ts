@@ -44,15 +44,16 @@ serve(async (req) => {
       throw new Error(`Unauthorized: ${userError?.message || "No user found"}`);
     }
 
-    const { companyId } = await req.json();
+    const { companyId, origin } = await req.json();
     if (!companyId) {
       throw new Error("Company ID required");
     }
 
-    // Create state token with user info
+    // Create state token with user info and app origin
     const state = btoa(JSON.stringify({
       userId: user.id,
       companyId,
+      origin: origin || "",
       timestamp: Date.now(),
     }));
 
