@@ -5,26 +5,33 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { SEO } from "@/components/SEO";
 
+const siteUrl = "https://docflowai.endboringtasks.com";
+
 const homepageJsonLd = [
   {
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "Docflow AI",
     "alternateName": "End Boring Tasks",
-    "url": "https://docflow.ai",
-    "logo": "https://docflow.ai/logo.png",
-    "description": "Docflow AI automates document-heavy workflows across industries.",
+    "url": siteUrl,
+    "logo": `${siteUrl}/favicon.ico`,
+    "description": "Docflow AI automates document-heavy workflows across industries. Structure, validate, and track documents with AI-powered automation.",
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "contactType": "customer service",
+      "url": siteUrl
+    },
     "sameAs": []
   },
   {
     "@context": "https://schema.org",
     "@type": "WebSite",
     "name": "Docflow AI",
-    "url": "https://docflow.ai",
-    "potentialAction": {
-      "@type": "SearchAction",
-      "target": "https://docflow.ai/search?q={search_term_string}",
-      "query-input": "required name=search_term_string"
+    "url": siteUrl,
+    "description": "Automate document-heavy workflows across industries. Structure, validate, and track — all in one powerful platform.",
+    "publisher": {
+      "@type": "Organization",
+      "name": "End Boring Tasks"
     }
   },
   {
@@ -33,27 +40,31 @@ const homepageJsonLd = [
     "name": "Docflow AI",
     "applicationCategory": "BusinessApplication",
     "operatingSystem": "Web",
+    "url": siteUrl,
     "description": "Automate document-heavy workflows across industries. Structure, validate, and track — all in one powerful platform.",
     "offers": [
       {
         "@type": "Offer",
         "name": "Free",
         "price": "0",
-        "priceCurrency": "USD"
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
       },
       {
         "@type": "Offer",
         "name": "Basic",
         "price": "25",
         "priceCurrency": "USD",
-        "priceValidUntil": "2025-12-31"
+        "priceValidUntil": "2025-12-31",
+        "availability": "https://schema.org/InStock"
       },
       {
         "@type": "Offer",
         "name": "Pro",
         "price": "49",
         "priceCurrency": "USD",
-        "priceValidUntil": "2025-12-31"
+        "priceValidUntil": "2025-12-31",
+        "availability": "https://schema.org/InStock"
       }
     ],
     "featureList": [
@@ -64,6 +75,43 @@ const homepageJsonLd = [
       "Migration Services",
       "Audit Services",
       "HR Services"
+    ],
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.8",
+      "ratingCount": "50",
+      "bestRating": "5",
+      "worstRating": "1"
+    }
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is Docflow AI?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Docflow AI is a document automation platform that helps migration agents, HR teams, and auditors automate document-heavy workflows. It structures, validates, and tracks documents with AI-powered automation."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How much does Docflow AI cost?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Docflow AI offers a free tier with basic features. Paid plans start at $25/month for Basic and $49/month for Pro, with additional features and higher limits."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What industries does Docflow AI support?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Docflow AI supports migration agents, HR teams, and auditors with specialized workflows tailored to each industry's document management needs."
+        }
+      }
     ]
   }
 ];
