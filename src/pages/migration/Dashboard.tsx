@@ -21,6 +21,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
+import { SEO } from "@/components/SEO";
 
 interface DashboardStats {
   totalClients: number;
@@ -181,8 +182,14 @@ const MigrationDashboard = () => {
   };
 
   return (
-    <AppLayout niche="migration">
-      <div className="p-6 lg:p-8 space-y-8">
+    <>
+      <SEO 
+        title="Migration Dashboard"
+        description="Manage your migration practice with Docflow AI. Track visa applications, clients, and document workflows."
+        noIndex
+      />
+      <AppLayout niche="migration">
+        <div className="p-6 lg:p-8 space-y-8">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
@@ -350,6 +357,7 @@ const MigrationDashboard = () => {
         </div>
       </div>
     </AppLayout>
+    </>
   );
 };
 
