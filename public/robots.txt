@@ -8,7 +8,7 @@ Disallow: /app/
 Disallow: /admin/
 
 # Sitemap
-Sitemap: https://docflow.ai/sitemap.xml
+Sitemap: https://docflowai.endboringtasks.com/sitemap.xml
 
 # Allow search engine crawlers
 User-agent: Googlebot
