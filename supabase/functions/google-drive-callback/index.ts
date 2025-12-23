@@ -15,11 +15,11 @@ serve(async (req) => {
 
     if (error) {
       console.error("OAuth error:", error);
-      return redirectWithError("Authorization was denied");
+      return redirectWithError("Authorization was denied", "");
     }
 
     if (!code || !state) {
-      return redirectWithError("Missing authorization code or state");
+      return redirectWithError("Missing authorization code or state", "");
     }
 
     // Decode state
@@ -27,17 +27,17 @@ serve(async (req) => {
     try {
       stateData = JSON.parse(atob(state));
     } catch {
-      return redirectWithError("Invalid state parameter");
+      return redirectWithError("Invalid state parameter", "");
     }
 
-    const { userId, companyId, timestamp } = stateData;
+    const { userId, companyId, origin, timestamp } = stateData;
 
     // Check if state is not too old (5 minutes max)
     if (Date.now() - timestamp > 5 * 60 * 1000) {
-      return redirectWithError("Authorization expired, please try again");
+      return redirectWithError("Authorization expired, please try again", origin);
     }
 
-    console.log("Processing callback for user:", userId, "company:", companyId);
+    console.log("Processing callback for user:", userId, "company:", companyId, "origin:", origin);
 
     // Exchange code for tokens
     const redirectUri = `${SUPABASE_URL}/functions/v1/google-drive-callback`;
@@ -58,7 +58,7 @@ serve(async (req) => {
 
     if (tokenData.error) {
       console.error("Token exchange error:", tokenData);
-      return redirectWithError("Failed to exchange authorization code");
+      return redirectWithError("Failed to exchange authorization code", origin);
     }
 
     const { access_token, refresh_token, expires_in } = tokenData;
@@ -92,29 +92,31 @@ serve(async (req) => {
 
     if (upsertError) {
       console.error("Database error:", upsertError);
-      return redirectWithError("Failed to save connection");
+      return redirectWithError("Failed to save connection", origin);
     }
 
     console.log("Successfully saved Google Drive connection for company:", companyId);
 
-    // Redirect back to settings with success
+    // Redirect back to settings with success using the app origin
+    const redirectUrl = origin ? `${origin}/settings?drive_connected=true` : `/settings?drive_connected=true`;
     return new Response(null, {
       status: 302,
       headers: {
-        Location: `/settings?drive_connected=true`,
+        Location: redirectUrl,
       },
     });
   } catch (error) {
     console.error("Callback error:", error);
-    return redirectWithError("An unexpected error occurred");
+    return redirectWithError("An unexpected error occurred", "");
   }
 });
 
-function redirectWithError(message: string) {
+function redirectWithError(message: string, origin: string) {
+  const redirectUrl = origin ? `${origin}/settings?drive_error=${encodeURIComponent(message)}` : `/settings?drive_error=${encodeURIComponent(message)}`;
   return new Response(null, {
     status: 302,
     headers: {
-      Location: `/settings?drive_error=${encodeURIComponent(message)}`,
+      Location: redirectUrl,
     },
   });
 }
