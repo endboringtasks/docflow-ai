@@ -5,6 +5,7 @@ interface SEOProps {
   description?: string;
   canonical?: string;
   noIndex?: boolean;
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[];
 }
 
 const defaultTitle = "Docflow AI - End Boring Tasks, Automate Everything";
@@ -15,7 +16,8 @@ export const SEO = ({
   title, 
   description = defaultDescription,
   canonical,
-  noIndex = false
+  noIndex = false,
+  jsonLd
 }: SEOProps) => {
   const fullTitle = title ? `${title} | Docflow AI` : defaultTitle;
   const canonicalUrl = canonical ? `${siteUrl}${canonical}` : undefined;
@@ -39,6 +41,13 @@ export const SEO = ({
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={fullTitle} />
       <meta name="twitter:description" content={description} />
+      
+      {/* JSON-LD Structured Data */}
+      {jsonLd && (
+        <script type="application/ld+json">
+          {JSON.stringify(Array.isArray(jsonLd) ? jsonLd : [jsonLd])}
+        </script>
+      )}
     </Helmet>
   );
 };

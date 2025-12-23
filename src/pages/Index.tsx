@@ -5,12 +5,76 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { SEO } from "@/components/SEO";
 
+const homepageJsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "Docflow AI",
+    "alternateName": "End Boring Tasks",
+    "url": "https://docflow.ai",
+    "logo": "https://docflow.ai/logo.png",
+    "description": "Docflow AI automates document-heavy workflows across industries.",
+    "sameAs": []
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Docflow AI",
+    "url": "https://docflow.ai",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://docflow.ai/search?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Docflow AI",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "description": "Automate document-heavy workflows across industries. Structure, validate, and track — all in one powerful platform.",
+    "offers": [
+      {
+        "@type": "Offer",
+        "name": "Free",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      {
+        "@type": "Offer",
+        "name": "Basic",
+        "price": "25",
+        "priceCurrency": "USD",
+        "priceValidUntil": "2025-12-31"
+      },
+      {
+        "@type": "Offer",
+        "name": "Pro",
+        "price": "49",
+        "priceCurrency": "USD",
+        "priceValidUntil": "2025-12-31"
+      }
+    ],
+    "featureList": [
+      "Document Structure Automation",
+      "Real-time Validation Engine",
+      "Workflow Automation",
+      "Client Portal",
+      "Migration Services",
+      "Audit Services",
+      "HR Services"
+    ]
+  }
+];
+
 const Index = () => {
   return (
     <>
       <SEO 
         canonical="/"
         description="Docflow AI automates document-heavy workflows across industries. Structure, validate, and track — all in one powerful platform. Start your free trial today."
+        jsonLd={homepageJsonLd}
       />
     <div className="min-h-screen bg-background">
       {/* Navigation */}
