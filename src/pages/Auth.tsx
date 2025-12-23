@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Zap, ArrowLeft, Mail, KeyRound, Loader2, AlertTriangle, RefreshCw, Settings2 } from "lucide-react";
+import { Zap, ArrowLeft, Mail, KeyRound, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Link, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCompany } from "@/hooks/useCompany";
 import { PendingInvitations } from "@/components/auth/PendingInvitations";
 import { SEO } from "@/components/SEO";
-import { GoogleOAuthDiagnostics } from "@/components/auth/GoogleOAuthDiagnostics";
+
 import { z } from "zod";
 
 type AuthStep = "email" | "otp" | "expired";
@@ -32,7 +32,7 @@ const Auth = () => {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [expiredEmail, setExpiredEmail] = useState("");
-  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  
 
   // Redirect based on authentication and company status
   useEffect(() => {
@@ -521,24 +521,6 @@ const Auth = () => {
           </Link>
         </p>
 
-        <button
-          onClick={() => setShowDiagnostics(!showDiagnostics)}
-          className="mt-4 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mx-auto"
-        >
-          <Settings2 className="h-3 w-3" />
-          {showDiagnostics ? "Hide" : "Show"} OAuth Diagnostics
-        </button>
-
-        {showDiagnostics && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-4"
-          >
-            <GoogleOAuthDiagnostics />
-          </motion.div>
-        )}
       </motion.div>
     </div>
     </>
