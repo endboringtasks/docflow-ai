@@ -10,7 +10,7 @@ interface SEOProps {
 
 const defaultTitle = "Docflow AI - End Boring Tasks, Automate Everything";
 const defaultDescription = "Docflow AI automates document-heavy workflows across industries. Structure, validate, and track — all in one powerful platform.";
-const siteUrl = "https://docflow.ai";
+const siteUrl = "https://docflowai.endboringtasks.com";
 
 export const SEO = ({ 
   title, 
