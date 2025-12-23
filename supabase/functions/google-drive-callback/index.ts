@@ -6,6 +6,66 @@ const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Create a folder in Google Drive
+async function createDriveFolder(
+  accessToken: string,
+  folderName: string,
+  parentId?: string
+): Promise<{ id: string; name: string }> {
+  const metadata: Record<string, unknown> = {
+    name: folderName,
+    mimeType: "application/vnd.google-apps.folder",
+  };
+
+  if (parentId) {
+    metadata.parents = [parentId];
+  }
+
+  const response = await fetch("https://www.googleapis.com/drive/v3/files", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(metadata),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("Failed to create folder:", error);
+    throw new Error(`Failed to create folder: ${folderName}`);
+  }
+
+  const folder = await response.json();
+  console.log(`Created folder: ${folderName} (${folder.id})`);
+  return { id: folder.id, name: folder.name };
+}
+
+// Create the default folder structure: DocFlow AI > Migration Services > Clients
+async function createDefaultFolderStructure(accessToken: string): Promise<{ id: string; name: string }> {
+  console.log("Creating default folder structure...");
+
+  // Create DocFlow AI folder at root
+  const docflowFolder = await createDriveFolder(accessToken, "DocFlow AI");
+
+  // Create Migration Services folder inside DocFlow AI
+  const migrationFolder = await createDriveFolder(
+    accessToken,
+    "Migration Services",
+    docflowFolder.id
+  );
+
+  // Create Clients folder inside Migration Services
+  const clientsFolder = await createDriveFolder(
+    accessToken,
+    "Clients",
+    migrationFolder.id
+  );
+
+  console.log("Folder structure created successfully. Clients folder ID:", clientsFolder.id);
+  return clientsFolder;
+}
+
 serve(async (req) => {
   try {
     const url = new URL(req.url);
@@ -76,6 +136,19 @@ serve(async (req) => {
     // Calculate token expiry
     const tokenExpiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
 
+    // Create the default folder structure and get the Clients folder
+    let rootFolderId: string | null = null;
+    let rootFolderName: string | null = null;
+
+    try {
+      const clientsFolder = await createDefaultFolderStructure(access_token);
+      rootFolderId = clientsFolder.id;
+      rootFolderName = "DocFlow AI / Migration Services / Clients";
+    } catch (folderError) {
+      console.error("Failed to create folder structure:", folderError);
+      // Continue without setting root folder - user can set it manually later
+    }
+
     // Save to database using service role (bypasses RLS)
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -88,6 +161,8 @@ serve(async (req) => {
         token_expires_at: tokenExpiresAt,
         connected_by: userId,
         connected_email: connectedEmail,
+        root_folder_id: rootFolderId,
+        root_folder_name: rootFolderName,
       }, { onConflict: "company_id" });
 
     if (upsertError) {
@@ -96,6 +171,9 @@ serve(async (req) => {
     }
 
     console.log("Successfully saved Google Drive connection for company:", companyId);
+    if (rootFolderId) {
+      console.log("Root folder set to:", rootFolderName, "(", rootFolderId, ")");
+    }
 
     // Redirect back to settings with success using the app origin
     const appSettingsPath = "/app/settings";
