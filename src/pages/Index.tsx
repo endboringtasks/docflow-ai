@@ -14,7 +14,7 @@ const Index = () => {
             <div className="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center">
               <Zap className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold text-foreground">End Boring Tasks</span>
+            <span className="text-xl font-bold text-foreground">Docflow AI</span>
           </Link>
           
           <div className="hidden md:flex items-center gap-8">
@@ -49,7 +49,7 @@ const Index = () => {
           >
             <Badge variant="gradient" className="mb-6">
               <Sparkles className="w-3 h-3 mr-1" />
-              Powered by Docflow AI
+              Powered by End Boring Tasks
             </Badge>
             
             <h1 className="text-5xl md:text-7xl font-bold leading-tight mb-6">
@@ -319,10 +319,10 @@ const Index = () => {
               <div className="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center">
                 <Zap className="w-4 h-4 text-primary-foreground" />
               </div>
-              <span className="font-semibold">End Boring Tasks</span>
+              <span className="font-semibold">Docflow AI</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} End Boring Tasks. All rights reserved.
+              © {new Date().getFullYear()} Docflow AI by End Boring Tasks. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm text-muted-foreground">
               <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
