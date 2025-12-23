@@ -9,7 +9,7 @@ interface SEOProps {
 }
 
 const defaultTitle = "Docflow AI - End Boring Tasks, Automate Everything";
-const defaultDescription = "Docflow AI automates document-heavy workflows across industries. Structure, validate, and track — all in one powerful platform.";
+const defaultDescription = "Automate document workflows for migration agents, HR teams, and auditors. Save hours on repetitive tasks with AI-powered automation.";
 const siteUrl = "https://docflowai.endboringtasks.com";
 
 export const SEO = ({ 
