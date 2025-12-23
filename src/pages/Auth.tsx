@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Zap, ArrowLeft, Mail, KeyRound, Loader2 } from "lucide-react";
+import { Zap, ArrowLeft, Mail, KeyRound, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Link, useSearchParams, useNavigate, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompany } from "@/hooks/useCompany";
 import { PendingInvitations } from "@/components/auth/PendingInvitations";
 import { z } from "zod";
 
-type AuthStep = "email" | "otp";
+type AuthStep = "email" | "otp" | "expired";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 
@@ -28,15 +28,14 @@ const Auth = () => {
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
+  const [expiredEmail, setExpiredEmail] = useState("");
 
   // Redirect based on authentication and company status
   useEffect(() => {
     if (!authLoading && !companyLoading && user) {
       if (currentCompany) {
-        // Existing user with company → go to dashboard
         navigate(`/app/${currentCompany.niche}/dashboard`);
       } else {
-        // New user without company → go to onboarding
         navigate("/onboarding");
       }
     }
@@ -48,37 +47,34 @@ const Auth = () => {
 
     const hashParams = new URLSearchParams(location.hash.replace(/^#/, ""));
     const errorCode = hashParams.get("error_code");
-    const errorDescription = hashParams.get("error_description");
 
     if (!errorCode) return;
 
-    if (errorCode === "otp_expired") {
-      toast.error("Email link expired", {
-        description:
-          "Request a new code. Tip: some email clients/security scanners pre-open links; entering the 6-digit code is more reliable.",
-      });
-    } else {
-      toast.error("Authentication error", {
-        description: errorDescription || errorCode,
-      });
-    }
-
-    // Clear fragment so the toast doesn't repeat on refresh/back
+    // Clear fragment so the error doesn't repeat on refresh/back
     window.history.replaceState(
       null,
       "",
       window.location.pathname + window.location.search
     );
 
-    setStep("email");
-    setOtp("");
+    if (errorCode === "otp_expired") {
+      // Show the dedicated expired screen
+      setStep("expired");
+      setOtp("");
+    } else {
+      const errorDescription = hashParams.get("error_description");
+      toast.error("Authentication error", {
+        description: errorDescription || errorCode,
+      });
+      setStep("email");
+      setOtp("");
+    }
   }, [location.hash]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setEmailError("");
     
-    // Validate email
     const result = emailSchema.safeParse(email);
     if (!result.success) {
       setEmailError(result.error.errors[0].message);
@@ -112,7 +108,8 @@ const Auth = () => {
     
     setIsLoading(true);
     
-    const { error } = await verifyOtp(email, otp);
+    const emailToVerify = step === "expired" ? expiredEmail : email;
+    const { error } = await verifyOtp(emailToVerify, otp);
     
     if (error) {
       console.error("OTP verification error:", error.message);
@@ -126,14 +123,18 @@ const Auth = () => {
     toast.success("Welcome!", {
       description: "Redirecting...",
     });
-    
-    // Navigation will be handled by the useEffect watching user state
   };
 
-  const handleResendCode = async () => {
+  const handleResendCode = async (targetEmail?: string) => {
+    const emailToUse = targetEmail || email;
+    if (!emailToUse) {
+      toast.error("Please enter your email first");
+      return;
+    }
+    
     setIsLoading(true);
     
-    const { error } = await signInWithOtp(email);
+    const { error } = await signInWithOtp(emailToUse);
     
     if (error) {
       toast.error("Failed to resend code", {
@@ -141,11 +142,23 @@ const Auth = () => {
       });
     } else {
       toast.success("New code sent!", {
-        description: `Check your email at ${email}`,
+        description: `Check your email at ${emailToUse}`,
       });
+      // Move to OTP step after resending
+      if (step === "expired") {
+        setEmail(emailToUse);
+        setStep("otp");
+      }
     }
     
     setIsLoading(false);
+  };
+
+  const handleExpiredEnterCode = () => {
+    if (expiredEmail) {
+      setEmail(expiredEmail);
+    }
+    setStep("otp");
   };
 
   if (authLoading || companyLoading) {
@@ -182,125 +195,255 @@ const Auth = () => {
           </div>
         </div>
 
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2">
-            {isSignup ? "Create your account" : "Welcome back"}
-          </h2>
-          <p className="text-muted-foreground">
-            {step === "email" 
-              ? "Enter your email to receive a 6-digit verification code" 
-              : "Enter the 6-digit code from the email (this works even if the email link says expired)"
-            }
-          </p>
-        </div>
-
-        {step === "email" ? (
-          <div className="space-y-6">
-            <form onSubmit={handleEmailSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Email address</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    type="email"
-                    placeholder="you@company.com"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      setEmailError("");
-                    }}
-                    className={`pl-10 h-12 bg-secondary border-border ${emailError ? "border-destructive" : ""}`}
-                    required
-                  />
+        <AnimatePresence mode="wait">
+          {step === "expired" ? (
+            <motion.div
+              key="expired"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              {/* Expired Link Screen */}
+              <div className="flex flex-col items-center text-center mb-6">
+                <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+                  <AlertTriangle className="w-8 h-8 text-destructive" />
                 </div>
-                {emailError && (
-                  <p className="text-sm text-destructive">{emailError}</p>
-                )}
+                <h2 className="text-2xl font-bold mb-2">Email Link Expired</h2>
+                <p className="text-muted-foreground">
+                  The sign-in link you clicked is no longer valid. This often happens when email security scanners pre-open links.
+                </p>
               </div>
-              
-              <Button 
-                type="submit" 
-                variant="gradient" 
-                className="w-full h-12"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Sending code...
-                  </>
-                ) : (
-                  "Continue with Email"
-                )}
-              </Button>
-            </form>
 
-            {/* Show pending invitations on the auth page */}
-            <PendingInvitations />
-          </div>
-        ) : (
-          <form onSubmit={handleOtpSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Verification code</label>
+              <div className="bg-secondary/50 rounded-lg p-4 border border-border">
+                <p className="text-sm text-muted-foreground mb-3">
+                  <strong className="text-foreground">Good news:</strong> The 6-digit code in your email still works! Enter it below to continue.
+                </p>
+                
+                <form onSubmit={handleOtpSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Your email</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                      <Input
+                        type="email"
+                        placeholder="you@company.com"
+                        value={expiredEmail}
+                        onChange={(e) => setExpiredEmail(e.target.value)}
+                        className="pl-10 h-12 bg-background border-border"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">6-digit code from email</label>
+                    <div className="relative">
+                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="000000"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        className="pl-10 h-12 bg-background border-border text-center text-2xl tracking-[0.5em] font-mono"
+                        maxLength={6}
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  <Button 
+                    type="submit" 
+                    variant="gradient" 
+                    className="w-full h-12"
+                    disabled={isLoading || otp.length !== 6 || !expiredEmail}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Verifying...
+                      </>
+                    ) : (
+                      "Verify & Continue"
+                    )}
+                  </Button>
+                </form>
+              </div>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Or</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Button
+                  variant="outline"
+                  className="w-full h-12"
+                  onClick={() => handleResendCode(expiredEmail)}
+                  disabled={isLoading || !expiredEmail}
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+                  Send a New Code
+                </Button>
+
                 <button
                   type="button"
                   onClick={() => {
                     setStep("email");
                     setOtp("");
+                    setExpiredEmail("");
                   }}
-                  className="text-sm text-primary hover:underline"
+                  className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  Change email
+                  Use a different email
                 </button>
               </div>
-              <div className="relative">
-                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="000000"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="pl-10 h-12 bg-secondary border-border text-center text-2xl tracking-[0.5em] font-mono"
-                  maxLength={6}
-                  autoFocus
-                  required
-                />
+            </motion.div>
+          ) : step === "email" ? (
+            <motion.div
+              key="email"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              <div className="mb-8">
+                <h2 className="text-3xl font-bold mb-2">
+                  {isSignup ? "Create your account" : "Welcome back"}
+                </h2>
+                <p className="text-muted-foreground">
+                  Enter your email to receive a 6-digit verification code
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Sent to <span className="text-foreground">{email}</span>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                If clicking the email button shows “expired”, just enter the 6-digit code above.
-              </p>
-            </div>
 
-            <Button 
-              type="submit" 
-              variant="gradient" 
-              className="w-full h-12"
-              disabled={isLoading || otp.length !== 6}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Verifying...
-                </>
-              ) : (
-                "Verify & Continue"
-              )}
-            </Button>
+              <form onSubmit={handleEmailSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Email address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      placeholder="you@company.com"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setEmailError("");
+                      }}
+                      className={`pl-10 h-12 bg-secondary border-border ${emailError ? "border-destructive" : ""}`}
+                      required
+                    />
+                  </div>
+                  {emailError && (
+                    <p className="text-sm text-destructive">{emailError}</p>
+                  )}
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  variant="gradient" 
+                  className="w-full h-12"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Sending code...
+                    </>
+                  ) : (
+                    "Continue with Email"
+                  )}
+                </Button>
+              </form>
 
-            <button
-              type="button"
-              onClick={handleResendCode}
-              disabled={isLoading}
-              className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              <PendingInvitations />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="otp"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
             >
-              Didn't receive a code? Resend
-            </button>
-          </form>
-        )}
+              <div className="mb-8">
+                <h2 className="text-3xl font-bold mb-2">
+                  {isSignup ? "Create your account" : "Welcome back"}
+                </h2>
+                <p className="text-muted-foreground">
+                  Enter the 6-digit code from the email (this works even if the email link says expired)
+                </p>
+              </div>
+
+              <form onSubmit={handleOtpSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">Verification code</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStep("email");
+                        setOtp("");
+                      }}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Change email
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="000000"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      className="pl-10 h-12 bg-secondary border-border text-center text-2xl tracking-[0.5em] font-mono"
+                      maxLength={6}
+                      autoFocus
+                      required
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Sent to <span className="text-foreground">{email}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    If clicking the email button shows "expired", just enter the 6-digit code above.
+                  </p>
+                </div>
+
+                <Button 
+                  type="submit" 
+                  variant="gradient" 
+                  className="w-full h-12"
+                  disabled={isLoading || otp.length !== 6}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    "Verify & Continue"
+                  )}
+                </Button>
+
+                <button
+                  type="button"
+                  onClick={() => handleResendCode()}
+                  disabled={isLoading}
+                  className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                  Didn't receive a code? Resend
+                </button>
+              </form>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <p className="mt-8 text-center text-sm text-muted-foreground">
           {isSignup ? "Already have an account? " : "Don't have an account? "}
