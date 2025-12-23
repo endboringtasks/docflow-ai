@@ -11,6 +11,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminProtectedRoute } from "@/components/admin/AdminProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminCompanies from "./pages/admin/Companies";
 import AdminUsers from "./pages/admin/Users";
@@ -46,6 +48,8 @@ const App = () => (
               {/* Public */}
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
               
               {/* Protected: Onboarding */}
               <Route path="/onboarding" element={
