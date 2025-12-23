@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompany } from "@/hooks/useCompany";
+import { SEO } from "@/components/SEO";
 
 type Niche = "migration" | "audit" | "hr";
 
@@ -110,8 +111,15 @@ const Onboarding = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-8">
-      <div className="absolute inset-0 bg-hero-gradient opacity-30" />
+    <>
+      <SEO 
+        title="Set Up Your Workspace"
+        description="Set up your Docflow AI workspace. Choose your industry and configure your document automation platform."
+        canonical="/onboarding"
+        noIndex
+      />
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <div className="absolute inset-0 bg-hero-gradient opacity-30" />
       
       <motion.div 
         className="relative z-10 w-full max-w-2xl"
@@ -279,6 +287,7 @@ const Onboarding = () => {
         </div>
       </motion.div>
     </div>
+    </>
   );
 };
 
