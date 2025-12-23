@@ -394,9 +394,10 @@ const Index = () => {
             <p className="text-sm text-muted-foreground">
               © {new Date().getFullYear()} Docflow AI by End Boring Tasks. All rights reserved.
             </p>
-            <div className="flex gap-6 text-sm text-muted-foreground">
+            <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
               <a href="https://docflowai.endboringtasks.com/privacy" className="hover:text-foreground transition-colors">Privacy Policy</a>
               <a href="https://docflowai.endboringtasks.com/terms" className="hover:text-foreground transition-colors">Terms of Service</a>
+              <a href="https://docflowai.endboringtasks.com/seo-checklist" className="hover:text-foreground transition-colors">SEO Checklist</a>
               <a href="mailto:anderson@endboringtasks.com" className="hover:text-foreground transition-colors">Contact</a>
             </div>
           </div>
