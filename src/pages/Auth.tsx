@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompany } from "@/hooks/useCompany";
 import { PendingInvitations } from "@/components/auth/PendingInvitations";
+import { SEO } from "@/components/SEO";
 import { z } from "zod";
 
 type AuthStep = "email" | "otp" | "expired";
@@ -170,8 +171,15 @@ const Auth = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-8">
-      <motion.div 
+    <>
+      <SEO 
+        title={isSignup ? "Create Account" : "Sign In"}
+        description="Sign in or create an account for Docflow AI. Automate your document workflows with secure authentication."
+        canonical="/auth"
+        noIndex
+      />
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <motion.div
         className="w-full max-w-md"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -456,6 +464,7 @@ const Auth = () => {
         </p>
       </motion.div>
     </div>
+    </>
   );
 };
 

@@ -13,6 +13,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { TeamMembers } from "@/components/settings/TeamMembers";
 import { UserProfile } from "@/components/settings/UserProfile";
 import { GoogleDriveConnection } from "@/components/settings/GoogleDriveConnection";
+import { SEO } from "@/components/SEO";
 
 const Settings = () => {
   const { user } = useAuth();
@@ -59,7 +60,13 @@ const Settings = () => {
   const niche = currentCompany?.niche || "migration";
 
   return (
-    <AppLayout niche={niche}>
+    <>
+      <SEO 
+        title="Settings"
+        description="Manage your Docflow AI account and company settings. Configure team members, integrations, and preferences."
+        noIndex
+      />
+      <AppLayout niche={niche}>
       <div className="p-6 lg:p-8 max-w-4xl mx-auto space-y-8">
         {/* Page Header */}
         <div>
@@ -215,7 +222,8 @@ const Settings = () => {
         {/* Team Members */}
         <TeamMembers />
       </div>
-    </AppLayout>
+      </AppLayout>
+    </>
   );
 };
 

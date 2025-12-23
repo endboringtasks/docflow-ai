@@ -3,9 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { SEO } from "@/components/SEO";
 
 const Index = () => {
   return (
+    <>
+      <SEO 
+        canonical="/"
+        description="Docflow AI automates document-heavy workflows across industries. Structure, validate, and track — all in one powerful platform. Start your free trial today."
+      />
     <div className="min-h-screen bg-background">
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
@@ -333,6 +339,7 @@ const Index = () => {
         </div>
       </footer>
     </div>
+    </>
   );
 };
 
