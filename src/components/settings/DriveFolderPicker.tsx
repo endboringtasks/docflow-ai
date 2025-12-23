@@ -78,13 +78,24 @@ export function DriveFolderPicker({
     }
   }, [open, companyId]);
 
+  const buildFullPath = (crumbs: BreadcrumbItem[], folderName?: string) => {
+    const pathParts = crumbs.map((c) => c.name);
+    if (folderName && !pathParts.includes(folderName)) {
+      pathParts.push(folderName);
+    }
+    return pathParts.join(" > ");
+  };
+
   const handleFolderClick = (folder: DriveFolder) => {
-    setSelectedFolder({ id: folder.id, name: folder.name });
+    const fullPath = buildFullPath(breadcrumbs, folder.name);
+    setSelectedFolder({ id: folder.id, name: fullPath });
   };
 
   const handleFolderOpen = (folder: DriveFolder) => {
-    setBreadcrumbs([...breadcrumbs, { id: folder.id, name: folder.name }]);
-    setSelectedFolder({ id: folder.id, name: folder.name });
+    const newBreadcrumbs = [...breadcrumbs, { id: folder.id, name: folder.name }];
+    setBreadcrumbs(newBreadcrumbs);
+    const fullPath = buildFullPath(newBreadcrumbs);
+    setSelectedFolder({ id: folder.id, name: fullPath });
     fetchFolders(folder.id);
   };
 
@@ -103,7 +114,8 @@ export function DriveFolderPicker({
 
   const handleSelectCurrentFolder = () => {
     const current = breadcrumbs[breadcrumbs.length - 1];
-    setSelectedFolder({ id: current.id, name: current.id ? current.name : null });
+    const fullPath = buildFullPath(breadcrumbs);
+    setSelectedFolder({ id: current.id, name: current.id ? fullPath : "My Drive" });
   };
 
   const handleSave = async () => {
