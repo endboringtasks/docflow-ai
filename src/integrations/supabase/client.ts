@@ -13,5 +13,10 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
+
+    // Use PKCE so email-link scanners can't "consume" magic links.
+    // This makes magic links most reliable when opened on the same device/browser.
+    detectSessionInUrl: true,
+    flowType: 'pkce',
   }
 });
