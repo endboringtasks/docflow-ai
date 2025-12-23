@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.webhook-automation-event]
 verify_jwt = false
+
+[functions.google-drive-callback]
+verify_jwt = false

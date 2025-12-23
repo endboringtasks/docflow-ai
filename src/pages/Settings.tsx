@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/layout/AppLayout";
 import { TeamMembers } from "@/components/settings/TeamMembers";
 import { UserProfile } from "@/components/settings/UserProfile";
+import { GoogleDriveConnection } from "@/components/settings/GoogleDriveConnection";
 
 const Settings = () => {
   const { user } = useAuth();
@@ -207,6 +208,9 @@ const Settings = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Google Drive Integration */}
+        <GoogleDriveConnection />
 
         {/* Team Members */}
         <TeamMembers />
