@@ -13,15 +13,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { HardDrive, Link2, Unlink, Loader2, CheckCircle2, Mail } from "lucide-react";
+import { HardDrive, Link2, Unlink, Loader2, CheckCircle2, Mail, Folder, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { useSearchParams } from "react-router-dom";
+import { DriveFolderPicker } from "./DriveFolderPicker";
 
 interface DriveConnection {
   id: string;
   connected_email: string | null;
+  root_folder_id: string | null;
   root_folder_name: string | null;
   created_at: string;
 }
@@ -33,6 +35,7 @@ export function GoogleDriveConnection() {
   const [isLoading, setIsLoading] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
 
   const canManage = currentRole === "owner" || currentRole === "admin";
 
@@ -63,7 +66,7 @@ export function GoogleDriveConnection() {
     try {
       const { data, error } = await supabase
         .from("google_drive_connections")
-        .select("id, connected_email, root_folder_name, created_at")
+        .select("id, connected_email, root_folder_id, root_folder_name, created_at")
         .eq("company_id", currentCompany.id)
         .maybeSingle();
 
@@ -123,6 +126,12 @@ export function GoogleDriveConnection() {
     }
   };
 
+  const handleFolderSelect = (folderId: string | null, folderName: string | null) => {
+    setConnection((prev) =>
+      prev ? { ...prev, root_folder_id: folderId, root_folder_name: folderName } : null
+    );
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -161,49 +170,75 @@ export function GoogleDriveConnection() {
                     <Mail className="w-3 h-3" />
                     {connection.connected_email || "Unknown account"}
                   </div>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5">
+                    <Folder className="w-3 h-3" />
+                    Root: {connection.root_folder_name || "My Drive"}
+                  </div>
                 </div>
               </div>
               
               {canManage && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={isDisconnecting}>
-                      {isDisconnecting ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Unlink className="w-4 h-4" />
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowFolderPicker(true)}
+                  >
+                    <Settings2 className="w-4 h-4" />
+                    Change Folder
+                  </Button>
+                  
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" disabled={isDisconnecting}>
+                        {isDisconnecting ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Unlink className="w-4 h-4" />
+                            Disconnect
+                          </>
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Disconnect Google Drive?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will remove the connection to Google Drive. Existing folder links in clients 
+                          and matters will still point to the same folders, but the app won't be able to 
+                          create new folders or access files until reconnected.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleDisconnect}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
                           Disconnect
-                        </>
-                      )}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Disconnect Google Drive?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will remove the connection to Google Drive. Existing folder links in clients 
-                        and matters will still point to the same folders, but the app won't be able to 
-                        create new folders or access files until reconnected.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={handleDisconnect}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        Disconnect
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               )}
             </div>
 
             <p className="text-sm text-muted-foreground">
-              New client and matter folders will be created automatically in your connected Drive.
+              New client folders will be created in: <span className="font-medium">{connection.root_folder_name || "My Drive"}</span>
             </p>
+
+            {currentCompany && (
+              <DriveFolderPicker
+                open={showFolderPicker}
+                onOpenChange={setShowFolderPicker}
+                companyId={currentCompany.id}
+                currentFolderId={connection.root_folder_id}
+                currentFolderName={connection.root_folder_name}
+                onSelect={handleFolderSelect}
+              />
+            )}
           </div>
         ) : (
           <div className="space-y-4">
