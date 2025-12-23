@@ -14,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
     if (!authHeader) {
       throw new Error("No authorization header");
     }
@@ -25,9 +25,10 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const jwt = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
+    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt);
     if (userError || !user) {
-      throw new Error("Unauthorized");
+      throw new Error(`Unauthorized: ${userError?.message || "No user found"}`);
     }
 
     const { companyId } = await req.json();
