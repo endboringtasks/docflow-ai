@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       .from("clients")
       .update({ drive_folder_id: payload.drive_folder_id })
       .eq("id", payload.client_id)
-      .select("id, company_id, full_name")
+      .select("id, company_id, first_name, last_name")
       .single();
 
     if (updateError) {
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
         event_type: "client_folder_created",
         payload: {
           drive_folder_id: payload.drive_folder_id,
-          client_name: client.full_name,
+          client_name: client.last_name ? `${client.first_name} ${client.last_name}` : client.first_name,
           timestamp: new Date().toISOString(),
         },
       });
