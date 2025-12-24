@@ -66,7 +66,8 @@ interface Matter {
 
 interface Client {
   id: string;
-  full_name: string;
+  first_name: string;
+  last_name: string | null;
   email: string | null;
   phone: string | null;
   client_type: "personal" | "corporate";
@@ -221,7 +222,7 @@ const MatterDetail = () => {
       
       const { data, error } = await supabase
         .from("clients")
-        .select("id, full_name, email, phone, client_type")
+        .select("id, first_name, last_name, email, phone, client_type")
         .eq("id", matter.client_id)
         .maybeSingle();
       
@@ -692,7 +693,7 @@ const MatterDetail = () => {
               <User className="w-5 h-5 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground">Client</p>
-                <p className="font-medium hover:text-primary transition-colors">{client?.full_name || "Unknown"}</p>
+                <p className="font-medium hover:text-primary transition-colors">{client ? (client.last_name ? `${client.first_name} ${client.last_name}` : client.first_name) : "Unknown"}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">

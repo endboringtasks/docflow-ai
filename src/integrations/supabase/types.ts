@@ -73,8 +73,9 @@ export type Database = {
           created_at: string
           drive_folder_id: string | null
           email: string | null
-          full_name: string
+          first_name: string
           id: string
+          last_name: string | null
           phone: string | null
         }
         Insert: {
@@ -83,8 +84,9 @@ export type Database = {
           created_at?: string
           drive_folder_id?: string | null
           email?: string | null
-          full_name: string
+          first_name: string
           id?: string
+          last_name?: string | null
           phone?: string | null
         }
         Update: {
@@ -93,8 +95,9 @@ export type Database = {
           created_at?: string
           drive_folder_id?: string | null
           email?: string | null
-          full_name?: string
+          first_name?: string
           id?: string
+          last_name?: string | null
           phone?: string | null
         }
         Relationships: [
