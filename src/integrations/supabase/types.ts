@@ -514,6 +514,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      has_client_access: {
+        Args: { _client_id: string; _company_id: string; _user_id: string }
+        Returns: boolean
+      }
       has_company_role: {
         Args: {
           _company_id: string
