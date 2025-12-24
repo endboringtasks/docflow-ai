@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       .from("clients")
       .update({ drive_folder_id: payload.drive_folder_id })
       .eq("id", payload.client_id)
-      .select("id, company_id, first_name, last_name")
+      .select("id, company_id, client_type, first_name, last_name, company_name")
       .single();
 
     if (updateError) {
@@ -71,6 +71,11 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Get client display name based on type
+    const clientName = client.client_type === "corporate" 
+      ? (client.company_name || "Unnamed Company")
+      : (client.last_name ? `${client.first_name} ${client.last_name}` : (client.first_name || "Unnamed Client"));
+
     // Log the automation event
     const { error: eventError } = await supabase
       .from("automation_events")
@@ -80,7 +85,7 @@ Deno.serve(async (req) => {
         event_type: "client_folder_created",
         payload: {
           drive_folder_id: payload.drive_folder_id,
-          client_name: client.last_name ? `${client.first_name} ${client.last_name}` : client.first_name,
+          client_name: clientName,
           timestamp: new Date().toISOString(),
         },
       });
