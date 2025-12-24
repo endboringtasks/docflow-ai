@@ -60,8 +60,10 @@ interface Matter {
 
 interface Client {
   id: string;
-  first_name: string;
+  client_type: "personal" | "corporate";
+  first_name: string | null;
   last_name: string | null;
+  company_name: string | null;
 }
 
 const visaSubclasses = [
@@ -109,7 +111,7 @@ const MigrationMatters = () => {
       
       const { data, error } = await supabase
         .from("clients")
-        .select("id, first_name, last_name")
+        .select("id, client_type, first_name, last_name, company_name")
         .eq("company_id", currentCompany.id)
         .order("first_name");
       
@@ -136,8 +138,10 @@ const MigrationMatters = () => {
           drive_folder_id,
           created_at,
           clients (
+            client_type,
             first_name,
-            last_name
+            last_name,
+            company_name
           )
         `)
         .eq("company_id", currentCompany.id)
@@ -147,9 +151,16 @@ const MigrationMatters = () => {
       
       return (data || []).map(matter => {
         const clientData = matter.clients as any;
-        const clientName = clientData 
-          ? (clientData.last_name ? `${clientData.first_name} ${clientData.last_name}` : clientData.first_name)
-          : "Unknown";
+        let clientName = "Unknown";
+        if (clientData) {
+          if (clientData.client_type === "corporate") {
+            clientName = clientData.company_name || "Unnamed Company";
+          } else {
+            clientName = clientData.last_name 
+              ? `${clientData.first_name} ${clientData.last_name}` 
+              : (clientData.first_name || "Unnamed Client");
+          }
+        }
         return {
           id: matter.id,
           client_id: matter.client_id,
@@ -402,7 +413,10 @@ const MigrationMatters = () => {
                     <SelectContent>
                       {clients.map(client => (
                         <SelectItem key={client.id} value={client.id}>
-                          {client.last_name ? `${client.first_name} ${client.last_name}` : client.first_name}
+                          {client.client_type === "corporate" 
+                            ? (client.company_name || "Unnamed Company")
+                            : (client.last_name ? `${client.first_name} ${client.last_name}` : (client.first_name || "Unnamed Client"))
+                          }
                         </SelectItem>
                       ))}
                     </SelectContent>

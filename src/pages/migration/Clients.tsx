@@ -52,8 +52,9 @@ import { useCompany } from "@/hooks/useCompany";
 interface Client {
   id: string;
   client_type: "personal" | "corporate";
-  first_name: string;
+  first_name: string | null;
   last_name: string | null;
+  company_name: string | null;
   email: string | null;
   phone: string | null;
   drive_folder_id: string | null;
@@ -73,6 +74,7 @@ const MigrationClients = () => {
     clientType: "personal" as "personal" | "corporate",
     firstName: "",
     lastName: "",
+    companyName: "",
     email: "",
     phone: "",
   });
@@ -80,6 +82,7 @@ const MigrationClients = () => {
     clientType: "personal" as "personal" | "corporate",
     firstName: "",
     lastName: "",
+    companyName: "",
     email: "",
     phone: "",
   });
@@ -123,8 +126,9 @@ const MigrationClients = () => {
   const createClientMutation = useMutation({
     mutationFn: async (clientData: {
       client_type: "personal" | "corporate";
-      first_name: string;
+      first_name: string | null;
       last_name: string | null;
+      company_name: string | null;
       email: string | null;
       phone: string | null;
     }) => {
@@ -137,6 +141,7 @@ const MigrationClients = () => {
           client_type: clientData.client_type,
           first_name: clientData.first_name,
           last_name: clientData.last_name,
+          company_name: clientData.company_name,
           email: clientData.email,
           phone: clientData.phone,
         })
@@ -186,7 +191,7 @@ const MigrationClients = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
       setIsCreateOpen(false);
-      setNewClient({ clientType: "personal", firstName: "", lastName: "", email: "", phone: "" });
+      setNewClient({ clientType: "personal", firstName: "", lastName: "", companyName: "", email: "", phone: "" });
       toast.success("Client created!");
     },
     onError: (error) => {
@@ -244,8 +249,9 @@ const MigrationClients = () => {
     mutationFn: async (clientData: {
       id: string;
       client_type: "personal" | "corporate";
-      first_name: string;
+      first_name: string | null;
       last_name: string | null;
+      company_name: string | null;
       email: string | null;
       phone: string | null;
     }) => {
@@ -255,6 +261,7 @@ const MigrationClients = () => {
           client_type: clientData.client_type,
           first_name: clientData.first_name,
           last_name: clientData.last_name,
+          company_name: clientData.company_name,
           email: clientData.email,
           phone: clientData.phone,
         })
@@ -301,7 +308,10 @@ const MigrationClients = () => {
   });
 
   const getFullName = (client: Client) => {
-    return client.last_name ? `${client.first_name} ${client.last_name}` : client.first_name;
+    if (client.client_type === "corporate") {
+      return client.company_name || "Unnamed Company";
+    }
+    return client.last_name ? `${client.first_name} ${client.last_name}` : (client.first_name || "Unnamed Client");
   };
 
   const filteredClients = clients.filter(client => {
@@ -311,12 +321,15 @@ const MigrationClients = () => {
   });
 
   const handleCreateClient = () => {
-    if (!newClient.firstName.trim()) return;
+    const isCorporate = newClient.clientType === "corporate";
+    const hasRequiredField = isCorporate ? newClient.companyName.trim() : newClient.firstName.trim();
+    if (!hasRequiredField) return;
     
     createClientMutation.mutate({
       client_type: newClient.clientType,
-      first_name: newClient.firstName.trim(),
-      last_name: newClient.lastName.trim() || null,
+      first_name: isCorporate ? null : newClient.firstName.trim(),
+      last_name: isCorporate ? null : (newClient.lastName.trim() || null),
+      company_name: isCorporate ? newClient.companyName.trim() : null,
       email: newClient.email.trim() || null,
       phone: newClient.phone.trim() || null,
     });
@@ -325,8 +338,9 @@ const MigrationClients = () => {
   const handleEditClient = (client: Client) => {
     setEditForm({
       clientType: client.client_type,
-      firstName: client.first_name,
+      firstName: client.first_name || "",
       lastName: client.last_name || "",
+      companyName: client.company_name || "",
       email: client.email || "",
       phone: client.phone || "",
     });
@@ -334,13 +348,17 @@ const MigrationClients = () => {
   };
 
   const handleUpdateClient = () => {
-    if (!clientToEdit || !editForm.firstName.trim()) return;
+    if (!clientToEdit) return;
+    const isCorporate = editForm.clientType === "corporate";
+    const hasRequiredField = isCorporate ? editForm.companyName.trim() : editForm.firstName.trim();
+    if (!hasRequiredField) return;
     
     updateClientMutation.mutate({
       id: clientToEdit.id,
       client_type: editForm.clientType,
-      first_name: editForm.firstName.trim(),
-      last_name: editForm.lastName.trim() || null,
+      first_name: isCorporate ? null : editForm.firstName.trim(),
+      last_name: isCorporate ? null : (editForm.lastName.trim() || null),
+      company_name: isCorporate ? editForm.companyName.trim() : null,
       email: editForm.email.trim() || null,
       phone: editForm.phone.trim() || null,
     });
@@ -396,26 +414,37 @@ const MigrationClients = () => {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>{newClient.clientType === "personal" ? "First Name" : "Company Name"}</Label>
-                  <Input
-                    value={newClient.firstName}
-                    onChange={(e) => setNewClient({...newClient, firstName: e.target.value})}
-                    placeholder={newClient.clientType === "personal" ? "John" : "Acme Corp Pty Ltd"}
-                    className="bg-secondary border-border"
-                  />
-                </div>
-
-                {newClient.clientType === "personal" && (
+                {newClient.clientType === "corporate" ? (
                   <div className="space-y-2">
-                    <Label>Last Name</Label>
+                    <Label>Company Name</Label>
                     <Input
-                      value={newClient.lastName}
-                      onChange={(e) => setNewClient({...newClient, lastName: e.target.value})}
-                      placeholder="Smith"
+                      value={newClient.companyName}
+                      onChange={(e) => setNewClient({...newClient, companyName: e.target.value})}
+                      placeholder="Acme Corp Pty Ltd"
                       className="bg-secondary border-border"
                     />
                   </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label>First Name</Label>
+                      <Input
+                        value={newClient.firstName}
+                        onChange={(e) => setNewClient({...newClient, firstName: e.target.value})}
+                        placeholder="John"
+                        className="bg-secondary border-border"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Last Name</Label>
+                      <Input
+                        value={newClient.lastName}
+                        onChange={(e) => setNewClient({...newClient, lastName: e.target.value})}
+                        placeholder="Smith"
+                        className="bg-secondary border-border"
+                      />
+                    </div>
+                  </>
                 )}
 
                 <div className="space-y-2">
@@ -449,7 +478,7 @@ const MigrationClients = () => {
                   variant="gradient" 
                   className="flex-1" 
                   onClick={handleCreateClient} 
-                  disabled={!newClient.firstName.trim() || createClientMutation.isPending}
+                  disabled={(newClient.clientType === "corporate" ? !newClient.companyName.trim() : !newClient.firstName.trim()) || createClientMutation.isPending}
                 >
                   {createClientMutation.isPending ? (
                     <>
@@ -667,27 +696,38 @@ const MigrationClients = () => {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>{editForm.clientType === "personal" ? "First Name" : "Company Name"}</Label>
-                <Input
-                  value={editForm.firstName}
-                  onChange={(e) => setEditForm({...editForm, firstName: e.target.value})}
-                  placeholder={editForm.clientType === "personal" ? "John" : "Acme Corp Pty Ltd"}
-                  className="bg-secondary border-border"
-                />
-              </div>
-
-              {editForm.clientType === "personal" && (
-                <div className="space-y-2">
-                  <Label>Last Name</Label>
-                  <Input
-                    value={editForm.lastName}
-                    onChange={(e) => setEditForm({...editForm, lastName: e.target.value})}
-                    placeholder="Smith"
-                    className="bg-secondary border-border"
-                  />
-                </div>
-              )}
+                {editForm.clientType === "corporate" ? (
+                  <div className="space-y-2">
+                    <Label>Company Name</Label>
+                    <Input
+                      value={editForm.companyName}
+                      onChange={(e) => setEditForm({...editForm, companyName: e.target.value})}
+                      placeholder="Acme Corp Pty Ltd"
+                      className="bg-secondary border-border"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label>First Name</Label>
+                      <Input
+                        value={editForm.firstName}
+                        onChange={(e) => setEditForm({...editForm, firstName: e.target.value})}
+                        placeholder="John"
+                        className="bg-secondary border-border"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Last Name</Label>
+                      <Input
+                        value={editForm.lastName}
+                        onChange={(e) => setEditForm({...editForm, lastName: e.target.value})}
+                        placeholder="Smith"
+                        className="bg-secondary border-border"
+                      />
+                    </div>
+                  </>
+                )}
 
               <div className="space-y-2">
                 <Label>Email</Label>
@@ -720,7 +760,7 @@ const MigrationClients = () => {
                 variant="gradient" 
                 className="flex-1" 
                 onClick={handleUpdateClient} 
-                disabled={!editForm.firstName.trim() || updateClientMutation.isPending}
+                disabled={(editForm.clientType === "corporate" ? !editForm.companyName.trim() : !editForm.firstName.trim()) || updateClientMutation.isPending}
               >
                 {updateClientMutation.isPending ? (
                   <>

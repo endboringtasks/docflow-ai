@@ -70,10 +70,11 @@ export type Database = {
         Row: {
           client_type: Database["public"]["Enums"]["client_type"]
           company_id: string
+          company_name: string | null
           created_at: string
           drive_folder_id: string | null
           email: string | null
-          first_name: string
+          first_name: string | null
           id: string
           last_name: string | null
           phone: string | null
@@ -81,10 +82,11 @@ export type Database = {
         Insert: {
           client_type?: Database["public"]["Enums"]["client_type"]
           company_id: string
+          company_name?: string | null
           created_at?: string
           drive_folder_id?: string | null
           email?: string | null
-          first_name: string
+          first_name?: string | null
           id?: string
           last_name?: string | null
           phone?: string | null
@@ -92,10 +94,11 @@ export type Database = {
         Update: {
           client_type?: Database["public"]["Enums"]["client_type"]
           company_id?: string
+          company_name?: string | null
           created_at?: string
           drive_folder_id?: string | null
           email?: string | null
-          first_name?: string
+          first_name?: string | null
           id?: string
           last_name?: string | null
           phone?: string | null
