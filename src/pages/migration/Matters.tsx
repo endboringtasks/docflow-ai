@@ -60,7 +60,8 @@ interface Matter {
 
 interface Client {
   id: string;
-  full_name: string;
+  first_name: string;
+  last_name: string | null;
 }
 
 const visaSubclasses = [
@@ -108,9 +109,9 @@ const MigrationMatters = () => {
       
       const { data, error } = await supabase
         .from("clients")
-        .select("id, full_name")
+        .select("id, first_name, last_name")
         .eq("company_id", currentCompany.id)
-        .order("full_name");
+        .order("first_name");
       
       if (error) throw error;
       return data as Client[];
@@ -135,7 +136,8 @@ const MigrationMatters = () => {
           drive_folder_id,
           created_at,
           clients (
-            full_name
+            first_name,
+            last_name
           )
         `)
         .eq("company_id", currentCompany.id)
@@ -143,16 +145,22 @@ const MigrationMatters = () => {
       
       if (error) throw error;
       
-      return (data || []).map(matter => ({
-        id: matter.id,
-        client_id: matter.client_id,
-        client_name: (matter.clients as any)?.full_name || "Unknown",
-        matter_name: matter.matter_name,
-        visa_subclass: matter.visa_subclass,
-        status: matter.status as "draft" | "active" | "done",
-        drive_folder_id: matter.drive_folder_id,
-        created_at: matter.created_at,
-      })) as Matter[];
+      return (data || []).map(matter => {
+        const clientData = matter.clients as any;
+        const clientName = clientData 
+          ? (clientData.last_name ? `${clientData.first_name} ${clientData.last_name}` : clientData.first_name)
+          : "Unknown";
+        return {
+          id: matter.id,
+          client_id: matter.client_id,
+          client_name: clientName,
+          matter_name: matter.matter_name,
+          visa_subclass: matter.visa_subclass,
+          status: matter.status as "draft" | "active" | "done",
+          drive_folder_id: matter.drive_folder_id,
+          created_at: matter.created_at,
+        };
+      }) as Matter[];
     },
     enabled: !!currentCompany?.id,
   });
@@ -394,7 +402,7 @@ const MigrationMatters = () => {
                     <SelectContent>
                       {clients.map(client => (
                         <SelectItem key={client.id} value={client.id}>
-                          {client.full_name}
+                          {client.last_name ? `${client.first_name} ${client.last_name}` : client.first_name}
                         </SelectItem>
                       ))}
                     </SelectContent>

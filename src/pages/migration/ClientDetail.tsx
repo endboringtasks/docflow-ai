@@ -51,7 +51,8 @@ import { useCompany } from "@/hooks/useCompany";
 interface Client {
   id: string;
   client_type: "personal" | "corporate";
-  full_name: string;
+  first_name: string;
+  last_name: string | null;
   email: string | null;
   phone: string | null;
   drive_folder_id: string | null;
@@ -95,10 +96,15 @@ const ClientDetail = () => {
   
   const [editForm, setEditForm] = useState({
     clientType: "personal" as "personal" | "corporate",
-    fullName: "",
+    firstName: "",
+    lastName: "",
     email: "",
     phone: "",
   });
+
+  const getFullName = (client: Client) => {
+    return client.last_name ? `${client.first_name} ${client.last_name}` : client.first_name;
+  };
 
   // Fetch client details
   const { data: client, isLoading: isLoadingClient } = useQuery({
@@ -178,7 +184,8 @@ const ClientDetail = () => {
   const updateClientMutation = useMutation({
     mutationFn: async (clientData: {
       client_type: "personal" | "corporate";
-      full_name: string;
+      first_name: string;
+      last_name: string | null;
       email: string | null;
       phone: string | null;
     }) => {
@@ -188,7 +195,8 @@ const ClientDetail = () => {
         .from("clients")
         .update({
           client_type: clientData.client_type,
-          full_name: clientData.full_name,
+          first_name: clientData.first_name,
+          last_name: clientData.last_name,
           email: clientData.email,
           phone: clientData.phone,
         })
@@ -249,7 +257,8 @@ const ClientDetail = () => {
     if (!client) return;
     setEditForm({
       clientType: client.client_type,
-      fullName: client.full_name,
+      firstName: client.first_name,
+      lastName: client.last_name || "",
       email: client.email || "",
       phone: client.phone || "",
     });
@@ -257,11 +266,12 @@ const ClientDetail = () => {
   };
 
   const handleUpdateClient = () => {
-    if (!editForm.fullName.trim()) return;
+    if (!editForm.firstName.trim()) return;
     
     updateClientMutation.mutate({
       client_type: editForm.clientType,
-      full_name: editForm.fullName.trim(),
+      first_name: editForm.firstName.trim(),
+      last_name: editForm.lastName.trim() || null,
       email: editForm.email.trim() || null,
       phone: editForm.phone.trim() || null,
     });
@@ -336,7 +346,7 @@ const ClientDetail = () => {
               </div>
               <div>
                 <div className="flex items-center gap-3 mb-1">
-                  <h1 className="text-2xl font-bold">{client.full_name}</h1>
+                  <h1 className="text-2xl font-bold">{getFullName(client)}</h1>
                   <Badge variant={client.client_type === "corporate" ? "secondary" : "outline"}>
                     {client.client_type}
                   </Badge>
@@ -461,7 +471,7 @@ const ClientDetail = () => {
             <DialogHeader>
               <DialogTitle>Create New Application</DialogTitle>
               <DialogDescription>
-                Start a new visa application for {client.full_name}.
+                Start a new visa application for {getFullName(client)}.
               </DialogDescription>
             </DialogHeader>
             
@@ -547,14 +557,26 @@ const ClientDetail = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>{editForm.clientType === "personal" ? "Full Name" : "Company Name"}</Label>
+                <Label>{editForm.clientType === "personal" ? "First Name" : "Company Name"}</Label>
                 <Input
-                  value={editForm.fullName}
-                  onChange={(e) => setEditForm({...editForm, fullName: e.target.value})}
-                  placeholder={editForm.clientType === "personal" ? "John Smith" : "Acme Corp Pty Ltd"}
+                  value={editForm.firstName}
+                  onChange={(e) => setEditForm({...editForm, firstName: e.target.value})}
+                  placeholder={editForm.clientType === "personal" ? "John" : "Acme Corp Pty Ltd"}
                   className="bg-secondary border-border"
                 />
               </div>
+
+              {editForm.clientType === "personal" && (
+                <div className="space-y-2">
+                  <Label>Last Name</Label>
+                  <Input
+                    value={editForm.lastName}
+                    onChange={(e) => setEditForm({...editForm, lastName: e.target.value})}
+                    placeholder="Smith"
+                    className="bg-secondary border-border"
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label>Email</Label>
@@ -587,7 +609,7 @@ const ClientDetail = () => {
                 variant="gradient" 
                 className="flex-1" 
                 onClick={handleUpdateClient} 
-                disabled={!editForm.fullName.trim() || updateClientMutation.isPending}
+                disabled={!editForm.firstName.trim() || updateClientMutation.isPending}
               >
                 {updateClientMutation.isPending ? (
                   <>
