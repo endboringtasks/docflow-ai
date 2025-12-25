@@ -13,6 +13,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { HardDrive, Link2, Unlink, Loader2, CheckCircle2, Mail, Folder, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -204,21 +210,49 @@ export function GoogleDriveConnection() {
               
               {canManage && (
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleReconnect}
-                    disabled={isReconnecting || isDisconnecting}
-                  >
-                    {isReconnecting ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <RefreshCw className="w-4 h-4" />
-                        Reconnect
-                      </>
-                    )}
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              disabled={isReconnecting || isDisconnecting}
+                            >
+                              {isReconnecting ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <RefreshCw className="w-4 h-4" />
+                                  Reconnect
+                                </>
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Reconnect Google Drive?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will re-authenticate your Google Drive connection and automatically 
+                              share your Clients folder with the automation service. Use this if folder 
+                              creation isn't working or if you need to refresh permissions.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleReconnect}>
+                              Reconnect
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                      <TooltipContent>
+                        <p>Re-authenticate and share folder with automation service</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
