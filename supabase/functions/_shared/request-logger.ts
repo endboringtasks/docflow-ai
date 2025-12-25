@@ -1,12 +1,4 @@
-/**
- * Generates a unique request ID for tracking.
- * Format: timestamp-random (e.g., "1703500000000-a1b2c3d4")
- */
-export function generateRequestId(): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 10);
-  return `${timestamp}-${random}`;
-}
+import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 interface RequestLogContext {
   requestId: string;
@@ -15,6 +7,22 @@ interface RequestLogContext {
   clientIp: string;
   userAgent?: string;
   startTime: number;
+}
+
+interface LogRequestParams {
+  ctx: RequestLogContext;
+  statusCode: number;
+  errorMessage?: string;
+  rateLimited?: boolean;
+}
+
+/**
+ * Generates a unique request ID for tracking.
+ */
+export function generateRequestId(): string {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 10);
+  return `${timestamp}-${random}`;
 }
 
 /**
@@ -36,7 +44,7 @@ export function createRequestContext(
 }
 
 /**
- * Logs the start of a request.
+ * Logs the start of a request to console.
  */
 export function logRequestStart(ctx: RequestLogContext, additionalInfo?: Record<string, unknown>): void {
   console.log(JSON.stringify({
@@ -53,7 +61,7 @@ export function logRequestStart(ctx: RequestLogContext, additionalInfo?: Record<
 }
 
 /**
- * Logs the end of a request with duration and status.
+ * Logs the end of a request to console.
  */
 export function logRequestEnd(
   ctx: RequestLogContext,
@@ -75,7 +83,7 @@ export function logRequestEnd(
 }
 
 /**
- * Logs an error during request processing.
+ * Logs an error during request processing to console.
  */
 export function logRequestError(
   ctx: RequestLogContext,
@@ -108,4 +116,38 @@ export function addRequestIdHeader(
     ...headers,
     "X-Request-Id": requestId,
   };
+}
+
+/**
+ * Saves request log to database for monitoring dashboard.
+ * This is a fire-and-forget operation - errors are logged but don't affect the response.
+ */
+export async function saveRequestLog(
+  supabase: SupabaseClient,
+  params: LogRequestParams
+): Promise<void> {
+  const { ctx, statusCode, errorMessage, rateLimited } = params;
+  const durationMs = Date.now() - ctx.startTime;
+
+  try {
+    const { error } = await supabase
+      .from("webhook_request_logs")
+      .insert({
+        request_id: ctx.requestId,
+        endpoint: ctx.endpoint,
+        method: ctx.method,
+        status_code: statusCode,
+        client_ip: ctx.clientIp,
+        user_agent: ctx.userAgent,
+        duration_ms: durationMs,
+        error_message: errorMessage,
+        rate_limited: rateLimited || false,
+      });
+
+    if (error) {
+      console.error("Failed to save request log:", error.message);
+    }
+  } catch (err) {
+    console.error("Error saving request log:", err);
+  }
 }

@@ -9,6 +9,7 @@ import {
   Webhook,
   FileText,
   ChevronLeft,
+  Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -22,6 +23,7 @@ const adminNavItems = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/billing", label: "Billing & Revenue", icon: CreditCard },
   { href: "/admin/webhooks", label: "Webhooks", icon: Webhook },
+  { href: "/admin/webhook-monitoring", label: "Webhook Monitoring", icon: Activity },
   { href: "/admin/settings", label: "Settings", icon: Settings },
   { href: "/admin/audit-logs", label: "Audit Logs", icon: FileText },
 ];
