@@ -16,7 +16,8 @@ import {
   Loader2,
   Trash2,
   Pencil,
-  RotateCcw
+  RotateCcw,
+  ExternalLink
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -650,11 +651,11 @@ const MigrationClients = () => {
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 hover:underline transition-all group"
                           >
-                            <Badge variant="success" className="gap-1 cursor-pointer hover:opacity-80 transition-opacity">
-                              <FolderOpen className="w-3 h-3" />
-                              Created
-                            </Badge>
+                            <FolderOpen className="w-3.5 h-3.5" />
+                            Open Folder
+                            <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
                           </a>
                         ) : client.folder_status === "creating" ? (
                           <Badge variant="outline" className="gap-1">
