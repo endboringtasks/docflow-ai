@@ -58,6 +58,7 @@ interface Client {
   email: string | null;
   phone: string | null;
   drive_folder_id: string | null;
+  folder_status: string;
   created_at: string;
   matters_count: number;
 }
@@ -575,11 +576,18 @@ const MigrationClients = () => {
                         </div>
                       </td>
                       <td className="p-4 hidden lg:table-cell">
-                        {client.drive_folder_id ? (
+                        {client.folder_status === "created" && client.drive_folder_id ? (
                           <Badge variant="success" className="gap-1">
                             <FolderOpen className="w-3 h-3" />
-                            Linked
+                            Created
                           </Badge>
+                        ) : client.folder_status === "creating" ? (
+                          <Badge variant="outline" className="gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Creating
+                          </Badge>
+                        ) : client.folder_status === "failed" ? (
+                          <Badge variant="destructive">Failed</Badge>
                         ) : (
                           <Badge variant="secondary">Pending</Badge>
                         )}

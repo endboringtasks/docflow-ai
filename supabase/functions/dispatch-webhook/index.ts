@@ -14,6 +14,11 @@ interface MakeWebhookResponse {
   folder_id?: string;
   drive_folder_id?: string;
   folderId?: string;
+  data?: {
+    folder_id?: string;
+    drive_folder_id?: string;
+    folderId?: string;
+  };
   success?: boolean;
   error?: string;
 }
@@ -120,7 +125,13 @@ Deno.serve(async (req) => {
           console.log(`Webhook ${webhook.name} response:`, responseText);
           
           if (responseText) {
-            responseData = JSON.parse(responseText);
+            const parsed = JSON.parse(responseText);
+            // Handle array responses from Make (returns [{data: {drive_folder_id: "..."}}])
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              responseData = parsed[0];
+            } else {
+              responseData = parsed;
+            }
           }
         } catch (parseError) {
           console.log(`Could not parse response from ${webhook.name}:`, parseError);
@@ -128,7 +139,10 @@ Deno.serve(async (req) => {
 
         // If we got a folder_id in the response, update the entity
         if (responseData && entityType && entityId) {
-          const folderId = responseData.folder_id || responseData.drive_folder_id || responseData.folderId;
+          // Handle nested data structure from Make
+          const dataObj = responseData.data || responseData;
+          const folderId = dataObj.folder_id || dataObj.drive_folder_id || dataObj.folderId ||
+                           responseData.folder_id || responseData.drive_folder_id || responseData.folderId;
           
           if (folderId) {
             const table = entityType === 'client' ? 'clients' : 'matters';
