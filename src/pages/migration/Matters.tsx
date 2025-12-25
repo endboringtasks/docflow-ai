@@ -819,6 +819,10 @@ const MigrationMatters = () => {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="glass rounded-lg p-4">
+                        <p className="text-sm text-muted-foreground mb-1">Application Type</p>
+                        <p className="font-medium">{selectedMatter.matter_name}</p>
+                      </div>
+                      <div className="glass rounded-lg p-4">
                         <p className="text-sm text-muted-foreground mb-1">Created</p>
                         <p className="font-medium">{formatDate(selectedMatter.created_at)}</p>
                       </div>
@@ -921,13 +925,22 @@ const MigrationMatters = () => {
             
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label>Application Name</Label>
-                <Input
-                  value={editForm.matterName}
-                  onChange={(e) => setEditForm({...editForm, matterName: e.target.value})}
-                  placeholder="e.g., Skilled Worker Application"
-                  className="bg-secondary border-border"
-                />
+                <Label>Application Type</Label>
+                <Select 
+                  value={editForm.matterName} 
+                  onValueChange={(value) => setEditForm({...editForm, matterName: value})}
+                >
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue placeholder="Select application type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {applicationTypes.map(type => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -958,7 +971,7 @@ const MigrationMatters = () => {
                 variant="gradient" 
                 className="flex-1" 
                 onClick={handleUpdateMatter} 
-                disabled={!editForm.matterName.trim() || updateMatterMutation.isPending}
+                disabled={!editForm.matterName || updateMatterMutation.isPending}
               >
                 {updateMatterMutation.isPending ? (
                   <>
