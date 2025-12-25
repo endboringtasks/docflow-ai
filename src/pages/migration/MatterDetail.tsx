@@ -19,7 +19,8 @@ import {
   Upload,
   Download,
   X,
-  File
+  File,
+  ExternalLink
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -672,6 +673,22 @@ const MatterDetail = () => {
             </div>
             
             <div className="flex gap-2">
+              {matter.folder_status === "created" && matter.drive_folder_id && (
+                <Button 
+                  variant="outline" 
+                  asChild
+                >
+                  <a 
+                    href={`https://drive.google.com/drive/folders/${matter.drive_folder_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <FolderOpen className="w-4 h-4 mr-2" />
+                    Open in Drive
+                    <ExternalLink className="w-3 h-3 ml-2" />
+                  </a>
+                </Button>
+              )}
               <Button variant="outline" onClick={handleEditMatter}>
                 <Pencil className="w-4 h-4 mr-2" />
                 Edit
