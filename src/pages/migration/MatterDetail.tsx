@@ -221,7 +221,7 @@ const MatterDetail = () => {
       if (!matter?.client_id) return null;
       
       const { data, error } = await supabase
-        .from("clients")
+        .from("clients_secure")
         .select("id, first_name, last_name, email, phone, client_type")
         .eq("id", matter.client_id)
         .maybeSingle();

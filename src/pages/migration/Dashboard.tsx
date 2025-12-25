@@ -62,7 +62,7 @@ const MigrationDashboard = () => {
 
       // Get clients count
       const { count: totalClients } = await supabase
-        .from("clients")
+        .from("clients_secure")
         .select("*", { count: "exact", head: true })
         .eq("company_id", currentCompany.id);
 
@@ -72,7 +72,7 @@ const MigrationDashboard = () => {
       startOfMonth.setHours(0, 0, 0, 0);
       
       const { count: newClientsThisMonth } = await supabase
-        .from("clients")
+        .from("clients_secure")
         .select("*", { count: "exact", head: true })
         .eq("company_id", currentCompany.id)
         .gte("created_at", startOfMonth.toISOString());

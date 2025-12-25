@@ -63,7 +63,7 @@ export function GoogleDriveConnection() {
 
     try {
       const { data, error } = await supabase
-        .from("google_drive_connections")
+        .from("google_drive_connections_secure")
         .select("id, connected_email, root_folder_id, root_folder_name, created_at")
         .eq("company_id", currentCompany.id)
         .maybeSingle();

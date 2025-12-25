@@ -47,7 +47,7 @@ export default function AdminSettings() {
     queryKey: ["admin-settings"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("platform_settings")
+        .from("platform_settings_secure")
         .select("*")
         .order("key");
 

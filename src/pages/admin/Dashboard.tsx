@@ -53,7 +53,7 @@ export default function AdminDashboard() {
       ] = await Promise.all([
         supabase.from("companies").select("*", { count: "exact", head: true }),
         supabase.from("profiles").select("*", { count: "exact", head: true }),
-        supabase.from("clients").select("*", { count: "exact", head: true }),
+        supabase.from("clients_secure").select("*", { count: "exact", head: true }),
         supabase.from("matters").select("*", { count: "exact", head: true }),
         supabase.from("companies").select("*", { count: "exact", head: true }).gte("created_at", startOfMonth),
         supabase.from("profiles").select("*", { count: "exact", head: true }).gte("created_at", startOfMonth),

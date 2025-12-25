@@ -58,7 +58,7 @@ export default function AdminWebhooks() {
     queryKey: ["admin-webhooks"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("platform_webhooks")
+        .from("platform_webhooks_secure")
         .select("*")
         .order("created_at", { ascending: false });
 
@@ -273,13 +273,9 @@ export default function AdminWebhooks() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => copySecret(webhook.secret_key || "")}
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
+                        <span className="text-xs text-muted-foreground italic">
+                          Hidden for security
+                        </span>
                       </TableCell>
                       <TableCell>
                         <Switch

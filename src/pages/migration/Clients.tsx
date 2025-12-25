@@ -94,7 +94,7 @@ const MigrationClients = () => {
       if (!currentCompany?.id) return [];
       
       const { data: clientsData, error: clientsError } = await supabase
-        .from("clients")
+        .from("clients_secure")
         .select("*")
         .eq("company_id", currentCompany.id)
         .order("created_at", { ascending: false });
@@ -154,7 +154,7 @@ const MigrationClients = () => {
       let rootFolderId: string | null = null;
       try {
         const { data: driveConnection } = await supabase
-          .from("google_drive_connections")
+          .from("google_drive_connections_secure")
           .select("root_folder_id")
           .eq("company_id", currentCompany.id)
           .single();

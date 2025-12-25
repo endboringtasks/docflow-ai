@@ -110,7 +110,7 @@ const MigrationMatters = () => {
       if (!currentCompany?.id) return [];
       
       const { data, error } = await supabase
-        .from("clients")
+        .from("clients_secure")
         .select("id, client_type, first_name, last_name, company_name")
         .eq("company_id", currentCompany.id)
         .order("first_name");
