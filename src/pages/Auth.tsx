@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCompany } from "@/hooks/useCompany";
 import { PendingInvitations } from "@/components/auth/PendingInvitations";
 import { SEO } from "@/components/SEO";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 import { z } from "zod";
 
@@ -195,7 +196,12 @@ const Auth = () => {
         canonical="/auth"
         noIndex
       />
-      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+      <div className="min-h-screen bg-background flex items-center justify-center p-8 relative">
+        {/* Theme Toggle */}
+        <div className="absolute top-4 right-4">
+          <ThemeToggle />
+        </div>
+        
         <motion.div
         className="w-full max-w-md"
         initial={{ opacity: 0, y: -20 }}
