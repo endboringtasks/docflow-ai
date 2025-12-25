@@ -241,6 +241,7 @@ export type Database = {
           root_folder_id: string | null
           root_folder_name: string | null
           token_expires_at: string
+          tokens_encrypted: boolean | null
           updated_at: string
         }
         Insert: {
@@ -254,6 +255,7 @@ export type Database = {
           root_folder_id?: string | null
           root_folder_name?: string | null
           token_expires_at: string
+          tokens_encrypted?: boolean | null
           updated_at?: string
         }
         Update: {
@@ -267,6 +269,7 @@ export type Database = {
           root_folder_id?: string | null
           root_folder_name?: string | null
           token_expires_at?: string
+          tokens_encrypted?: boolean | null
           updated_at?: string
         }
         Relationships: [
