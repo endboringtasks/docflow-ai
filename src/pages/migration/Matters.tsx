@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,7 @@ interface Matter {
   visa_subclass: string | null;
   status: "draft" | "active" | "done";
   drive_folder_id: string | null;
+  folder_status: string;
   created_at: string;
 }
 
@@ -134,6 +135,7 @@ const MigrationMatters = () => {
           visa_subclass,
           status,
           drive_folder_id,
+          folder_status,
           created_at,
           clients (
             client_type,
@@ -167,12 +169,63 @@ const MigrationMatters = () => {
           visa_subclass: matter.visa_subclass,
           status: matter.status as "draft" | "active" | "done",
           drive_folder_id: matter.drive_folder_id,
+          folder_status: matter.folder_status,
           created_at: matter.created_at,
         };
       }) as Matter[];
     },
     enabled: !!currentCompany?.id,
   });
+
+  // Subscribe to realtime updates for matters
+  useEffect(() => {
+    if (!currentCompany?.id) return;
+
+    const channel = supabase
+      .channel('matters-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'matters',
+          filter: `company_id=eq.${currentCompany.id}`,
+        },
+        (payload) => {
+          console.log('Matter updated:', payload);
+          queryClient.invalidateQueries({ queryKey: ["matters", currentCompany.id] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'matters',
+          filter: `company_id=eq.${currentCompany.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["matters", currentCompany.id] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'matters',
+          filter: `company_id=eq.${currentCompany.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["matters", currentCompany.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentCompany?.id, queryClient]);
 
   // Create matter mutation
   const createMatterMutation = useMutation({
