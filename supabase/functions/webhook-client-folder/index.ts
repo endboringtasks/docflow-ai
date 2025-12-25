@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { validateWebhookSecret } from "../_shared/timing-safe-compare.ts";
 import { checkRateLimit, getClientIdentifier, createRateLimitResponse, getRateLimitHeaders } from "../_shared/rate-limiter.ts";
+import { createRequestContext, logRequestStart, logRequestEnd, logRequestError, addRequestIdHeader } from "../_shared/request-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,18 +29,27 @@ Deno.serve(async (req) => {
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+  // Get client identifier and create request context
+  const clientIp = getClientIdentifier(req);
+  const ctx = createRequestContext(req, "webhook-client-folder", clientIp);
+  
+  logRequestStart(ctx);
+
   // Check rate limit
-  const clientId = getClientIdentifier(req);
   const rateLimitResult = await checkRateLimit(
     supabase,
-    clientId,
+    clientIp,
     "webhook-client-folder",
     RATE_LIMIT_CONFIG
   );
 
   if (!rateLimitResult.allowed) {
-    console.warn(`Rate limit exceeded for ${clientId} on webhook-client-folder`);
-    return createRateLimitResponse(rateLimitResult, RATE_LIMIT_CONFIG.maxRequests, corsHeaders);
+    logRequestEnd(ctx, 429, { reason: "rate_limit_exceeded" });
+    const response = createRateLimitResponse(rateLimitResult, RATE_LIMIT_CONFIG.maxRequests, corsHeaders);
+    return new Response(response.body, {
+      status: response.status,
+      headers: addRequestIdHeader(Object.fromEntries(response.headers.entries()), ctx.requestId),
+    });
   }
 
   try {
@@ -48,23 +58,22 @@ Deno.serve(async (req) => {
     const expectedSecret = Deno.env.get("WEBHOOK_SECRET");
     
     if (!validateWebhookSecret(webhookSecret, expectedSecret)) {
-      console.error("Invalid webhook secret");
+      logRequestEnd(ctx, 401, { reason: "invalid_secret" });
       return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Unauthorized", request_id: ctx.requestId }),
+        { status: 401, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
 
     // Parse request body
     const payload: WebhookPayload = await req.json();
-    console.log("Received client folder webhook:", JSON.stringify(payload));
 
     // Validate required fields
     if (!payload.client_id || !payload.drive_folder_id) {
-      console.error("Missing required fields:", { client_id: !!payload.client_id, drive_folder_id: !!payload.drive_folder_id });
+      logRequestEnd(ctx, 400, { reason: "missing_fields" });
       return new Response(
-        JSON.stringify({ error: "Missing required fields: client_id and drive_folder_id" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Missing required fields: client_id and drive_folder_id", request_id: ctx.requestId }),
+        { status: 400, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
 
@@ -77,18 +86,19 @@ Deno.serve(async (req) => {
       .single();
 
     if (updateError) {
-      console.error("Error updating client:", updateError);
+      logRequestError(ctx, updateError.message, { client_id: payload.client_id });
+      logRequestEnd(ctx, 500, { reason: "update_failed" });
       return new Response(
-        JSON.stringify({ error: "Failed to update client", details: updateError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Failed to update client", details: updateError.message, request_id: ctx.requestId }),
+        { status: 500, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
 
     if (!client) {
-      console.error("Client not found:", payload.client_id);
+      logRequestEnd(ctx, 404, { reason: "client_not_found", client_id: payload.client_id });
       return new Response(
-        JSON.stringify({ error: "Client not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Client not found", request_id: ctx.requestId }),
+        { status: 404, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
 
@@ -107,38 +117,41 @@ Deno.serve(async (req) => {
         payload: {
           drive_folder_id: payload.drive_folder_id,
           client_name: clientName,
+          request_id: ctx.requestId,
           timestamp: new Date().toISOString(),
         },
       });
 
     if (eventError) {
-      console.warn("Failed to log automation event:", eventError);
+      logRequestError(ctx, "Failed to log automation event: " + eventError.message);
     }
 
-    console.log("Successfully updated client drive folder:", { client_id: client.id, drive_folder_id: payload.drive_folder_id });
+    logRequestEnd(ctx, 200, { client_id: client.id });
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: "Client drive folder updated",
-        client_id: client.id 
+        client_id: client.id,
+        request_id: ctx.requestId,
       }),
       { 
         status: 200, 
-        headers: { 
+        headers: addRequestIdHeader({
           ...corsHeaders, 
           "Content-Type": "application/json",
           ...getRateLimitHeaders(rateLimitResult, RATE_LIMIT_CONFIG.maxRequests),
-        } 
+        }, ctx.requestId)
       }
     );
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("Webhook error:", error);
+    logRequestError(ctx, error instanceof Error ? error : errorMessage);
+    logRequestEnd(ctx, 500, { reason: "internal_error" });
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: "Internal server error", request_id: ctx.requestId }),
+      { status: 500, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
     );
   }
 });

@@ -23,3 +23,6 @@ verify_jwt = true
 
 [functions.dispatch-webhook]
 verify_jwt = false
+
+[functions.cleanup-rate-limits]
+verify_jwt = true
