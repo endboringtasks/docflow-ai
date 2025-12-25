@@ -51,13 +51,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "automation_events_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients_secure"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "automation_events_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
@@ -326,13 +319,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "matters_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients_secure"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "matters_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
@@ -525,160 +511,7 @@ export type Database = {
       }
     }
     Views: {
-      clients_secure: {
-        Row: {
-          client_type: Database["public"]["Enums"]["client_type"] | null
-          company_id: string | null
-          company_name: string | null
-          created_at: string | null
-          drive_folder_id: string | null
-          email: string | null
-          first_name: string | null
-          id: string | null
-          last_name: string | null
-          phone: string | null
-        }
-        Insert: {
-          client_type?: Database["public"]["Enums"]["client_type"] | null
-          company_id?: string | null
-          company_name?: string | null
-          created_at?: string | null
-          drive_folder_id?: string | null
-          email?: never
-          first_name?: string | null
-          id?: string | null
-          last_name?: string | null
-          phone?: never
-        }
-        Update: {
-          client_type?: Database["public"]["Enums"]["client_type"] | null
-          company_id?: string | null
-          company_name?: string | null
-          created_at?: string | null
-          drive_folder_id?: string | null
-          email?: never
-          first_name?: string | null
-          id?: string | null
-          last_name?: string | null
-          phone?: never
-        }
-        Relationships: [
-          {
-            foreignKeyName: "clients_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      google_drive_connections_secure: {
-        Row: {
-          company_id: string | null
-          connected_by: string | null
-          connected_email: string | null
-          created_at: string | null
-          id: string | null
-          root_folder_id: string | null
-          root_folder_name: string | null
-          token_expires_at: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          company_id?: string | null
-          connected_by?: string | null
-          connected_email?: string | null
-          created_at?: string | null
-          id?: string | null
-          root_folder_id?: string | null
-          root_folder_name?: string | null
-          token_expires_at?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          company_id?: string | null
-          connected_by?: string | null
-          connected_email?: string | null
-          created_at?: string | null
-          id?: string | null
-          root_folder_id?: string | null
-          root_folder_name?: string | null
-          token_expires_at?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "google_drive_connections_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: true
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      platform_settings_secure: {
-        Row: {
-          description: string | null
-          id: string | null
-          is_secret: boolean | null
-          key: string | null
-          updated_at: string | null
-          updated_by: string | null
-          value: Json | null
-        }
-        Insert: {
-          description?: string | null
-          id?: string | null
-          is_secret?: boolean | null
-          key?: string | null
-          updated_at?: string | null
-          updated_by?: string | null
-          value?: never
-        }
-        Update: {
-          description?: string | null
-          id?: string | null
-          is_secret?: boolean | null
-          key?: string | null
-          updated_at?: string | null
-          updated_by?: string | null
-          value?: never
-        }
-        Relationships: []
-      }
-      platform_webhooks_secure: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          events: string[] | null
-          id: string | null
-          is_active: boolean | null
-          name: string | null
-          updated_at: string | null
-          url: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          events?: string[] | null
-          id?: string | null
-          is_active?: boolean | null
-          name?: string | null
-          updated_at?: string | null
-          url?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          events?: string[] | null
-          id?: string | null
-          is_active?: boolean | null
-          name?: string | null
-          updated_at?: string | null
-          url?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       get_client_by_id: {
