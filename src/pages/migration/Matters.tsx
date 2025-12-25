@@ -48,6 +48,7 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
+import { useFolderStatusRealtime } from "@/hooks/useFolderStatusRealtime";
 
 interface Matter {
   id: string;
@@ -179,55 +180,13 @@ const MigrationMatters = () => {
     enabled: !!currentCompany?.id,
   });
 
-  // Subscribe to realtime updates for matters
-  useEffect(() => {
-    if (!currentCompany?.id) return;
-
-    const channel = supabase
-      .channel('matters-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'matters',
-          filter: `company_id=eq.${currentCompany.id}`,
-        },
-        (payload) => {
-          console.log('Matter updated:', payload);
-          queryClient.invalidateQueries({ queryKey: ["matters", currentCompany.id] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'matters',
-          filter: `company_id=eq.${currentCompany.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["matters", currentCompany.id] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'matters',
-          filter: `company_id=eq.${currentCompany.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["matters", currentCompany.id] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentCompany?.id, queryClient]);
+  // Smart real-time subscription - only active when there are pending/creating folders
+  useFolderStatusRealtime(
+    "matters",
+    currentCompany?.id,
+    matters,
+    ["matters", currentCompany?.id || ""]
+  );
 
   // Create matter mutation
   const createMatterMutation = useMutation({
