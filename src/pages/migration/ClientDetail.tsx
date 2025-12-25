@@ -15,7 +15,8 @@ import {
   Loader2,
   FileText,
   Pencil,
-  Trash2
+  Trash2,
+  ExternalLink
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -367,11 +368,28 @@ const ClientDetail = () => {
                 <p className="text-sm text-muted-foreground">Added {formatDate(client.created_at)}</p>
               </div>
             </div>
-            
-            <Button variant="outline" onClick={handleEditClient}>
-              <Pencil className="w-4 h-4 mr-2" />
-              Edit Client
-            </Button>
+            <div className="flex gap-2">
+              {client.folder_status === "created" && client.drive_folder_id && (
+                <Button 
+                  variant="outline" 
+                  asChild
+                >
+                  <a 
+                    href={`https://drive.google.com/drive/folders/${client.drive_folder_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <FolderOpen className="w-4 h-4 mr-2" />
+                    Open in Drive
+                    <ExternalLink className="w-3 h-3 ml-2" />
+                  </a>
+                </Button>
+              )}
+              <Button variant="outline" onClick={handleEditClient}>
+                <Pencil className="w-4 h-4 mr-2" />
+                Edit Client
+              </Button>
+            </div>
           </div>
 
           {/* Contact Info */}
