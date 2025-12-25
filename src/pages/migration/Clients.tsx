@@ -627,10 +627,17 @@ const MigrationClients = () => {
                       </td>
                       <td className="p-4 hidden lg:table-cell">
                         {client.folder_status === "created" && client.drive_folder_id ? (
-                          <Badge variant="success" className="gap-1">
-                            <FolderOpen className="w-3 h-3" />
-                            Created
-                          </Badge>
+                          <a
+                            href={`https://drive.google.com/drive/folders/${client.drive_folder_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Badge variant="success" className="gap-1 cursor-pointer hover:opacity-80 transition-opacity">
+                              <FolderOpen className="w-3 h-3" />
+                              Created
+                            </Badge>
+                          </a>
                         ) : client.folder_status === "creating" ? (
                           <Badge variant="outline" className="gap-1">
                             <Loader2 className="w-3 h-3 animate-spin" />
