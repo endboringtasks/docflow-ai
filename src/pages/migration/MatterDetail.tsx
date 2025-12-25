@@ -673,22 +673,6 @@ const MatterDetail = () => {
             </div>
             
             <div className="flex gap-2">
-              {matter.folder_status === "created" && matter.drive_folder_id && (
-                <Button 
-                  variant="outline" 
-                  asChild
-                >
-                  <a 
-                    href={`https://drive.google.com/drive/folders/${matter.drive_folder_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <FolderOpen className="w-4 h-4 mr-2" />
-                    Open in Drive
-                    <ExternalLink className="w-3 h-3 ml-2" />
-                  </a>
-                </Button>
-              )}
               <Button variant="outline" onClick={handleEditMatter}>
                 <Pencil className="w-4 h-4 mr-2" />
                 Edit
@@ -716,25 +700,31 @@ const MatterDetail = () => {
               <FolderOpen className="w-5 h-5 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground">Drive Folder</p>
-                <Badge 
-                  variant={
-                    matter.folder_status === 'created' ? "success" : 
-                    matter.folder_status === 'creating' ? "default" : 
-                    matter.folder_status === 'failed' ? "destructive" : "secondary"
-                  }
-                  className="gap-1"
-                >
-                  {matter.folder_status === 'creating' && (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  )}
-                  {matter.folder_status === 'created' ? "Created" : 
-                   matter.folder_status === 'creating' ? "Creating" : 
-                   matter.folder_status === 'failed' ? "Failed" : "Pending"}
-                </Badge>
-                {matter.drive_folder_id && (
-                  <p className="text-xs text-muted-foreground mt-1 font-mono truncate max-w-[200px]" title={matter.drive_folder_id}>
-                    {matter.drive_folder_id}
-                  </p>
+                {matter.folder_status === 'created' && matter.drive_folder_id ? (
+                  <a 
+                    href={`https://drive.google.com/drive/folders/${matter.drive_folder_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 hover:underline transition-all group"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5" />
+                    Open Folder
+                    <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                  </a>
+                ) : (
+                  <Badge 
+                    variant={
+                      matter.folder_status === 'creating' ? "default" : 
+                      matter.folder_status === 'failed' ? "destructive" : "secondary"
+                    }
+                    className="gap-1"
+                  >
+                    {matter.folder_status === 'creating' && (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    )}
+                    {matter.folder_status === 'creating' ? "Creating" : 
+                     matter.folder_status === 'failed' ? "Failed" : "Pending"}
+                  </Badge>
                 )}
               </div>
             </div>
