@@ -438,6 +438,7 @@ export type Database = {
           is_active: boolean
           name: string
           secret_key: string | null
+          timeout_seconds: number | null
           updated_at: string
           url: string
         }
@@ -449,6 +450,7 @@ export type Database = {
           is_active?: boolean
           name: string
           secret_key?: string | null
+          timeout_seconds?: number | null
           updated_at?: string
           url: string
         }
@@ -460,6 +462,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           secret_key?: string | null
+          timeout_seconds?: number | null
           updated_at?: string
           url?: string
         }

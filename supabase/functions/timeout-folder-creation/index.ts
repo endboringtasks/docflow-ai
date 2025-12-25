@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const TIMEOUT_SECONDS = 10;
+const DEFAULT_TIMEOUT_SECONDS = 10;
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -21,8 +21,29 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    const cutoffTime = new Date(Date.now() - TIMEOUT_SECONDS * 1000).toISOString();
-    console.log(`Checking for records with folder_status='creating' older than ${cutoffTime}`);
+    // Get the minimum timeout from active webhooks that handle folder creation events
+    const { data: webhooks, error: webhooksError } = await supabase
+      .from("platform_webhooks")
+      .select("timeout_seconds, events")
+      .eq("is_active", true);
+
+    if (webhooksError) {
+      console.error("Error fetching webhooks:", webhooksError);
+      throw webhooksError;
+    }
+
+    // Find webhooks that handle client.created or matter.created events
+    const folderCreationWebhooks = webhooks?.filter(w => 
+      w.events?.includes("client.created") || w.events?.includes("matter.created")
+    ) || [];
+
+    // Use the maximum timeout from folder creation webhooks, or default
+    const timeoutSeconds = folderCreationWebhooks.length > 0
+      ? Math.max(...folderCreationWebhooks.map(w => w.timeout_seconds || DEFAULT_TIMEOUT_SECONDS))
+      : DEFAULT_TIMEOUT_SECONDS;
+
+    const cutoffTime = new Date(Date.now() - timeoutSeconds * 1000).toISOString();
+    console.log(`Using timeout of ${timeoutSeconds}s. Checking for records older than ${cutoffTime}`);
 
     // Update stale client records
     const { data: clientsUpdated, error: clientsError } = await supabase
@@ -52,7 +73,7 @@ Deno.serve(async (req) => {
 
     const result = {
       success: true,
-      timeout_seconds: TIMEOUT_SECONDS,
+      timeout_seconds: timeoutSeconds,
       cutoff_time: cutoffTime,
       clients_timed_out: clientsUpdated?.length || 0,
       matters_timed_out: mattersUpdated?.length || 0,
