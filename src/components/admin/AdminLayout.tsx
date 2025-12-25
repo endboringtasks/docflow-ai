@@ -12,6 +12,7 @@ import {
   Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -44,6 +45,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </Link>
           <div className="flex-1" />
           <span className="text-sm font-semibold text-primary">Admin Panel</span>
+          <ThemeToggle />
         </div>
       </header>
 
