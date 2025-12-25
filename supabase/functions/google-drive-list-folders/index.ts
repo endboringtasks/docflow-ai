@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { decryptToken, isEncrypted, encryptToken } from "../_shared/token-encryption.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,7 +71,7 @@ serve(async (req) => {
 
     const { data: connection, error: connError } = await serviceClient
       .from("google_drive_connections")
-      .select("access_token, refresh_token, token_expires_at")
+      .select("access_token, refresh_token, token_expires_at, tokens_encrypted")
       .eq("company_id", companyId)
       .single();
 
@@ -78,8 +79,18 @@ serve(async (req) => {
       throw new Error("Google Drive not connected");
     }
 
-    // Check if token needs refresh
+    // Decrypt tokens if encrypted
     let accessToken = connection.access_token;
+    let refreshToken = connection.refresh_token;
+    const tokensAreEncrypted = connection.tokens_encrypted || isEncrypted(connection.access_token);
+
+    if (tokensAreEncrypted) {
+      console.log("Decrypting stored tokens...");
+      accessToken = await decryptToken(connection.access_token);
+      refreshToken = await decryptToken(connection.refresh_token);
+    }
+
+    // Check if token needs refresh
     const expiresAt = new Date(connection.token_expires_at);
     
     if (expiresAt <= new Date()) {
@@ -91,7 +102,7 @@ serve(async (req) => {
         body: new URLSearchParams({
           client_id: GOOGLE_CLIENT_ID,
           client_secret: GOOGLE_CLIENT_SECRET,
-          refresh_token: connection.refresh_token,
+          refresh_token: refreshToken,
           grant_type: "refresh_token",
         }),
       });
@@ -106,12 +117,15 @@ serve(async (req) => {
       accessToken = refreshData.access_token;
       const newExpiresAt = new Date(Date.now() + refreshData.expires_in * 1000).toISOString();
 
-      // Update token in database
+      // Encrypt and update token in database
+      const encryptedAccessToken = await encryptToken(accessToken);
+      
       await serviceClient
         .from("google_drive_connections")
         .update({
-          access_token: accessToken,
+          access_token: encryptedAccessToken,
           token_expires_at: newExpiresAt,
+          tokens_encrypted: true,
         })
         .eq("company_id", companyId);
     }

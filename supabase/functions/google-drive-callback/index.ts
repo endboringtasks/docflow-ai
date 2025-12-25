@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { encryptToken } from "../_shared/token-encryption.ts";
 
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID")!;
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
@@ -202,6 +203,11 @@ serve(async (req) => {
       // Continue without setting root folder - user can set it manually later
     }
 
+    // Encrypt tokens before storage
+    console.log("Encrypting tokens for secure storage...");
+    const encryptedAccessToken = await encryptToken(access_token);
+    const encryptedRefreshToken = await encryptToken(refresh_token);
+
     // Save to database using service role (bypasses RLS)
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -209,13 +215,14 @@ serve(async (req) => {
       .from("google_drive_connections")
       .upsert({
         company_id: companyId,
-        access_token,
-        refresh_token,
+        access_token: encryptedAccessToken,
+        refresh_token: encryptedRefreshToken,
         token_expires_at: tokenExpiresAt,
         connected_by: userId,
         connected_email: connectedEmail,
         root_folder_id: rootFolderId,
         root_folder_name: rootFolderName,
+        tokens_encrypted: true,
       }, { onConflict: "company_id" });
 
     if (upsertError) {
@@ -223,7 +230,7 @@ serve(async (req) => {
       return redirectWithError("Failed to save connection", origin);
     }
 
-    console.log("Successfully saved Google Drive connection for company:", companyId);
+    console.log("Successfully saved encrypted Google Drive connection for company:", companyId);
     if (rootFolderId) {
       console.log("Root folder set to:", rootFolderName, "(", rootFolderId, ")");
     }
