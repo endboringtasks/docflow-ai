@@ -52,6 +52,7 @@ export default function AdminWebhooks() {
     name: "",
     url: "",
     events: [] as string[],
+    timeout_seconds: 10,
   });
 
   const { data: webhooks, isLoading } = useQuery({
@@ -74,6 +75,7 @@ export default function AdminWebhooks() {
         name: newWebhook.name,
         url: newWebhook.url,
         events: newWebhook.events,
+        timeout_seconds: newWebhook.timeout_seconds,
         secret_key: secretKey,
         created_by: user?.id,
       });
@@ -82,11 +84,25 @@ export default function AdminWebhooks() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
       setIsDialogOpen(false);
-      setNewWebhook({ name: "", url: "", events: [] });
+      setNewWebhook({ name: "", url: "", events: [], timeout_seconds: 10 });
       toast.success("Webhook created successfully");
     },
     onError: (error) => {
       toast.error("Failed to create webhook: " + error.message);
+    },
+  });
+
+  const updateTimeout = useMutation({
+    mutationFn: async ({ id, timeout }: { id: string; timeout: number }) => {
+      const { error } = await supabase
+        .from("platform_webhooks")
+        .update({ timeout_seconds: timeout })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
+      toast.success("Timeout updated");
     },
   });
 
@@ -188,6 +204,21 @@ export default function AdminWebhooks() {
                     ))}
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="timeout">Folder Creation Timeout (seconds)</Label>
+                  <Input
+                    id="timeout"
+                    type="number"
+                    min={5}
+                    max={300}
+                    placeholder="10"
+                    value={newWebhook.timeout_seconds}
+                    onChange={(e) => setNewWebhook((prev) => ({ ...prev, timeout_seconds: parseInt(e.target.value) || 10 }))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Time to wait before marking folder creation as failed (5-300 seconds)
+                  </p>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
@@ -245,7 +276,7 @@ export default function AdminWebhooks() {
                     <TableHead>Name</TableHead>
                     <TableHead>URL</TableHead>
                     <TableHead>Events</TableHead>
-                    <TableHead>Secret</TableHead>
+                    <TableHead>Timeout</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead></TableHead>
@@ -273,9 +304,17 @@ export default function AdminWebhooks() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="text-xs text-muted-foreground italic">
-                          Hidden for security
-                        </span>
+                        <Input
+                          type="number"
+                          min={5}
+                          max={300}
+                          className="w-20 h-8 text-sm"
+                          value={(webhook as any).timeout_seconds ?? 10}
+                          onChange={(e) => updateTimeout.mutate({ 
+                            id: webhook.id, 
+                            timeout: parseInt(e.target.value) || 10 
+                          })}
+                        />
                       </TableCell>
                       <TableCell>
                         <Switch
