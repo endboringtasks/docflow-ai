@@ -12,7 +12,8 @@ import {
   User,
   Loader2,
   Trash2,
-  Pencil
+  Pencil,
+  FolderOpen
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -587,14 +588,31 @@ const MigrationMatters = () => {
                   <p className="text-sm text-primary mb-2">Subclass {matter.visa_subclass}</p>
                 )}
                 
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
                   <User className="w-4 h-4" />
                   {matter.client_name}
                 </div>
 
-                <p className="text-xs text-muted-foreground">
-                  Created {formatDate(matter.created_at)}
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Created {formatDate(matter.created_at)}
+                  </p>
+                  {matter.folder_status === "created" && matter.drive_folder_id ? (
+                    <Badge variant="success" className="gap-1 text-xs">
+                      <FolderOpen className="w-3 h-3" />
+                      Created
+                    </Badge>
+                  ) : matter.folder_status === "creating" ? (
+                    <Badge variant="outline" className="gap-1 text-xs">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Creating
+                    </Badge>
+                  ) : matter.folder_status === "failed" ? (
+                    <Badge variant="destructive" className="text-xs">Failed</Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-xs">Pending</Badge>
+                  )}
+                </div>
               </motion.div>
             ))}
           </div>
