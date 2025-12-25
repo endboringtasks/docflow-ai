@@ -75,6 +75,7 @@ export type Database = {
           drive_folder_id: string | null
           email: string | null
           first_name: string | null
+          folder_status: string
           id: string
           last_name: string | null
           phone: string | null
@@ -87,6 +88,7 @@ export type Database = {
           drive_folder_id?: string | null
           email?: string | null
           first_name?: string | null
+          folder_status?: string
           id?: string
           last_name?: string | null
           phone?: string | null
@@ -99,6 +101,7 @@ export type Database = {
           drive_folder_id?: string | null
           email?: string | null
           first_name?: string | null
+          folder_status?: string
           id?: string
           last_name?: string | null
           phone?: string | null
@@ -288,6 +291,7 @@ export type Database = {
           company_id: string
           created_at: string
           drive_folder_id: string | null
+          folder_status: string
           id: string
           matter_name: string
           status: Database["public"]["Enums"]["matter_status"]
@@ -298,6 +302,7 @@ export type Database = {
           company_id: string
           created_at?: string
           drive_folder_id?: string | null
+          folder_status?: string
           id?: string
           matter_name: string
           status?: Database["public"]["Enums"]["matter_status"]
@@ -308,6 +313,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           drive_folder_id?: string | null
+          folder_status?: string
           id?: string
           matter_name?: string
           status?: Database["public"]["Enums"]["matter_status"]

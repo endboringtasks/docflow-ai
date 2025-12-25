@@ -10,6 +10,14 @@ interface WebhookPayload {
   data: Record<string, unknown>;
 }
 
+interface MakeWebhookResponse {
+  folder_id?: string;
+  drive_folder_id?: string;
+  folderId?: string;
+  success?: boolean;
+  error?: string;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -33,6 +41,20 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Update folder status to 'creating' for client/matter created events
+    const entityId = payload.data.client_id || payload.data.matter_id;
+    const entityType = payload.data.client_id ? 'client' : (payload.data.matter_id ? 'matter' : null);
+    
+    if (entityType && entityId && ['client.created', 'matter.created'].includes(payload.event_type)) {
+      const table = entityType === 'client' ? 'clients' : 'matters';
+      console.log(`Setting folder_status to 'creating' for ${table} ${entityId}`);
+      
+      await supabase
+        .from(table)
+        .update({ folder_status: 'creating' })
+        .eq('id', entityId);
+    }
 
     // Get all active webhooks that are subscribed to this event
     const { data: webhooks, error: webhooksError } = await supabase
@@ -91,13 +113,82 @@ Deno.serve(async (req) => {
           throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
 
+        // Try to parse the response to get folder_id from Make
+        let responseData: MakeWebhookResponse | null = null;
+        try {
+          const responseText = await response.text();
+          console.log(`Webhook ${webhook.name} response:`, responseText);
+          
+          if (responseText) {
+            responseData = JSON.parse(responseText);
+          }
+        } catch (parseError) {
+          console.log(`Could not parse response from ${webhook.name}:`, parseError);
+        }
+
+        // If we got a folder_id in the response, update the entity
+        if (responseData && entityType && entityId) {
+          const folderId = responseData.folder_id || responseData.drive_folder_id || responseData.folderId;
+          
+          if (folderId) {
+            const table = entityType === 'client' ? 'clients' : 'matters';
+            console.log(`Updating ${table} ${entityId} with folder_id: ${folderId}`);
+            
+            const { error: updateError } = await supabase
+              .from(table)
+              .update({ 
+                drive_folder_id: folderId,
+                folder_status: 'created'
+              })
+              .eq('id', entityId);
+            
+            if (updateError) {
+              console.error(`Failed to update ${table} with folder_id:`, updateError);
+            } else {
+              console.log(`Successfully updated ${table} ${entityId} with folder_id`);
+              
+              // Log automation event
+              const eventType = entityType === 'client' ? 'client_folder_created' : 'matter_folder_created';
+              await supabase.from('automation_events').insert({
+                company_id: payload.data.company_id,
+                client_id: entityType === 'client' ? entityId : (payload.data.client_id || null),
+                matter_id: entityType === 'matter' ? entityId : null,
+                event_type: eventType,
+                payload: {
+                  drive_folder_id: folderId,
+                  source: 'make_webhook_response',
+                  timestamp: new Date().toISOString(),
+                },
+              });
+            }
+          } else if (responseData.error) {
+            // Mark as failed if Make returned an error
+            const table = entityType === 'client' ? 'clients' : 'matters';
+            await supabase
+              .from(table)
+              .update({ folder_status: 'failed' })
+              .eq('id', entityId);
+            
+            console.error(`Make returned error for ${table} ${entityId}:`, responseData.error);
+          }
+        }
+
         console.log(`Webhook ${webhook.name} succeeded:`, response.status);
-        return { webhook_id: webhook.id, status: "success" };
+        return { webhook_id: webhook.id, status: "success", folder_id: responseData?.folder_id };
       })
     );
 
     const successful = results.filter((r) => r.status === "fulfilled").length;
     const failed = results.filter((r) => r.status === "rejected").length;
+
+    // If all webhooks failed and we have an entity, mark as failed
+    if (failed === webhooks.length && entityType && entityId) {
+      const table = entityType === 'client' ? 'clients' : 'matters';
+      await supabase
+        .from(table)
+        .update({ folder_status: 'failed' })
+        .eq('id', entityId);
+    }
 
     console.log(`Webhook dispatch complete: ${successful} succeeded, ${failed} failed`);
 

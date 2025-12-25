@@ -60,6 +60,7 @@ interface Matter {
   visa_subclass: string | null;
   status: "draft" | "active" | "done";
   drive_folder_id: string | null;
+  folder_status: "pending" | "creating" | "created" | "failed";
   created_at: string;
   company_id: string;
 }
@@ -698,9 +699,20 @@ const MatterDetail = () => {
               <FolderOpen className="w-5 h-5 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground">Drive Folder</p>
-                <Badge variant={matter.drive_folder_id ? "success" : "secondary"}>
-                  {matter.drive_folder_id ? "Linked" : "Pending"}
+                <Badge variant={
+                  matter.folder_status === 'created' ? "success" : 
+                  matter.folder_status === 'creating' ? "default" : 
+                  matter.folder_status === 'failed' ? "destructive" : "secondary"
+                }>
+                  {matter.folder_status === 'created' ? "Created" : 
+                   matter.folder_status === 'creating' ? "Creating..." : 
+                   matter.folder_status === 'failed' ? "Failed" : "Pending"}
                 </Badge>
+                {matter.drive_folder_id && (
+                  <p className="text-xs text-muted-foreground mt-1 font-mono truncate max-w-[200px]" title={matter.drive_folder_id}>
+                    {matter.drive_folder_id}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3">
