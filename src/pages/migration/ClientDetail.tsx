@@ -117,14 +117,12 @@ const ClientDetail = () => {
     queryFn: async () => {
       if (!clientId) return null;
       
+      // Use secure RPC function that masks PII for non-admins
       const { data, error } = await supabase
-        .from("clients_secure")
-        .select("*")
-        .eq("id", clientId)
-        .maybeSingle();
+        .rpc("get_client_by_id", { p_client_id: clientId });
       
       if (error) throw error;
-      return data as Client | null;
+      return data && data.length > 0 ? data[0] as Client : null;
     },
     enabled: !!clientId,
   });

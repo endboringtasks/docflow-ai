@@ -93,11 +93,9 @@ const MigrationClients = () => {
     queryFn: async () => {
       if (!currentCompany?.id) return [];
       
+      // Use secure RPC function that masks PII for non-admins
       const { data: clientsData, error: clientsError } = await supabase
-        .from("clients_secure")
-        .select("*")
-        .eq("company_id", currentCompany.id)
-        .order("created_at", { ascending: false });
+        .rpc("get_clients_secure", { p_company_id: currentCompany.id });
       
       if (clientsError) throw clientsError;
 

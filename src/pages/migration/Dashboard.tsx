@@ -60,22 +60,19 @@ const MigrationDashboard = () => {
         };
       }
 
-      // Get clients count
-      const { count: totalClients } = await supabase
-        .from("clients_secure")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", currentCompany.id);
+      // Get clients count using secure RPC
+      const { data: clientsData } = await supabase
+        .rpc("get_clients_secure", { p_company_id: currentCompany.id });
+      const totalClients = clientsData?.length ?? 0;
 
       // Get new clients this month
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
       
-      const { count: newClientsThisMonth } = await supabase
-        .from("clients_secure")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", currentCompany.id)
-        .gte("created_at", startOfMonth.toISOString());
+      const newClientsThisMonth = clientsData?.filter(
+        (c: { created_at: string }) => new Date(c.created_at) >= startOfMonth
+      ).length ?? 0;
 
       // Get matters by status
       const { data: mattersData } = await supabase
