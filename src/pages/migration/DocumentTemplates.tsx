@@ -97,7 +97,7 @@ const defaultCategories = [
   "Sponsor",
   "Insurance",
   "Nomination",
-  "Custom",
+  "Other",
 ];
 
 // Common document names organized by category
@@ -185,7 +185,7 @@ const commonDocuments: Record<string, string[]> = {
     "Business Registration",
     "Company Financials",
   ],
-  Custom: [],
+  Other: [],
 };
 
 const DocumentTemplates = () => {
