@@ -2,6 +2,7 @@ import { SEO } from "@/components/SEO";
 import { Link } from "react-router-dom";
 import { Zap, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const Terms = () => {
   return (
@@ -23,12 +24,15 @@ const Terms = () => {
               <span className="text-xl font-bold text-foreground">Docflow AI</span>
             </Link>
             
-            <Button variant="ghost" asChild>
-              <Link to="/">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Home
-              </Link>
-            </Button>
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
+              <Button variant="ghost" asChild>
+                <Link to="/">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Home
+                </Link>
+              </Button>
+            </div>
           </div>
         </nav>
 

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompany } from "@/hooks/useCompany";
 import { SEO } from "@/components/SEO";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type Niche = "migration" | "audit" | "hr";
 
@@ -118,7 +119,12 @@ const Onboarding = () => {
         canonical="/onboarding"
         noIndex
       />
-      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+      <div className="min-h-screen bg-background flex items-center justify-center p-8 relative">
+        {/* Theme Toggle */}
+        <div className="absolute top-4 right-4 z-20">
+          <ThemeToggle />
+        </div>
+        
         <div className="absolute inset-0 bg-hero-gradient opacity-30" />
       
       <motion.div 
