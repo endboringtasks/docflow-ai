@@ -1,9 +1,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { validateWebhookSecret } from "../_shared/timing-safe-compare.ts";
+import { checkRateLimit, getClientIdentifier, createRateLimitResponse, getRateLimitHeaders } from "../_shared/rate-limiter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-secret",
+};
+
+const RATE_LIMIT_CONFIG = {
+  maxRequests: 100,
+  windowSeconds: 60,
 };
 
 interface WebhookPayload {
@@ -15,6 +21,25 @@ Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Initialize Supabase client early for rate limiting
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Check rate limit
+  const clientId = getClientIdentifier(req);
+  const rateLimitResult = await checkRateLimit(
+    supabase,
+    clientId,
+    "webhook-matter-folder",
+    RATE_LIMIT_CONFIG
+  );
+
+  if (!rateLimitResult.allowed) {
+    console.warn(`Rate limit exceeded for ${clientId} on webhook-matter-folder`);
+    return createRateLimitResponse(rateLimitResult, RATE_LIMIT_CONFIG.maxRequests, corsHeaders);
   }
 
   try {
@@ -42,11 +67,6 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    // Initialize Supabase client with service role
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Update the matter with the drive folder ID
     const { data: matter, error: updateError } = await supabase
@@ -99,7 +119,14 @@ Deno.serve(async (req) => {
         message: "Matter drive folder updated",
         matter_id: matter.id 
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { 
+        status: 200, 
+        headers: { 
+          ...corsHeaders, 
+          "Content-Type": "application/json",
+          ...getRateLimitHeaders(rateLimitResult, RATE_LIMIT_CONFIG.maxRequests),
+        } 
+      }
     );
 
   } catch (error) {
