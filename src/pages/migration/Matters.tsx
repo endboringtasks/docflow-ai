@@ -562,89 +562,134 @@ const MigrationMatters = () => {
           </div>
         )}
 
-        {/* Matters Grid */}
+        {/* Matters Table */}
         {!isLoading && (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredMatters.map((matter, index) => (
-              <motion.div
-                key={matter.id}
-                className="card-gradient rounded-xl border border-border/50 p-6 hover:border-primary/50 transition-all cursor-pointer"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={() => navigate(`/app/migration/matters/${matter.id}`)}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-10 h-10 rounded-lg gradient-bg flex items-center justify-center">
-                    <FileText className="w-5 h-5 text-primary-foreground" />
-                  </div>
-                  <Badge variant={getStatusColor(matter.status)}>
-                    {matter.status}
-                  </Badge>
-                </div>
-                
-                <h3 className="font-semibold mb-1 line-clamp-1">{matter.matter_name}</h3>
-                {matter.visa_subclass && (
-                  <p className="text-sm text-primary mb-2">Subclass {matter.visa_subclass}</p>
-                )}
-                
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-                  <User className="w-4 h-4" />
-                  {matter.client_name}
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">
-                    Created {formatDate(matter.created_at)}
-                  </p>
-                  {matter.folder_status === "created" && matter.drive_folder_id ? (
-                    <a
-                      href={`https://drive.google.com/drive/folders/${matter.drive_folder_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
+          <div className="card-gradient rounded-xl border border-border/50 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border/50">
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Application</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground hidden sm:table-cell">Client</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground hidden md:table-cell">Visa</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground">Status</th>
+                    <th className="text-left p-4 text-sm font-medium text-muted-foreground hidden lg:table-cell">Drive Folder</th>
+                    <th className="p-4"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {filteredMatters.map((matter, index) => (
+                    <motion.tr 
+                      key={matter.id}
+                      className="hover:bg-secondary/30 transition-colors"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
                     >
-                      <Badge variant="success" className="gap-1 text-xs cursor-pointer hover:opacity-80 transition-opacity">
-                        <FolderOpen className="w-3 h-3" />
-                        Created
-                      </Badge>
-                    </a>
-                  ) : matter.folder_status === "creating" ? (
-                    <Badge variant="outline" className="gap-1 text-xs">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      Creating
-                    </Badge>
-                  ) : matter.folder_status === "failed" ? (
-                    <Badge variant="destructive" className="text-xs">Failed</Badge>
-                  ) : (
-                    <Badge variant="secondary" className="text-xs">Pending</Badge>
-                  )}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        )}
+                      <td 
+                        className="p-4 cursor-pointer"
+                        onClick={() => navigate(`/app/migration/matters/${matter.id}`)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg gradient-bg flex items-center justify-center">
+                            <FileText className="w-5 h-5 text-primary-foreground" />
+                          </div>
+                          <div>
+                            <p className="font-medium hover:text-primary transition-colors">{matter.matter_name}</p>
+                            <p className="text-sm text-muted-foreground">Created {formatDate(matter.created_at)}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4 hidden sm:table-cell">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <User className="w-4 h-4" />
+                          {matter.client_name}
+                        </div>
+                      </td>
+                      <td className="p-4 hidden md:table-cell">
+                        {matter.visa_subclass ? (
+                          <Badge variant="outline">Subclass {matter.visa_subclass}</Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        <Badge variant={getStatusColor(matter.status)}>
+                          {matter.status}
+                        </Badge>
+                      </td>
+                      <td className="p-4 hidden lg:table-cell">
+                        {matter.folder_status === "created" && matter.drive_folder_id ? (
+                          <a
+                            href={`https://drive.google.com/drive/folders/${matter.drive_folder_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Badge variant="success" className="gap-1 cursor-pointer hover:opacity-80 transition-opacity">
+                              <FolderOpen className="w-3 h-3" />
+                              Created
+                            </Badge>
+                          </a>
+                        ) : matter.folder_status === "creating" ? (
+                          <Badge variant="outline" className="gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Creating
+                          </Badge>
+                        ) : matter.folder_status === "failed" ? (
+                          <Badge variant="destructive">Failed</Badge>
+                        ) : (
+                          <Badge variant="secondary">Pending</Badge>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => handleEditMatter(matter)}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setMatterToDelete(matter)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-        {!isLoading && filteredMatters.length === 0 && (
-          <div className="card-gradient rounded-xl border border-border/50 p-12 text-center">
-            <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="font-semibold mb-2">No applications found</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              {searchQuery || statusFilter !== "all" 
-                ? "Try different filters" 
-                : clients.length === 0 
-                  ? "Add a client first before creating applications"
-                  : "Create your first visa application"
-              }
-            </p>
-            {!searchQuery && statusFilter === "all" && clients.length > 0 && (
-              <Button variant="gradient" onClick={() => setIsCreateOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                New Application
-              </Button>
+            {filteredMatters.length === 0 && (
+              <div className="p-12 text-center">
+                <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="font-semibold mb-2">No applications found</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {searchQuery || statusFilter !== "all" 
+                    ? "Try different filters" 
+                    : clients.length === 0 
+                      ? "Add a client first before creating applications"
+                      : "Create your first visa application"
+                  }
+                </p>
+                {!searchQuery && statusFilter === "all" && clients.length > 0 && (
+                  <Button variant="gradient" onClick={() => setIsCreateOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    New Application
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         )}
+
 
         {/* Matter Detail Dialog */}
         <Dialog open={!!selectedMatter} onOpenChange={() => setSelectedMatter(null)}>
