@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.cleanup-rate-limits]
 verify_jwt = true
+
+[functions.timeout-folder-creation]
+verify_jwt = true
