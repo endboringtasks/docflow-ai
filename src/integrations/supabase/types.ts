@@ -681,6 +681,20 @@ export type Database = {
       }
     }
     Functions: {
+      get_drive_connection_status: {
+        Args: { p_company_id: string }
+        Returns: {
+          company_id: string
+          connected_by: string
+          connected_email: string
+          created_at: string
+          id: string
+          root_folder_id: string
+          root_folder_name: string
+          token_expires_at: string
+          updated_at: string
+        }[]
+      }
       has_client_access: {
         Args: { _client_id: string; _company_id: string; _user_id: string }
         Returns: boolean

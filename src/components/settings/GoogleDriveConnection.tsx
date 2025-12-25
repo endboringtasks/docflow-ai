@@ -62,14 +62,13 @@ export function GoogleDriveConnection() {
     if (!currentCompany) return;
 
     try {
+      // Use secure RPC function that never exposes OAuth tokens
       const { data, error } = await supabase
-        .from("google_drive_connections_secure")
-        .select("id, connected_email, root_folder_id, root_folder_name, created_at")
-        .eq("company_id", currentCompany.id)
-        .maybeSingle();
+        .rpc("get_drive_connection_status", { p_company_id: currentCompany.id });
 
       if (error) throw error;
-      setConnection(data);
+      // RPC returns an array, get first item
+      setConnection(data && data.length > 0 ? data[0] : null);
     } catch (error) {
       console.error("Error fetching connection:", error);
     } finally {

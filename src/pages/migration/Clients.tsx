@@ -154,11 +154,8 @@ const MigrationClients = () => {
       let rootFolderId: string | null = null;
       try {
         const { data: driveConnection } = await supabase
-          .from("google_drive_connections_secure")
-          .select("root_folder_id")
-          .eq("company_id", currentCompany.id)
-          .single();
-        rootFolderId = driveConnection?.root_folder_id ?? null;
+          .rpc("get_drive_connection_status", { p_company_id: currentCompany.id });
+        rootFolderId = driveConnection?.[0]?.root_folder_id ?? null;
       } catch (e) {
         console.warn("Could not fetch drive connection:", e);
       }
