@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { validateWebhookSecret } from "../_shared/timing-safe-compare.ts";
 import { checkRateLimit, getClientIdentifier, createRateLimitResponse, getRateLimitHeaders } from "../_shared/rate-limiter.ts";
+import { createRequestContext, logRequestStart, logRequestEnd, logRequestError, addRequestIdHeader } from "../_shared/request-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -85,6 +86,7 @@ const ALLOWED_PAYLOAD_FIELDS = new Set([
   'matter_name',
   'client_name',
   'folder_name',
+  'request_id',
 ]);
 
 /**
@@ -111,13 +113,11 @@ function sanitizePayload(
     
     // Skip PII fields
     if (PII_FIELDS.has(lowerKey)) {
-      console.log(`Stripped PII field from payload: ${key}`);
       continue;
     }
 
     // Only allow whitelisted fields at the top level
     if (depth === 0 && !ALLOWED_PAYLOAD_FIELDS.has(lowerKey)) {
-      console.log(`Stripped non-whitelisted field from payload: ${key}`);
       continue;
     }
 
@@ -162,18 +162,27 @@ Deno.serve(async (req) => {
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+  // Get client identifier and create request context
+  const clientIp = getClientIdentifier(req);
+  const ctx = createRequestContext(req, "webhook-automation-event", clientIp);
+  
+  logRequestStart(ctx);
+
   // Check rate limit
-  const clientId = getClientIdentifier(req);
   const rateLimitResult = await checkRateLimit(
     supabase,
-    clientId,
+    clientIp,
     "webhook-automation-event",
     RATE_LIMIT_CONFIG
   );
 
   if (!rateLimitResult.allowed) {
-    console.warn(`Rate limit exceeded for ${clientId} on webhook-automation-event`);
-    return createRateLimitResponse(rateLimitResult, RATE_LIMIT_CONFIG.maxRequests, corsHeaders);
+    logRequestEnd(ctx, 429, { reason: "rate_limit_exceeded" });
+    const response = createRateLimitResponse(rateLimitResult, RATE_LIMIT_CONFIG.maxRequests, corsHeaders);
+    return new Response(response.body, {
+      status: response.status,
+      headers: addRequestIdHeader(Object.fromEntries(response.headers.entries()), ctx.requestId),
+    });
   }
 
   try {
@@ -182,46 +191,40 @@ Deno.serve(async (req) => {
     const expectedSecret = Deno.env.get("WEBHOOK_SECRET");
     
     if (!validateWebhookSecret(webhookSecret, expectedSecret)) {
-      console.error("Invalid webhook secret");
+      logRequestEnd(ctx, 401, { reason: "invalid_secret" });
       return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Unauthorized", request_id: ctx.requestId }),
+        { status: 401, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
 
     // Parse request body
     const eventData: AutomationEventPayload = await req.json();
-    console.log("Received automation event:", { 
-      company_id: eventData.company_id,
-      event_type: eventData.event_type,
-      client_id: eventData.client_id,
-      matter_id: eventData.matter_id,
-      // Don't log raw payload to prevent PII in logs
-      payload_keys: eventData.payload ? Object.keys(eventData.payload) : []
-    });
 
     // Validate required fields
     if (!eventData.company_id || !eventData.event_type) {
-      console.error("Missing required fields:", { company_id: !!eventData.company_id, event_type: !!eventData.event_type });
+      logRequestEnd(ctx, 400, { reason: "missing_fields" });
       return new Response(
-        JSON.stringify({ error: "Missing required fields: company_id and event_type" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Missing required fields: company_id and event_type", request_id: ctx.requestId }),
+        { status: 400, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
 
     // Validate event_type length and format
     if (eventData.event_type.length > 100) {
+      logRequestEnd(ctx, 400, { reason: "event_type_too_long" });
       return new Response(
-        JSON.stringify({ error: "event_type must be less than 100 characters" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "event_type must be less than 100 characters", request_id: ctx.requestId }),
+        { status: 400, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
 
     // Validate event_type format (alphanumeric with underscores/dots)
     if (!/^[a-zA-Z0-9_.-]+$/.test(eventData.event_type)) {
+      logRequestEnd(ctx, 400, { reason: "invalid_event_type_format" });
       return new Response(
-        JSON.stringify({ error: "event_type must contain only alphanumeric characters, underscores, dots, and hyphens" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "event_type must contain only alphanumeric characters, underscores, dots, and hyphens", request_id: ctx.requestId }),
+        { status: 400, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
 
@@ -230,13 +233,22 @@ Deno.serve(async (req) => {
       .from("companies")
       .select("id")
       .eq("id", eventData.company_id)
-      .single();
+      .maybeSingle();
 
-    if (companyError || !company) {
-      console.error("Company not found:", eventData.company_id);
+    if (companyError) {
+      logRequestError(ctx, companyError.message);
+      logRequestEnd(ctx, 500, { reason: "company_lookup_failed" });
       return new Response(
-        JSON.stringify({ error: "Company not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Failed to verify company", request_id: ctx.requestId }),
+        { status: 500, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
+      );
+    }
+
+    if (!company) {
+      logRequestEnd(ctx, 404, { reason: "company_not_found", company_id: eventData.company_id });
+      return new Response(
+        JSON.stringify({ error: "Company not found", request_id: ctx.requestId }),
+        { status: 404, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
 
@@ -246,10 +258,9 @@ Deno.serve(async (req) => {
     // Add metadata
     const finalPayload = {
       ...sanitizedPayload,
+      request_id: ctx.requestId,
       received_at: new Date().toISOString(),
     };
-
-    console.log("Sanitized payload:", finalPayload);
 
     // Insert the automation event
     const { data: event, error: insertError } = await supabase
@@ -265,37 +276,40 @@ Deno.serve(async (req) => {
       .single();
 
     if (insertError) {
-      console.error("Error inserting automation event:", insertError);
+      logRequestError(ctx, insertError.message);
+      logRequestEnd(ctx, 500, { reason: "insert_failed" });
       return new Response(
-        JSON.stringify({ error: "Failed to log event", details: insertError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Failed to log event", request_id: ctx.requestId }),
+        { status: 500, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
 
-    console.log("Successfully logged automation event:", { event_id: event.id, event_type: eventData.event_type });
+    logRequestEnd(ctx, 200, { event_id: event.id, event_type: eventData.event_type });
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: "Automation event logged",
-        event_id: event.id 
+        event_id: event.id,
+        request_id: ctx.requestId,
       }),
       { 
         status: 200, 
-        headers: { 
+        headers: addRequestIdHeader({
           ...corsHeaders, 
           "Content-Type": "application/json",
           ...getRateLimitHeaders(rateLimitResult, RATE_LIMIT_CONFIG.maxRequests),
-        } 
+        }, ctx.requestId)
       }
     );
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("Webhook error:", errorMessage);
+    logRequestError(ctx, error instanceof Error ? error : errorMessage);
+    logRequestEnd(ctx, 500, { reason: "internal_error" });
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: "Internal server error", request_id: ctx.requestId }),
+      { status: 500, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
     );
   }
 });
