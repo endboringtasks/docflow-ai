@@ -57,7 +57,10 @@ Deno.serve(async (req) => {
       
       await supabase
         .from(table)
-        .update({ folder_status: 'creating' })
+        .update({ 
+          folder_status: 'creating',
+          folder_status_updated_at: new Date().toISOString()
+        })
         .eq('id', entityId);
     }
 

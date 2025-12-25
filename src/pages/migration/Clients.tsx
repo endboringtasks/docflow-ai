@@ -359,10 +359,13 @@ const MigrationClients = () => {
     mutationFn: async (client: Client) => {
       if (!currentCompany?.id) throw new Error("No company selected");
 
-      // Set folder_status back to 'creating'
+      // Set folder_status back to 'creating' with timestamp
       const { error: updateError } = await supabase
         .from("clients")
-        .update({ folder_status: "creating" })
+        .update({ 
+          folder_status: "creating",
+          folder_status_updated_at: new Date().toISOString()
+        })
         .eq("id", client.id);
 
       if (updateError) throw updateError;
