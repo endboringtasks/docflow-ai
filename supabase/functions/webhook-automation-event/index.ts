@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { validateWebhookSecret } from "../_shared/timing-safe-compare.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -151,11 +152,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Validate webhook secret
+    // Validate webhook secret using constant-time comparison
     const webhookSecret = req.headers.get("x-webhook-secret");
     const expectedSecret = Deno.env.get("WEBHOOK_SECRET");
     
-    if (expectedSecret && webhookSecret !== expectedSecret) {
+    if (!validateWebhookSecret(webhookSecret, expectedSecret)) {
       console.error("Invalid webhook secret");
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
