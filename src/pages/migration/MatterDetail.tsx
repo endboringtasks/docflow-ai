@@ -24,6 +24,12 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -701,16 +707,25 @@ const MatterDetail = () => {
               <div>
                 <p className="text-sm text-muted-foreground">Drive Folder</p>
                 {matter.folder_status === 'created' && matter.drive_folder_id ? (
-                  <a 
-                    href={`https://drive.google.com/drive/folders/${matter.drive_folder_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 hover:underline transition-all group"
-                  >
-                    <FolderOpen className="w-3.5 h-3.5" />
-                    Open Folder
-                    <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
-                  </a>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <a 
+                          href={`https://drive.google.com/drive/folders/${matter.drive_folder_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 hover:underline transition-all group"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5" />
+                          Open Folder
+                          <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                        </a>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Opens in Google Drive</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 ) : (
                   <Badge 
                     variant={

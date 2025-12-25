@@ -45,6 +45,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -646,17 +652,26 @@ const MigrationClients = () => {
                       </td>
                       <td className="p-4 hidden lg:table-cell">
                         {client.folder_status === "created" && client.drive_folder_id ? (
-                          <a
-                            href={`https://drive.google.com/drive/folders/${client.drive_folder_id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 hover:underline transition-all group"
-                          >
-                            <FolderOpen className="w-3.5 h-3.5" />
-                            Open Folder
-                            <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
-                          </a>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <a
+                                  href={`https://drive.google.com/drive/folders/${client.drive_folder_id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 hover:underline transition-all group"
+                                >
+                                  <FolderOpen className="w-3.5 h-3.5" />
+                                  Open Folder
+                                  <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                                </a>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Opens in Google Drive</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         ) : client.folder_status === "creating" ? (
                           <Badge variant="outline" className="gap-1">
                             <Loader2 className="w-3 h-3 animate-spin" />
