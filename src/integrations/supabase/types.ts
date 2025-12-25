@@ -527,6 +527,50 @@ export type Database = {
           },
         ]
       }
+      visa_document_templates: {
+        Row: {
+          category: string
+          company_id: string
+          created_at: string
+          document_name: string
+          id: string
+          is_required: boolean
+          sort_order: number
+          updated_at: string
+          visa_subclass: string
+        }
+        Insert: {
+          category: string
+          company_id: string
+          created_at?: string
+          document_name: string
+          id?: string
+          is_required?: boolean
+          sort_order?: number
+          updated_at?: string
+          visa_subclass: string
+        }
+        Update: {
+          category?: string
+          company_id?: string
+          created_at?: string
+          document_name?: string
+          id?: string
+          is_required?: boolean
+          sort_order?: number
+          updated_at?: string
+          visa_subclass?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visa_document_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_rate_limits: {
         Row: {
           created_at: string
