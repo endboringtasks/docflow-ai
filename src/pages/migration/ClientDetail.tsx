@@ -368,28 +368,10 @@ const ClientDetail = () => {
                 <p className="text-sm text-muted-foreground">Added {formatDate(client.created_at)}</p>
               </div>
             </div>
-            <div className="flex gap-2">
-              {client.folder_status === "created" && client.drive_folder_id && (
-                <Button 
-                  variant="outline" 
-                  asChild
-                >
-                  <a 
-                    href={`https://drive.google.com/drive/folders/${client.drive_folder_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <FolderOpen className="w-4 h-4 mr-2" />
-                    Open in Drive
-                    <ExternalLink className="w-3 h-3 ml-2" />
-                  </a>
-                </Button>
-              )}
-              <Button variant="outline" onClick={handleEditClient}>
-                <Pencil className="w-4 h-4 mr-2" />
-                Edit Client
-              </Button>
-            </div>
+            <Button variant="outline" onClick={handleEditClient}>
+              <Pencil className="w-4 h-4 mr-2" />
+              Edit Client
+            </Button>
           </div>
 
           {/* Contact Info */}
@@ -412,25 +394,31 @@ const ClientDetail = () => {
               <FolderOpen className="w-5 h-5 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground">Drive Folder</p>
-                <Badge 
-                  variant={
-                    client.folder_status === 'created' ? "success" : 
-                    client.folder_status === 'creating' ? "default" : 
-                    client.folder_status === 'failed' ? "destructive" : "secondary"
-                  }
-                  className="gap-1"
-                >
-                  {client.folder_status === 'creating' && (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  )}
-                  {client.folder_status === 'created' ? "Created" : 
-                   client.folder_status === 'creating' ? "Creating" : 
-                   client.folder_status === 'failed' ? "Failed" : "Pending"}
-                </Badge>
-                {client.drive_folder_id && (
-                  <p className="text-xs text-muted-foreground mt-1 font-mono truncate max-w-[200px]" title={client.drive_folder_id}>
-                    {client.drive_folder_id}
-                  </p>
+                {client.folder_status === 'created' && client.drive_folder_id ? (
+                  <a 
+                    href={`https://drive.google.com/drive/folders/${client.drive_folder_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 hover:underline transition-all group"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5" />
+                    Open Folder
+                    <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                  </a>
+                ) : (
+                  <Badge 
+                    variant={
+                      client.folder_status === 'creating' ? "default" : 
+                      client.folder_status === 'failed' ? "destructive" : "secondary"
+                    }
+                    className="gap-1"
+                  >
+                    {client.folder_status === 'creating' && (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    )}
+                    {client.folder_status === 'creating' ? "Creating" : 
+                     client.folder_status === 'failed' ? "Failed" : "Pending"}
+                  </Badge>
                 )}
               </div>
             </div>
