@@ -18,6 +18,7 @@ import AdminCompanies from "./pages/admin/Companies";
 import AdminUsers from "./pages/admin/Users";
 import AdminBilling from "./pages/admin/Billing";
 import AdminWebhooks from "./pages/admin/Webhooks";
+import AdminWebhookMonitoring from "./pages/admin/WebhookMonitoring";
 import AdminSettings from "./pages/admin/Settings";
 import AdminAuditLogs from "./pages/admin/AuditLogs";
 import Onboarding from "./pages/Onboarding";
@@ -141,6 +142,7 @@ const App = () => (
               <Route path="/admin/users" element={<AdminProtectedRoute><AdminUsers /></AdminProtectedRoute>} />
               <Route path="/admin/billing" element={<AdminProtectedRoute><AdminBilling /></AdminProtectedRoute>} />
               <Route path="/admin/webhooks" element={<AdminProtectedRoute><AdminWebhooks /></AdminProtectedRoute>} />
+              <Route path="/admin/webhook-monitoring" element={<AdminProtectedRoute><AdminWebhookMonitoring /></AdminProtectedRoute>} />
               <Route path="/admin/settings" element={<AdminProtectedRoute><AdminSettings /></AdminProtectedRoute>} />
               <Route path="/admin/audit-logs" element={<AdminProtectedRoute><AdminAuditLogs /></AdminProtectedRoute>} />
               
