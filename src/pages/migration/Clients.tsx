@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -120,6 +120,56 @@ const MigrationClients = () => {
     },
     enabled: !!currentCompany?.id,
   });
+
+  // Subscribe to realtime updates for clients
+  useEffect(() => {
+    if (!currentCompany?.id) return;
+
+    const channel = supabase
+      .channel('clients-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'clients',
+          filter: `company_id=eq.${currentCompany.id}`,
+        },
+        (payload) => {
+          console.log('Client updated:', payload);
+          queryClient.invalidateQueries({ queryKey: ["clients", currentCompany.id] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'clients',
+          filter: `company_id=eq.${currentCompany.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["clients", currentCompany.id] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'clients',
+          filter: `company_id=eq.${currentCompany.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["clients", currentCompany.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentCompany?.id, queryClient]);
 
   // Create client mutation
   const createClientMutation = useMutation({
