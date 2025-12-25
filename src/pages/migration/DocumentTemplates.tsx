@@ -13,7 +13,8 @@ import {
   ChevronDown,
   ChevronRight,
   Save,
-  X
+  Check,
+  ChevronsUpDown
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -40,6 +41,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -47,6 +62,7 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
+import { cn } from "@/lib/utils";
 
 interface DocumentTemplate {
   id: string;
@@ -84,6 +100,94 @@ const defaultCategories = [
   "Custom",
 ];
 
+// Common document names organized by category
+const commonDocuments: Record<string, string[]> = {
+  Identity: [
+    "Passport (certified copy)",
+    "Birth Certificate",
+    "Passport Photos",
+    "National ID Card",
+    "Driver's License",
+    "Change of Name Certificate",
+  ],
+  Character: [
+    "Police Clearance Certificate",
+    "AFP National Police Check",
+    "Character Statutory Declaration",
+    "Military Service Records",
+  ],
+  Health: [
+    "Health Examination Results",
+    "Medical Report",
+    "Chest X-Ray",
+    "HIV Test Results",
+    "Vaccination Records",
+  ],
+  Employment: [
+    "Employment Contract",
+    "Resume/CV",
+    "Employment References",
+    "Letter of Offer",
+    "Payslips (last 3 months)",
+    "Tax Returns",
+    "Job Description",
+  ],
+  Skills: [
+    "Skills Assessment",
+    "Trade Qualifications",
+    "Professional Registration",
+    "Work Experience Letters",
+  ],
+  English: [
+    "English Language Test Results",
+    "IELTS Certificate",
+    "PTE Academic Score Report",
+    "TOEFL Score Report",
+    "OET Results",
+  ],
+  Education: [
+    "Qualifications/Degrees",
+    "Academic Transcripts",
+    "Confirmation of Enrolment (CoE)",
+    "Completion Letter",
+    "Professional Certifications",
+  ],
+  Financial: [
+    "Financial Evidence",
+    "Bank Statements (last 3 months)",
+    "Tax Assessment Notice",
+    "Proof of Assets",
+    "Sponsorship Undertaking",
+  ],
+  Relationship: [
+    "Relationship Evidence",
+    "Form 888 Statutory Declarations",
+    "Joint Financial Records",
+    "Shared Lease/Mortgage",
+    "Photos Together",
+    "Communication Evidence",
+    "Marriage Certificate",
+  ],
+  Sponsor: [
+    "Sponsor's Identity Documents",
+    "Sponsor's Citizenship Evidence",
+    "Sponsor's Income Evidence",
+    "Sponsor's Employment Letter",
+  ],
+  Insurance: [
+    "OSHC Policy",
+    "Health Insurance Certificate",
+    "Travel Insurance",
+  ],
+  Nomination: [
+    "Nomination Approval",
+    "Labour Market Testing Evidence",
+    "Business Registration",
+    "Company Financials",
+  ],
+  Custom: [],
+};
+
 const DocumentTemplates = () => {
   const queryClient = useQueryClient();
   const { currentCompany, currentRole } = useCompany();
@@ -103,6 +207,9 @@ const DocumentTemplates = () => {
   });
   
   const [newCategory, setNewCategory] = useState("");
+  const [docNameOpen, setDocNameOpen] = useState(false);
+  const [editDocNameOpen, setEditDocNameOpen] = useState(false);
+  const [customDocName, setCustomDocName] = useState("");
 
   // Fetch templates for selected visa
   const { data: templates = [], isLoading } = useQuery({
@@ -436,11 +543,89 @@ const DocumentTemplates = () => {
             </div>
             <div className="space-y-2">
               <Label>Document Name</Label>
-              <Input
-                placeholder="e.g., Passport (certified copy)"
-                value={newDoc.documentName}
-                onChange={(e) => setNewDoc({ ...newDoc, documentName: e.target.value })}
-              />
+              <Popover open={docNameOpen} onOpenChange={setDocNameOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={docNameOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {newDoc.documentName || "Select or type a document name..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0" align="start">
+                  <Command>
+                    <CommandInput 
+                      placeholder="Search or add new..." 
+                      value={customDocName}
+                      onValueChange={setCustomDocName}
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        <div className="p-2">
+                          <Button 
+                            variant="ghost" 
+                            className="w-full justify-start"
+                            onClick={() => {
+                              setNewDoc({ ...newDoc, documentName: customDocName });
+                              setDocNameOpen(false);
+                              setCustomDocName("");
+                            }}
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add "{customDocName}"
+                          </Button>
+                        </div>
+                      </CommandEmpty>
+                      {newDoc.category && commonDocuments[newDoc.category]?.length > 0 && (
+                        <CommandGroup heading={`${newDoc.category} Documents`}>
+                          {commonDocuments[newDoc.category].map((doc) => (
+                            <CommandItem
+                              key={doc}
+                              value={doc}
+                              onSelect={() => {
+                                setNewDoc({ ...newDoc, documentName: doc });
+                                setDocNameOpen(false);
+                                setCustomDocName("");
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  newDoc.documentName === doc ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {doc}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                      {customDocName && !commonDocuments[newDoc.category]?.some(d => 
+                        d.toLowerCase().includes(customDocName.toLowerCase())
+                      ) && (
+                        <>
+                          <CommandSeparator />
+                          <CommandGroup heading="Add Custom">
+                            <CommandItem
+                              value={`add-${customDocName}`}
+                              onSelect={() => {
+                                setNewDoc({ ...newDoc, documentName: customDocName });
+                                setDocNameOpen(false);
+                                setCustomDocName("");
+                              }}
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              Add "{customDocName}"
+                            </CommandItem>
+                          </CommandGroup>
+                        </>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="flex items-center justify-between">
               <Label>Required Document</Label>
@@ -498,10 +683,89 @@ const DocumentTemplates = () => {
               </div>
               <div className="space-y-2">
                 <Label>Document Name</Label>
-                <Input
-                  value={editingDoc.document_name}
-                  onChange={(e) => setEditingDoc({ ...editingDoc, document_name: e.target.value })}
-                />
+                <Popover open={editDocNameOpen} onOpenChange={setEditDocNameOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={editDocNameOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      {editingDoc.document_name || "Select or type a document name..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[400px] p-0" align="start">
+                    <Command>
+                      <CommandInput 
+                        placeholder="Search or add new..." 
+                        value={customDocName}
+                        onValueChange={setCustomDocName}
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          <div className="p-2">
+                            <Button 
+                              variant="ghost" 
+                              className="w-full justify-start"
+                              onClick={() => {
+                                setEditingDoc({ ...editingDoc, document_name: customDocName });
+                                setEditDocNameOpen(false);
+                                setCustomDocName("");
+                              }}
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              Add "{customDocName}"
+                            </Button>
+                          </div>
+                        </CommandEmpty>
+                        {editingDoc.category && commonDocuments[editingDoc.category]?.length > 0 && (
+                          <CommandGroup heading={`${editingDoc.category} Documents`}>
+                            {commonDocuments[editingDoc.category].map((doc) => (
+                              <CommandItem
+                                key={doc}
+                                value={doc}
+                                onSelect={() => {
+                                  setEditingDoc({ ...editingDoc, document_name: doc });
+                                  setEditDocNameOpen(false);
+                                  setCustomDocName("");
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    editingDoc.document_name === doc ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {doc}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                        {customDocName && !commonDocuments[editingDoc.category]?.some(d => 
+                          d.toLowerCase().includes(customDocName.toLowerCase())
+                        ) && (
+                          <>
+                            <CommandSeparator />
+                            <CommandGroup heading="Add Custom">
+                              <CommandItem
+                                value={`add-${customDocName}`}
+                                onSelect={() => {
+                                  setEditingDoc({ ...editingDoc, document_name: customDocName });
+                                  setEditDocNameOpen(false);
+                                  setCustomDocName("");
+                                }}
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add "{customDocName}"
+                              </CommandItem>
+                            </CommandGroup>
+                          </>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="flex items-center justify-between">
                 <Label>Required Document</Label>
