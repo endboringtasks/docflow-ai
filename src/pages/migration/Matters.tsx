@@ -109,11 +109,9 @@ const MigrationMatters = () => {
     queryFn: async () => {
       if (!currentCompany?.id) return [];
       
+      // Use secure RPC function
       const { data, error } = await supabase
-        .from("clients_secure")
-        .select("id, client_type, first_name, last_name, company_name")
-        .eq("company_id", currentCompany.id)
-        .order("first_name");
+        .rpc("get_clients_secure", { p_company_id: currentCompany.id });
       
       if (error) throw error;
       return data as Client[];

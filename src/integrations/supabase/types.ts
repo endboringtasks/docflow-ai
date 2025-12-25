@@ -681,6 +681,36 @@ export type Database = {
       }
     }
     Functions: {
+      get_client_by_id: {
+        Args: { p_client_id: string }
+        Returns: {
+          client_type: string
+          company_id: string
+          company_name: string
+          created_at: string
+          drive_folder_id: string
+          email: string
+          first_name: string
+          id: string
+          last_name: string
+          phone: string
+        }[]
+      }
+      get_clients_secure: {
+        Args: { p_company_id: string }
+        Returns: {
+          client_type: string
+          company_id: string
+          company_name: string
+          created_at: string
+          drive_folder_id: string
+          email: string
+          first_name: string
+          id: string
+          last_name: string
+          phone: string
+        }[]
+      }
       get_drive_connection_status: {
         Args: { p_company_id: string }
         Returns: {

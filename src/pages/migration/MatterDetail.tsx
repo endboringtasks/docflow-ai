@@ -220,14 +220,12 @@ const MatterDetail = () => {
     queryFn: async () => {
       if (!matter?.client_id) return null;
       
+      // Use secure RPC function that masks PII for non-admins
       const { data, error } = await supabase
-        .from("clients_secure")
-        .select("id, first_name, last_name, email, phone, client_type")
-        .eq("id", matter.client_id)
-        .maybeSingle();
+        .rpc("get_client_by_id", { p_client_id: matter.client_id });
       
       if (error) throw error;
-      return data as Client | null;
+      return data && data.length > 0 ? data[0] as Client : null;
     },
     enabled: !!matter?.client_id,
   });
