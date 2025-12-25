@@ -102,8 +102,13 @@ export function GoogleDriveConnection() {
         return;
       }
 
+      const accessToken = sessionData.session.access_token;
+
       const { data, error } = await supabase.functions.invoke("google-drive-auth", {
         body: { companyId: currentCompany.id, origin: window.location.origin },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       });
 
       if (error) throw error;
@@ -130,8 +135,16 @@ export function GoogleDriveConnection() {
     setIsDisconnecting(true);
 
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
       const { error } = await supabase.functions.invoke("google-drive-disconnect", {
         body: { companyId: currentCompany.id },
+        headers: accessToken
+          ? {
+              Authorization: `Bearer ${accessToken}`,
+            }
+          : undefined,
       });
 
       if (error) throw error;
@@ -161,14 +174,22 @@ export function GoogleDriveConnection() {
         return;
       }
 
+      const accessToken = sessionData.session.access_token;
+
       // First disconnect
       await supabase.functions.invoke("google-drive-disconnect", {
         body: { companyId: currentCompany.id },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       });
 
       // Then start new OAuth flow
       const { data, error } = await supabase.functions.invoke("google-drive-auth", {
         body: { companyId: currentCompany.id, origin: window.location.origin },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       });
 
       if (error) throw error;
