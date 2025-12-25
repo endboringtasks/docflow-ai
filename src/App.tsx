@@ -27,6 +27,7 @@ import MigrationClients from "./pages/migration/Clients";
 import MigrationClientDetail from "./pages/migration/ClientDetail";
 import MigrationMatters from "./pages/migration/Matters";
 import MigrationMatterDetail from "./pages/migration/MatterDetail";
+import MigrationDocumentTemplates from "./pages/migration/DocumentTemplates";
 import AuditDashboard from "./pages/audit/Dashboard";
 import HRDashboard from "./pages/hr/Dashboard";
 import Billing from "./pages/Billing";
@@ -85,6 +86,11 @@ const App = () => (
               <Route path="/app/migration/matters/:matterId" element={
                 <ProtectedRoute>
                   <MigrationMatterDetail />
+                </ProtectedRoute>
+              } />
+              <Route path="/app/migration/document-templates" element={
+                <ProtectedRoute>
+                  <MigrationDocumentTemplates />
                 </ProtectedRoute>
               } />
               

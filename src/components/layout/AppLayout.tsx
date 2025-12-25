@@ -5,6 +5,7 @@ import {
   LayoutDashboard, 
   Users, 
   FileText, 
+  FileCheck,
   CreditCard, 
   Settings, 
   LogOut, 
@@ -29,6 +30,7 @@ const nicheConfig = {
       { label: "Dashboard", href: "/app/migration/dashboard", icon: LayoutDashboard },
       { label: "Clients", href: "/app/migration/clients", icon: Users },
       { label: "Visa Applications", href: "/app/migration/matters", icon: FileText },
+      { label: "Document Templates", href: "/app/migration/document-templates", icon: FileCheck },
     ],
   },
   audit: {
