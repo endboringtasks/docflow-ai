@@ -77,6 +77,12 @@ interface Client {
   company_name: string | null;
 }
 
+const applicationTypes = [
+  { value: "Sponsorship", label: "Sponsorship" },
+  { value: "Nomination", label: "Nomination" },
+  { value: "Visa Application", label: "Visa Application" },
+];
+
 const visaSubclasses = [
   { value: "482", label: "Temporary Skill Shortage (482)" },
   { value: "186", label: "Employer Nomination Scheme (186)" },
@@ -410,11 +416,11 @@ const MigrationMatters = () => {
   });
 
   const handleCreateMatter = () => {
-    if (!newMatter.clientId || !newMatter.matterName.trim() || !newMatter.visaSubclass) return;
+    if (!newMatter.clientId || !newMatter.matterName || !newMatter.visaSubclass) return;
     
     createMatterMutation.mutate({
       client_id: newMatter.clientId,
-      matter_name: newMatter.matterName.trim(),
+      matter_name: newMatter.matterName,
       visa_subclass: newMatter.visaSubclass,
     });
   };
@@ -506,13 +512,22 @@ const MigrationMatters = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Application Name</Label>
-                  <Input
-                    value={newMatter.matterName}
-                    onChange={(e) => setNewMatter({...newMatter, matterName: e.target.value})}
-                    placeholder="e.g., Skilled Worker Application"
-                    className="bg-secondary border-border"
-                  />
+                  <Label>Application Type</Label>
+                  <Select 
+                    value={newMatter.matterName} 
+                    onValueChange={(value) => setNewMatter({...newMatter, matterName: value})}
+                  >
+                    <SelectTrigger className="bg-secondary border-border">
+                      <SelectValue placeholder="Select application type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {applicationTypes.map(type => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
@@ -543,7 +558,7 @@ const MigrationMatters = () => {
                   variant="gradient" 
                   className="flex-1" 
                   onClick={handleCreateMatter} 
-                  disabled={!newMatter.clientId || !newMatter.matterName.trim() || !newMatter.visaSubclass || createMatterMutation.isPending}
+                  disabled={!newMatter.clientId || !newMatter.matterName || !newMatter.visaSubclass || createMatterMutation.isPending}
                 >
                   {createMatterMutation.isPending ? (
                     <>
