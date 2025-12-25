@@ -95,6 +95,41 @@ async function findOrCreateFolder(
   return await createDriveFolder(accessToken, folderName, parentId);
 }
 
+// Share a folder with an email address
+async function shareFolder(
+  accessToken: string,
+  folderId: string,
+  email: string,
+  role: "reader" | "writer" = "writer"
+): Promise<boolean> {
+  console.log(`Sharing folder ${folderId} with ${email} as ${role}...`);
+  
+  const response = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${folderId}/permissions`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        type: "user",
+        role: role,
+        emailAddress: email,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error(`Failed to share folder with ${email}:`, error);
+    return false;
+  }
+
+  console.log(`Successfully shared folder with ${email}`);
+  return true;
+}
+
 // Create or find the default folder structure: DocFlow AI > Migration Services > Clients
 async function ensureDefaultFolderStructure(accessToken: string): Promise<{ id: string; name: string }> {
   console.log("Ensuring default folder structure exists...");
@@ -117,6 +152,15 @@ async function ensureDefaultFolderStructure(accessToken: string): Promise<{ id: 
   );
 
   console.log("Folder structure ready. Clients folder ID:", clientsFolder.id);
+
+  // Auto-share the Clients folder with Make.com's Google account
+  const makeGoogleEmail = Deno.env.get("MAKE_GOOGLE_EMAIL");
+  if (makeGoogleEmail) {
+    await shareFolder(accessToken, clientsFolder.id, makeGoogleEmail, "writer");
+  } else {
+    console.log("MAKE_GOOGLE_EMAIL not configured - skipping auto-share");
+  }
+
   return clientsFolder;
 }
 
