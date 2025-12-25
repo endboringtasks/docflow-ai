@@ -49,6 +49,7 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
+import { useFolderStatusRealtime } from "@/hooks/useFolderStatusRealtime";
 
 interface Client {
   id: string;
@@ -122,55 +123,13 @@ const MigrationClients = () => {
     enabled: !!currentCompany?.id,
   });
 
-  // Subscribe to realtime updates for clients
-  useEffect(() => {
-    if (!currentCompany?.id) return;
-
-    const channel = supabase
-      .channel('clients-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'clients',
-          filter: `company_id=eq.${currentCompany.id}`,
-        },
-        (payload) => {
-          console.log('Client updated:', payload);
-          queryClient.invalidateQueries({ queryKey: ["clients", currentCompany.id] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'clients',
-          filter: `company_id=eq.${currentCompany.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["clients", currentCompany.id] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'clients',
-          filter: `company_id=eq.${currentCompany.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["clients", currentCompany.id] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentCompany?.id, queryClient]);
+  // Smart real-time subscription - only active when there are pending/creating folders
+  useFolderStatusRealtime(
+    "clients",
+    currentCompany?.id,
+    clients,
+    ["clients", currentCompany?.id || ""]
+  );
 
   // Create client mutation
   const createClientMutation = useMutation({
