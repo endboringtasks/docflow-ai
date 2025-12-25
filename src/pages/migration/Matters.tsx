@@ -13,7 +13,8 @@ import {
   Loader2,
   Trash2,
   Pencil,
-  FolderOpen
+  FolderOpen,
+  RotateCcw
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -371,6 +372,66 @@ const MigrationMatters = () => {
     },
   });
 
+  // Retry folder creation mutation
+  const retryFolderMutation = useMutation({
+    mutationFn: async (matter: Matter) => {
+      if (!currentCompany?.id) throw new Error("No company selected");
+
+      // Set folder_status back to 'creating'
+      const { error: updateError } = await supabase
+        .from("matters")
+        .update({ folder_status: "creating" })
+        .eq("id", matter.id);
+
+      if (updateError) throw updateError;
+
+      // Fetch client to get drive_folder_id
+      const { data: clientData } = await supabase
+        .rpc("get_client_by_id", { p_client_id: matter.client_id });
+      
+      const client = clientData?.[0];
+
+      // Fetch company's Google Drive connection to get root folder ID
+      let rootFolderId: string | null = null;
+      try {
+        const { data: driveConnection } = await supabase
+          .rpc("get_drive_connection_status", { p_company_id: currentCompany.id });
+        rootFolderId = driveConnection?.[0]?.root_folder_id ?? null;
+      } catch (e) {
+        console.warn("Could not fetch drive connection:", e);
+      }
+
+      // Dispatch webhook for matter.created event
+      const { error: webhookError } = await supabase.functions.invoke("dispatch-webhook", {
+        body: {
+          event_type: "matter.created",
+          data: {
+            matter_id: matter.id,
+            company_id: currentCompany.id,
+            client_id: matter.client_id,
+            matter_name: matter.matter_name,
+            visa_subclass: matter.visa_subclass,
+            status: matter.status,
+            client_folder_id: client?.drive_folder_id || null,
+            root_folder_id: rootFolderId,
+            created_at: matter.created_at,
+          },
+        },
+      });
+
+      if (webhookError) throw webhookError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
+      toast.success("Folder creation retry initiated");
+    },
+    onError: (error) => {
+      toast.error("Failed to retry folder creation", {
+        description: error.message,
+      });
+    },
+  });
+
   const filteredMatters = matters.filter(matter => {
     const matchesSearch = matter.matter_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       matter.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -637,7 +698,25 @@ const MigrationMatters = () => {
                             Creating
                           </Badge>
                         ) : matter.folder_status === "failed" ? (
-                          <Badge variant="destructive">Failed</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="destructive">Failed</Badge>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                retryFolderMutation.mutate(matter);
+                              }}
+                              disabled={retryFolderMutation.isPending}
+                            >
+                              {retryFolderMutation.isPending ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <RotateCcw className="w-3 h-3" />
+                              )}
+                            </Button>
+                          </div>
                         ) : (
                           <Badge variant="secondary">Pending</Badge>
                         )}
