@@ -598,10 +598,17 @@ const MigrationMatters = () => {
                     Created {formatDate(matter.created_at)}
                   </p>
                   {matter.folder_status === "created" && matter.drive_folder_id ? (
-                    <Badge variant="success" className="gap-1 text-xs">
-                      <FolderOpen className="w-3 h-3" />
-                      Created
-                    </Badge>
+                    <a
+                      href={`https://drive.google.com/drive/folders/${matter.drive_folder_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Badge variant="success" className="gap-1 text-xs cursor-pointer hover:opacity-80 transition-opacity">
+                        <FolderOpen className="w-3 h-3" />
+                        Created
+                      </Badge>
+                    </a>
                   ) : matter.folder_status === "creating" ? (
                     <Badge variant="outline" className="gap-1 text-xs">
                       <Loader2 className="w-3 h-3 animate-spin" />
