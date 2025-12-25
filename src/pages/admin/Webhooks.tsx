@@ -58,7 +58,7 @@ export default function AdminWebhooks() {
     queryKey: ["admin-webhooks"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("platform_webhooks_secure")
+        .from("platform_webhooks")
         .select("*")
         .order("created_at", { ascending: false });
 
