@@ -57,6 +57,7 @@ interface Client {
   email: string | null;
   phone: string | null;
   drive_folder_id: string | null;
+  folder_status: "pending" | "creating" | "created" | "failed";
   created_at: string;
 }
 
@@ -117,12 +118,15 @@ const ClientDetail = () => {
     queryFn: async () => {
       if (!clientId) return null;
       
-      // Use secure RPC function that masks PII for non-admins
+      // Query clients table directly to get folder_status
       const { data, error } = await supabase
-        .rpc("get_client_by_id", { p_client_id: clientId });
+        .from("clients")
+        .select("*")
+        .eq("id", clientId)
+        .maybeSingle();
       
       if (error) throw error;
-      return data && data.length > 0 ? data[0] as Client : null;
+      return data as Client | null;
     },
     enabled: !!clientId,
   });
@@ -390,9 +394,20 @@ const ClientDetail = () => {
               <FolderOpen className="w-5 h-5 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground">Drive Folder</p>
-                <Badge variant={client.drive_folder_id ? "success" : "secondary"}>
-                  {client.drive_folder_id ? "Linked" : "Pending"}
+                <Badge variant={
+                  client.folder_status === 'created' ? "success" : 
+                  client.folder_status === 'creating' ? "default" : 
+                  client.folder_status === 'failed' ? "destructive" : "secondary"
+                }>
+                  {client.folder_status === 'created' ? "Created" : 
+                   client.folder_status === 'creating' ? "Creating..." : 
+                   client.folder_status === 'failed' ? "Failed" : "Pending"}
                 </Badge>
+                {client.drive_folder_id && (
+                  <p className="text-xs text-muted-foreground mt-1 font-mono truncate max-w-[200px]" title={client.drive_folder_id}>
+                    {client.drive_folder_id}
+                  </p>
+                )}
               </div>
             </div>
           </div>
