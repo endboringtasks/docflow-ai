@@ -644,6 +644,7 @@ export type Database = {
           drive_folder_id: string
           email: string
           first_name: string
+          folder_status: string
           id: string
           last_name: string
           phone: string
