@@ -539,9 +539,64 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_request_logs: {
+        Row: {
+          client_ip: string | null
+          created_at: string
+          duration_ms: number | null
+          endpoint: string
+          error_message: string | null
+          id: string
+          method: string
+          rate_limited: boolean | null
+          request_id: string
+          status_code: number
+          user_agent: string | null
+        }
+        Insert: {
+          client_ip?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          endpoint: string
+          error_message?: string | null
+          id?: string
+          method?: string
+          rate_limited?: boolean | null
+          request_id: string
+          status_code: number
+          user_agent?: string | null
+        }
+        Update: {
+          client_ip?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          endpoint?: string
+          error_message?: string | null
+          id?: string
+          method?: string
+          rate_limited?: boolean | null
+          request_id?: string
+          status_code?: number
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      webhook_hourly_stats: {
+        Row: {
+          avg_duration_ms: number | null
+          client_error_count: number | null
+          endpoint: string | null
+          hour: string | null
+          max_duration_ms: number | null
+          rate_limited_count: number | null
+          server_error_count: number | null
+          success_count: number | null
+          total_requests: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       check_rate_limit: {
