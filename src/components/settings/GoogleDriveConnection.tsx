@@ -93,17 +93,33 @@ export function GoogleDriveConnection() {
     setIsConnecting(true);
 
     try {
+      // Refresh session to ensure we have a valid token
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !sessionData.session) {
+        toast.error("Your session has expired. Please log in again.");
+        setIsConnecting(false);
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke("google-drive-auth", {
         body: { companyId: currentCompany.id, origin: window.location.origin },
       });
 
       if (error) throw error;
 
+      if (!data?.authUrl) {
+        throw new Error("No authorization URL received");
+      }
+
       // Redirect to Google OAuth
       window.location.href = data.authUrl;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error starting OAuth:", error);
-      toast.error("Failed to start Google authorization");
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast.error("Failed to start Google authorization", {
+        description: message,
+      });
       setIsConnecting(false);
     }
   };
@@ -136,6 +152,15 @@ export function GoogleDriveConnection() {
     setIsReconnecting(true);
 
     try {
+      // Refresh session to ensure we have a valid token
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !sessionData.session) {
+        toast.error("Your session has expired. Please log in again.");
+        setIsReconnecting(false);
+        return;
+      }
+
       // First disconnect
       await supabase.functions.invoke("google-drive-disconnect", {
         body: { companyId: currentCompany.id },
@@ -148,11 +173,18 @@ export function GoogleDriveConnection() {
 
       if (error) throw error;
 
+      if (!data?.authUrl) {
+        throw new Error("No authorization URL received");
+      }
+
       // Redirect to Google OAuth
       window.location.href = data.authUrl;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error reconnecting:", error);
-      toast.error("Failed to reconnect Google Drive");
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast.error("Failed to reconnect Google Drive", {
+        description: message,
+      });
       setIsReconnecting(false);
     }
   };
