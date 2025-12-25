@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { CompanySwitcher } from "@/components/CompanySwitcher";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompany } from "@/hooks/useCompany";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -180,7 +181,12 @@ const AppLayout = ({ children, niche }: AppLayoutProps) => {
             </div>
             <span className="font-semibold">Docflow AI</span>
           </div>
-          <div className="w-9" /> {/* Spacer for centering */}
+          <ThemeToggle />
+        </header>
+
+        {/* Desktop Header with Theme Toggle */}
+        <header className="hidden lg:flex sticky top-0 z-30 h-14 border-b border-border bg-background/95 backdrop-blur-sm items-center justify-end px-6">
+          <ThemeToggle />
         </header>
 
         {/* Page Content */}

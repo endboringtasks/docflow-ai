@@ -11,7 +11,71 @@
     --brand-magenta: 312 70% 54%;
     --brand-navy: 248 75% 6%;
     
-    /* Core palette - Dark theme primary */
+    /* Light theme (default) */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 231 92% 63%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 312 70% 54%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 231 92% 63%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar - Light */
+    --sidebar-background: 220 14% 96%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 231 92% 63%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 92%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 231 92% 63%;
+
+    /* Custom tokens - Light */
+    --gradient-primary: linear-gradient(135deg, hsl(231 92% 63%) 0%, hsl(312 70% 54%) 100%);
+    --gradient-primary-hover: linear-gradient(135deg, hsl(231 92% 58%) 0%, hsl(312 70% 49%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(220 14% 98%) 0%, hsl(220 14% 96%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(220 14% 98%) 100%);
+    
+    --glass-bg: hsla(0, 0%, 100%, 0.8);
+    --glass-border: hsla(220, 13%, 91%, 0.5);
+    
+    --shadow-glow: 0 0 60px hsla(231, 92%, 63%, 0.1);
+    --shadow-card: 0 1px 3px 0 hsla(0, 0%, 0%, 0.1), 0 1px 2px -1px hsla(0, 0%, 0%, 0.1);
+    --shadow-elevated: 0 10px 15px -3px hsla(0, 0%, 0%, 0.1), 0 4px 6px -4px hsla(0, 0%, 0%, 0.1);
+
+    /* Status colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+  }
+
+  .dark {
+    /* Dark theme */
     --background: 248 75% 6%;
     --foreground: 0 0% 98%;
 
@@ -40,9 +104,7 @@
     --input: 248 30% 18%;
     --ring: 231 92% 63%;
 
-    --radius: 0.75rem;
-
-    /* Sidebar */
+    /* Sidebar - Dark */
     --sidebar-background: 248 60% 8%;
     --sidebar-foreground: 0 0% 98%;
     --sidebar-primary: 231 92% 63%;
@@ -52,9 +114,7 @@
     --sidebar-border: 248 30% 18%;
     --sidebar-ring: 231 92% 63%;
 
-    /* Custom tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(231 92% 63%) 0%, hsl(312 70% 54%) 100%);
-    --gradient-primary-hover: linear-gradient(135deg, hsl(231 92% 58%) 0%, hsl(312 70% 49%) 100%);
+    /* Custom tokens - Dark */
     --gradient-subtle: linear-gradient(180deg, hsl(248 60% 12%) 0%, hsl(248 75% 6%) 100%);
     --gradient-card: linear-gradient(145deg, hsl(248 60% 12%) 0%, hsl(248 60% 8%) 100%);
     
@@ -72,10 +132,6 @@
     --warning-foreground: 0 0% 0%;
     --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
-  }
-
-  .dark {
-    /* Same as root - dark by default */
   }
 }
 

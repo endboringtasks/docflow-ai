@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { SEO } from "@/components/SEO";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const siteUrl = "https://docflowai.endboringtasks.com";
 
@@ -142,6 +143,7 @@ const Index = () => {
           </div>
           
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <Button variant="ghost" asChild>
               <Link to="/auth">Sign In</Link>
             </Button>
