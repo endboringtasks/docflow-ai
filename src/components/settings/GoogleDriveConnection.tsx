@@ -13,7 +13,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { HardDrive, Link2, Unlink, Loader2, CheckCircle2, Mail, Folder } from "lucide-react";
+import { HardDrive, Link2, Unlink, Loader2, CheckCircle2, Mail, Folder, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
@@ -34,6 +34,7 @@ export function GoogleDriveConnection() {
   const [isLoading, setIsLoading] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   const canManage = currentRole === "owner" || currentRole === "admin";
 
@@ -123,6 +124,33 @@ export function GoogleDriveConnection() {
     }
   };
 
+  const handleReconnect = async () => {
+    if (!currentCompany) return;
+
+    setIsReconnecting(true);
+
+    try {
+      // First disconnect
+      await supabase.functions.invoke("google-drive-disconnect", {
+        body: { companyId: currentCompany.id },
+      });
+
+      // Then start new OAuth flow
+      const { data, error } = await supabase.functions.invoke("google-drive-auth", {
+        body: { companyId: currentCompany.id, origin: window.location.origin },
+      });
+
+      if (error) throw error;
+
+      // Redirect to Google OAuth
+      window.location.href = data.authUrl;
+    } catch (error) {
+      console.error("Error reconnecting:", error);
+      toast.error("Failed to reconnect Google Drive");
+      setIsReconnecting(false);
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -175,39 +203,57 @@ export function GoogleDriveConnection() {
               </div>
               
               {canManage && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={isDisconnecting}>
-                      {isDisconnecting ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Unlink className="w-4 h-4" />
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleReconnect}
+                    disabled={isReconnecting || isDisconnecting}
+                  >
+                    {isReconnecting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" />
+                        Reconnect
+                      </>
+                    )}
+                  </Button>
+                  
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" disabled={isDisconnecting || isReconnecting}>
+                        {isDisconnecting ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Unlink className="w-4 h-4" />
+                            Disconnect
+                          </>
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Disconnect Google Drive?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will remove the connection to Google Drive. Existing folder links in clients 
+                          and matters will still point to the same folders, but the app won't be able to 
+                          create new folders or access files until reconnected.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleDisconnect}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
                           Disconnect
-                        </>
-                      )}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Disconnect Google Drive?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will remove the connection to Google Drive. Existing folder links in clients 
-                        and matters will still point to the same folders, but the app won't be able to 
-                        create new folders or access files until reconnected.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={handleDisconnect}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        Disconnect
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               )}
             </div>
 
