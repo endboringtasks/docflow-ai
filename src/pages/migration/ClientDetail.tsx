@@ -118,7 +118,7 @@ const ClientDetail = () => {
       if (!clientId) return null;
       
       const { data, error } = await supabase
-        .from("clients")
+        .from("clients_secure")
         .select("*")
         .eq("id", clientId)
         .maybeSingle();
