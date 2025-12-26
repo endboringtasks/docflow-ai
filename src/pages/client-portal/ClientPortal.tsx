@@ -127,58 +127,46 @@ export default function ClientPortal() {
 
   const loadPortalData = async () => {
     try {
-      // Validate token and get portal access
+      // Validate token using secure RPC function
       const { data: accessData, error: accessError } = await supabase
-        .from("client_portal_access")
-        .select("*")
-        .eq("access_token", token)
-        .single();
+        .rpc("validate_portal_access_token", { p_token: token });
 
-      if (accessError || !accessData) {
+      if (accessError || !accessData || accessData.length === 0) {
         setError("Invalid or expired access link. Please contact your agent for a new link.");
         setLoading(false);
         return;
       }
 
-      // Check if token is expired
-      if (new Date(accessData.token_expires_at) < new Date()) {
-        setError("This access link has expired. Please contact your agent for a new link.");
-        setLoading(false);
-        return;
+      const portalData = accessData[0];
+      setPortalAccess(portalData);
+
+      // Update last accessed using secure RPC
+      await supabase.rpc("update_portal_access_timestamp", { p_token: token });
+
+      // Load matter details using secure RPC
+      const { data: matterData } = await supabase
+        .rpc("get_portal_matter_details", { p_token: token });
+
+      if (matterData && matterData.length > 0) {
+        setMatter({
+          id: matterData[0].matter_id,
+          matter_name: matterData[0].matter_name,
+          visa_subclass: matterData[0].visa_subclass,
+          status: matterData[0].status,
+        });
       }
 
-      setPortalAccess(accessData);
-
-      // Update last accessed
-      await supabase
-        .from("client_portal_access")
-        .update({ last_accessed_at: new Date().toISOString() })
-        .eq("id", accessData.id);
-
-      // Load matter details
-      const { data: matterData } = await supabase
-        .from("matters")
-        .select("id, matter_name, visa_subclass, status")
-        .eq("id", accessData.matter_id)
-        .single();
-
-      if (matterData) setMatter(matterData);
-
-      // Load client details
+      // Load client details using secure RPC
       const { data: clientData } = await supabase
-        .from("clients")
-        .select("first_name, last_name, company_name, client_type")
-        .eq("id", accessData.client_id)
-        .single();
+        .rpc("get_portal_client_details", { p_token: token });
 
-      if (clientData) setClient(clientData);
+      if (clientData && clientData.length > 0) {
+        setClient(clientData[0]);
+      }
 
-      // Load document checklist
+      // Load document checklist using secure RPC
       const { data: docsData } = await supabase
-        .from("document_checklist")
-        .select("id, document_name, is_completed, file_path")
-        .eq("matter_id", accessData.matter_id)
-        .order("created_at", { ascending: true });
+        .rpc("get_portal_documents", { p_token: token });
 
       if (docsData) setDocuments(docsData);
 
@@ -186,9 +174,9 @@ export default function ClientPortal() {
       const { data: formDataResult } = await supabase
         .from("client_form_data")
         .select("form_data")
-        .eq("matter_id", accessData.matter_id)
-        .eq("client_id", accessData.client_id)
-        .single();
+        .eq("matter_id", portalData.matter_id)
+        .eq("client_id", portalData.client_id)
+        .maybeSingle();
 
       if (formDataResult?.form_data && typeof formDataResult.form_data === 'object') {
         const savedData = formDataResult.form_data as Record<string, unknown>;
@@ -316,35 +304,16 @@ export default function ClientPortal() {
       // Save form data one final time
       await saveFormData(formData);
 
-      // Mark as submitted
-      const { error: updateError } = await supabase
-        .from("client_portal_access")
-        .update({ 
-          is_submitted: true,
-          submitted_at: new Date().toISOString(),
-        })
-        .eq("id", portalAccess.id);
+      // Mark as submitted using secure RPC
+      const { data: submitted, error: submitError } = await supabase
+        .rpc("submit_portal_access", { p_token: token });
 
-      if (updateError) throw updateError;
+      if (submitError || !submitted) {
+        throw new Error("Failed to submit application");
+      }
 
-      // Create notification for company members
-      const { error: notifError } = await supabase
-        .from("notifications")
-        .insert({
-          user_id: portalAccess.company_id, // We'll need to handle this differently
-          company_id: portalAccess.company_id,
-          type: "client_submission",
-          title: "Client Submitted Documents",
-          message: `${client?.first_name || "A client"} has submitted their documents for ${matter?.matter_name || "a visa application"}.`,
-          metadata: {
-            matter_id: portalAccess.matter_id,
-            client_id: portalAccess.client_id,
-            portal_access_id: portalAccess.id,
-          },
-        });
-
-      // Note: The notification insert will fail due to RLS since we're not authenticated
-      // We'll need to handle this via an edge function in a real implementation
+      // Note: Notifications are handled separately since this is unauthenticated access
+      // The edge function or backend should handle notifying team members
 
       setPortalAccess({ ...portalAccess, is_submitted: true });
       setIsSubmitDialogOpen(false);
