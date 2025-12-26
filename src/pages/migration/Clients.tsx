@@ -188,11 +188,7 @@ const MigrationClients = () => {
               first_name: data.first_name,
               last_name: data.last_name,
               company_name: data.company_name,
-              email: data.email,
-              phone: data.phone,
-              drive_folder_id: data.drive_folder_id,
               root_folder_id: rootFolderId,
-              created_at: data.created_at,
             },
           },
         });
@@ -358,11 +354,7 @@ const MigrationClients = () => {
             first_name: client.first_name,
             last_name: client.last_name,
             company_name: client.company_name,
-            email: client.email,
-            phone: client.phone,
-            drive_folder_id: client.drive_folder_id,
             root_folder_id: rootFolderId,
-            created_at: client.created_at,
           },
         },
       });

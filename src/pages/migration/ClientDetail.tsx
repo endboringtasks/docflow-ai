@@ -201,12 +201,7 @@ const ClientDetail = () => {
               matter_id: data.id,
               matter_name: data.matter_name,
               visa_subclass: data.visa_subclass,
-              client_id: data.client_id,
-              client_name: clientName || null,
               client_folder_id: client?.drive_folder_id || null,
-              company_id: data.company_id,
-              status: data.status,
-              root_folder_id: driveConnection?.root_folder_id || null,
             },
           },
         });

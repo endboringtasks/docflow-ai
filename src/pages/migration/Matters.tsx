@@ -253,12 +253,7 @@ const MigrationMatters = () => {
               matter_id: data.id,
               matter_name: data.matter_name,
               visa_subclass: data.visa_subclass,
-              client_id: data.client_id,
-              client_name: clientName || null,
               client_folder_id: clientResult.data?.drive_folder_id || null,
-              company_id: data.company_id,
-              status: data.status,
-              root_folder_id: driveConnectionResult.data?.root_folder_id || null,
             },
           },
         });
@@ -422,14 +417,9 @@ const MigrationMatters = () => {
           event_type: "matter.created",
           data: {
             matter_id: matter.id,
-            company_id: currentCompany.id,
-            client_id: matter.client_id,
             matter_name: matter.matter_name,
             visa_subclass: matter.visa_subclass,
-            status: matter.status,
             client_folder_id: client?.drive_folder_id || null,
-            root_folder_id: rootFolderId,
-            created_at: matter.created_at,
           },
         },
       });
