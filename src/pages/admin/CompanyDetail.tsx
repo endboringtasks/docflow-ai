@@ -43,6 +43,7 @@ import {
   Loader2,
   Unlink,
   Folder,
+  ExternalLink,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useImpersonation } from "@/hooks/useImpersonation";
@@ -432,6 +433,23 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
                 )}
               </div>
             )}
+          </div>
+
+          <Separator />
+
+          {/* Audit Logs Link */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Audit Logs
+            </h3>
+            <a
+              href={`/admin/audit-logs?company=${companyId}`}
+              className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
+            >
+              <span className="text-sm">View activity logs for this company</span>
+              <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </a>
           </div>
         </div>
       </SheetContent>
