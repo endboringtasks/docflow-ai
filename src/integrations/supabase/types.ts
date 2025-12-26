@@ -883,6 +883,33 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_portal_client_details: {
+        Args: { p_token: string }
+        Returns: {
+          client_type: string
+          company_name: string
+          first_name: string
+          last_name: string
+        }[]
+      }
+      get_portal_documents: {
+        Args: { p_token: string }
+        Returns: {
+          document_name: string
+          file_path: string
+          id: string
+          is_completed: boolean
+        }[]
+      }
+      get_portal_matter_details: {
+        Args: { p_token: string }
+        Returns: {
+          matter_id: string
+          matter_name: string
+          status: string
+          visa_subclass: string
+        }[]
+      }
       has_client_access: {
         Args: { _client_id: string; _company_id: string; _user_id: string }
         Returns: boolean
@@ -908,6 +935,7 @@ export type Database = {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
       }
+      submit_portal_access: { Args: { p_token: string }; Returns: boolean }
       update_portal_access_timestamp: {
         Args: { p_token: string }
         Returns: boolean
