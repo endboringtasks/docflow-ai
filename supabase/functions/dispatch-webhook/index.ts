@@ -48,10 +48,19 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Update folder status to 'creating' for client/matter created events
-    const entityId = payload.data.client_id || payload.data.matter_id;
-    const entityType = payload.data.client_id ? 'client' : (payload.data.matter_id ? 'matter' : null);
+    // Determine entity type based on event type, not just presence of IDs (matters also have client_id)
+    let entityId: string | null = null;
+    let entityType: 'client' | 'matter' | null = null;
     
-    if (entityType && entityId && ['client.created', 'matter.created'].includes(payload.event_type)) {
+    if (payload.event_type === 'client.created') {
+      entityId = payload.data.client_id as string;
+      entityType = 'client';
+    } else if (payload.event_type === 'matter.created') {
+      entityId = payload.data.matter_id as string;
+      entityType = 'matter';
+    }
+    
+    if (entityType && entityId) {
       const table = entityType === 'client' ? 'clients' : 'matters';
       console.log(`Setting folder_status to 'creating' for ${table} ${entityId}`);
       
