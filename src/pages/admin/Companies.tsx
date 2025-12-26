@@ -14,10 +14,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Building2 } from "lucide-react";
+import { Search, Building2, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
+import { CompanyDetail } from "./CompanyDetail";
 
 export default function AdminCompanies() {
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   const { data: companies, isLoading } = useQuery({
@@ -113,11 +115,16 @@ export default function AdminCompanies() {
                     <TableHead>Clients</TableHead>
                     <TableHead>Matters</TableHead>
                     <TableHead>Created</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredCompanies?.map((company) => (
-                    <TableRow key={company.id}>
+                    <TableRow 
+                      key={company.id} 
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => setSelectedCompanyId(company.id)}
+                    >
                       <TableCell className="font-medium">{company.name}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="capitalize">
@@ -140,11 +147,14 @@ export default function AdminCompanies() {
                       <TableCell className="text-muted-foreground">
                         {format(new Date(company.created_at), "MMM d, yyyy")}
                       </TableCell>
+                      <TableCell>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      </TableCell>
                     </TableRow>
                   ))}
                   {filteredCompanies?.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                         No companies found
                       </TableCell>
                     </TableRow>
@@ -154,6 +164,12 @@ export default function AdminCompanies() {
             )}
           </CardContent>
         </Card>
+
+        <CompanyDetail
+          companyId={selectedCompanyId}
+          open={!!selectedCompanyId}
+          onOpenChange={(open) => !open && setSelectedCompanyId(null)}
+        />
       </div>
     </AdminLayout>
   );
