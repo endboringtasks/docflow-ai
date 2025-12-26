@@ -32,16 +32,20 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 
-const AVAILABLE_EVENTS = [
-  { id: "client.created", label: "Client Created" },
-  { id: "client.updated", label: "Client Updated" },
-  { id: "client.deleted", label: "Client Deleted" },
-  { id: "matter.created", label: "Matter Created" },
-  { id: "matter.updated", label: "Matter Updated" },
-  { id: "matter.status_changed", label: "Matter Status Changed" },
-  { id: "company.created", label: "Company Created" },
-  { id: "user.signed_up", label: "User Signed Up" },
-  { id: "subscription.changed", label: "Subscription Changed" },
+// Topic-based event configuration
+const WEBHOOK_TOPICS = [
+  {
+    id: "clients",
+    label: "Clients",
+    description: "All client lifecycle events",
+    events: ["client.created", "client.updated", "client.deleted"],
+  },
+  {
+    id: "matters",
+    label: "Matters",
+    description: "All matter/application lifecycle events",
+    events: ["matter.created", "matter.updated", "matter.deleted"],
+  },
 ];
 
 export default function AdminWebhooks() {
@@ -51,7 +55,7 @@ export default function AdminWebhooks() {
   const [newWebhook, setNewWebhook] = useState({
     name: "",
     url: "",
-    events: [] as string[],
+    topics: [] as string[],
     timeout_seconds: 10,
   });
 
@@ -71,10 +75,15 @@ export default function AdminWebhooks() {
   const createWebhook = useMutation({
     mutationFn: async () => {
       const secretKey = crypto.randomUUID();
+      // Expand topics to individual events for storage
+      const events = newWebhook.topics.flatMap(
+        (topicId) => WEBHOOK_TOPICS.find((t) => t.id === topicId)?.events || []
+      );
+      
       const { error } = await supabase.from("platform_webhooks").insert({
         name: newWebhook.name,
         url: newWebhook.url,
-        events: newWebhook.events,
+        events: events,
         timeout_seconds: newWebhook.timeout_seconds,
         secret_key: secretKey,
         created_by: user?.id,
@@ -84,7 +93,7 @@ export default function AdminWebhooks() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
       setIsDialogOpen(false);
-      setNewWebhook({ name: "", url: "", events: [], timeout_seconds: 10 });
+      setNewWebhook({ name: "", url: "", topics: [], timeout_seconds: 10 });
       toast.success("Webhook created successfully");
     },
     onError: (error) => {
@@ -135,13 +144,20 @@ export default function AdminWebhooks() {
     toast.success("Secret copied to clipboard");
   };
 
-  const handleEventToggle = (eventId: string) => {
+  const handleTopicToggle = (topicId: string) => {
     setNewWebhook((prev) => ({
       ...prev,
-      events: prev.events.includes(eventId)
-        ? prev.events.filter((e) => e !== eventId)
-        : [...prev.events, eventId],
+      topics: prev.topics.includes(topicId)
+        ? prev.topics.filter((t) => t !== topicId)
+        : [...prev.topics, topicId],
     }));
+  };
+
+  // Helper to determine which topics a webhook is subscribed to based on its events
+  const getWebhookTopics = (events: string[]) => {
+    return WEBHOOK_TOPICS.filter((topic) =>
+      topic.events.every((event) => events.includes(event))
+    ).map((t) => t.label);
   };
 
   return (
@@ -188,18 +204,30 @@ export default function AdminWebhooks() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Events to Send</Label>
-                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                    {AVAILABLE_EVENTS.map((event) => (
-                      <div key={event.id} className="flex items-center space-x-2">
+                  <Label>Topics to Subscribe</Label>
+                  <div className="space-y-3">
+                    {WEBHOOK_TOPICS.map((topic) => (
+                      <div key={topic.id} className="flex items-start space-x-3 p-3 border rounded-lg">
                         <Checkbox
-                          id={event.id}
-                          checked={newWebhook.events.includes(event.id)}
-                          onCheckedChange={() => handleEventToggle(event.id)}
+                          id={topic.id}
+                          checked={newWebhook.topics.includes(topic.id)}
+                          onCheckedChange={() => handleTopicToggle(topic.id)}
                         />
-                        <label htmlFor={event.id} className="text-sm cursor-pointer">
-                          {event.label}
-                        </label>
+                        <div className="flex-1">
+                          <label htmlFor={topic.id} className="text-sm font-medium cursor-pointer">
+                            {topic.label}
+                          </label>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {topic.description}
+                          </p>
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {topic.events.map((event) => (
+                              <Badge key={event} variant="outline" className="text-xs">
+                                {event.split(".")[1]}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -226,7 +254,7 @@ export default function AdminWebhooks() {
                 </Button>
                 <Button
                   onClick={() => createWebhook.mutate()}
-                  disabled={!newWebhook.name || !newWebhook.url || newWebhook.events.length === 0}
+                  disabled={!newWebhook.name || !newWebhook.url || newWebhook.topics.length === 0}
                 >
                   Create Webhook
                 </Button>
@@ -275,7 +303,7 @@ export default function AdminWebhooks() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>URL</TableHead>
-                    <TableHead>Events</TableHead>
+                    <TableHead>Topics</TableHead>
                     <TableHead>Timeout</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
@@ -283,7 +311,9 @@ export default function AdminWebhooks() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {webhooks?.map((webhook) => (
+                  {webhooks?.map((webhook) => {
+                    const topics = getWebhookTopics(webhook.events);
+                    return (
                     <TableRow key={webhook.id}>
                       <TableCell className="font-medium">{webhook.name}</TableCell>
                       <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
@@ -291,15 +321,13 @@ export default function AdminWebhooks() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {webhook.events.slice(0, 2).map((event) => (
-                            <Badge key={event} variant="outline" className="text-xs">
-                              {event}
+                          {topics.map((topic) => (
+                            <Badge key={topic} variant="secondary" className="text-xs">
+                              {topic}
                             </Badge>
                           ))}
-                          {webhook.events.length > 2 && (
-                            <Badge variant="secondary" className="text-xs">
-                              +{webhook.events.length - 2}
-                            </Badge>
+                          {topics.length === 0 && (
+                            <span className="text-xs text-muted-foreground">No topics</span>
                           )}
                         </div>
                       </TableCell>
@@ -337,7 +365,8 @@ export default function AdminWebhooks() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
