@@ -33,6 +33,7 @@ import HRDashboard from "./pages/hr/Dashboard";
 import Billing from "./pages/Billing";
 import Settings from "./pages/Settings";
 import SeoChecklist from "./pages/SeoChecklist";
+import ClientPortal from "./pages/client-portal/ClientPortal";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,7 @@ const App = () => (
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/seo-checklist" element={<SeoChecklist />} />
+              <Route path="/client-portal" element={<ClientPortal />} />
               
               {/* Protected: Onboarding */}
               <Route path="/onboarding" element={
