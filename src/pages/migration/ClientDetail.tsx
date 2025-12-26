@@ -179,7 +179,33 @@ const ClientDetail = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async (data) => {
+      // Dispatch webhook for matter.created event
+      try {
+        const { data: driveConnection } = await supabase
+          .from("google_drive_connections")
+          .select("root_folder_id")
+          .eq("company_id", currentCompany?.id)
+          .single();
+
+        await supabase.functions.invoke("dispatch-webhook", {
+          body: {
+            event_type: "matter.created",
+            data: {
+              matter_id: data.id,
+              matter_name: data.matter_name,
+              visa_subclass: data.visa_subclass,
+              client_id: data.client_id,
+              company_id: data.company_id,
+              status: data.status,
+              root_folder_id: driveConnection?.root_folder_id || null,
+            },
+          },
+        });
+      } catch (webhookError) {
+        console.error("Failed to dispatch webhook:", webhookError);
+      }
+
       queryClient.invalidateQueries({ queryKey: ["client-matters", clientId] });
       queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
