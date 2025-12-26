@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -21,17 +23,34 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, FileText } from "lucide-react";
+import { Search, FileText, X, Building2 } from "lucide-react";
 import { format } from "date-fns";
 
 export default function AdminAuditLogs() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [entityFilter, setEntityFilter] = useState<string>("all");
+  const companyFilter = searchParams.get("company");
+
+  const { data: company } = useQuery({
+    queryKey: ["admin-company-name", companyFilter],
+    queryFn: async () => {
+      if (!companyFilter) return null;
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id, name")
+        .eq("id", companyFilter)
+        .single();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!companyFilter,
+  });
 
   const { data: logs, isLoading } = useQuery({
-    queryKey: ["admin-audit-logs"],
+    queryKey: ["admin-audit-logs", companyFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("platform_audit_logs")
         .select(`
           *,
@@ -40,10 +59,21 @@ export default function AdminAuditLogs() {
         .order("created_at", { ascending: false })
         .limit(500);
 
+      // If filtering by company, filter by entity_id matching the company
+      if (companyFilter) {
+        query = query.eq("entity_id", companyFilter);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
   });
+
+  const clearCompanyFilter = () => {
+    searchParams.delete("company");
+    setSearchParams(searchParams);
+  };
 
   const entityTypes = [...new Set(logs?.map((log) => log.entity_type) || [])];
 
@@ -66,9 +96,27 @@ export default function AdminAuditLogs() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Audit Logs</h1>
-          <p className="text-muted-foreground">Track all platform activities and changes</p>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Audit Logs</h1>
+            <p className="text-muted-foreground">Track all platform activities and changes</p>
+          </div>
+          {company && (
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="flex items-center gap-2 py-1.5 px-3">
+                <Building2 className="w-3.5 h-3.5" />
+                Filtered by: {company.name}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
+                  onClick={clearCompanyFilter}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </Badge>
+            </div>
+          )}
         </div>
 
         <Card>
