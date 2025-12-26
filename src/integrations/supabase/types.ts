@@ -908,6 +908,24 @@ export type Database = {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
       }
+      update_portal_access_timestamp: {
+        Args: { p_token: string }
+        Returns: boolean
+      }
+      validate_portal_access_token: {
+        Args: { p_token: string }
+        Returns: {
+          client_id: string
+          company_id: string
+          email: string
+          id: string
+          is_submitted: boolean
+          last_accessed_at: string
+          matter_id: string
+          submitted_at: string
+          token_expires_at: string
+        }[]
+      }
     }
     Enums: {
       client_type: "personal" | "corporate"
