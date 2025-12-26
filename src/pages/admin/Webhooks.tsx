@@ -36,13 +36,13 @@ import { useAuth } from "@/hooks/useAuth";
 const WEBHOOK_TOPICS = [
   {
     id: "clients",
-    label: "Clients",
+    label: "Client",
     description: "All client lifecycle events",
     events: ["client.created", "client.updated", "client.deleted"],
   },
   {
     id: "matters",
-    label: "Matters",
+    label: "Matter",
     description: "All matter/application lifecycle events",
     events: ["matter.created", "matter.updated", "matter.deleted"],
   },
