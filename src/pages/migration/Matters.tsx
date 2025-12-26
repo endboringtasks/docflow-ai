@@ -287,6 +287,25 @@ const MigrationMatters = () => {
         .single();
       
       if (error) throw error;
+
+      // Dispatch webhook for matter.updated event
+      try {
+        await supabase.functions.invoke("dispatch-webhook", {
+          body: {
+            event_type: "matter.updated",
+            data: {
+              matter_id: data.id,
+              matter_name: data.matter_name,
+              visa_subclass: data.visa_subclass,
+              status: data.status,
+              drive_folder_id: data.drive_folder_id,
+            },
+          },
+        });
+      } catch (webhookError) {
+        console.warn("Failed to dispatch webhook:", webhookError);
+      }
+
       return data;
     },
     onSuccess: (data) => {
@@ -315,13 +334,30 @@ const MigrationMatters = () => {
 
   // Delete matter mutation
   const deleteMatterMutation = useMutation({
-    mutationFn: async (matterId: string) => {
+    mutationFn: async (matter: Matter) => {
       const { error } = await supabase
         .from("matters")
         .delete()
-        .eq("id", matterId);
+        .eq("id", matter.id);
       
       if (error) throw error;
+
+      // Dispatch webhook for matter.deleted event
+      try {
+        await supabase.functions.invoke("dispatch-webhook", {
+          body: {
+            event_type: "matter.deleted",
+            data: {
+              matter_id: matter.id,
+              matter_name: matter.matter_name,
+              visa_subclass: matter.visa_subclass,
+              drive_folder_id: matter.drive_folder_id,
+            },
+          },
+        });
+      } catch (webhookError) {
+        console.warn("Failed to dispatch webhook:", webhookError);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
@@ -355,6 +391,25 @@ const MigrationMatters = () => {
         .single();
       
       if (error) throw error;
+
+      // Dispatch webhook for matter.updated event
+      try {
+        await supabase.functions.invoke("dispatch-webhook", {
+          body: {
+            event_type: "matter.updated",
+            data: {
+              matter_id: data.id,
+              matter_name: data.matter_name,
+              visa_subclass: data.visa_subclass,
+              status: data.status,
+              drive_folder_id: data.drive_folder_id,
+            },
+          },
+        });
+      } catch (webhookError) {
+        console.warn("Failed to dispatch webhook:", webhookError);
+      }
+
       return data;
     },
     onSuccess: (data) => {
@@ -926,7 +981,7 @@ const MigrationMatters = () => {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => matterToDelete && deleteMatterMutation.mutate(matterToDelete.id)}
+                onClick={() => matterToDelete && deleteMatterMutation.mutate(matterToDelete)}
                 disabled={deleteMatterMutation.isPending}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
