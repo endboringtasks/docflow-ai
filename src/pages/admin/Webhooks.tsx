@@ -54,7 +54,7 @@ const WEBHOOK_TOPICS = [
   },
 ];
 
-// Sample payloads for each event type
+// Sample payloads for each event type (matches actual webhook structure)
 const SAMPLE_PAYLOADS: Record<string, object> = {
   "client.created": {
     event: "client.created",
@@ -65,11 +65,8 @@ const SAMPLE_PAYLOADS: Record<string, object> = {
       client_type: "personal",
       first_name: "John",
       last_name: "Smith",
-      email: "john.smith@example.com",
-      phone: "+61 400 123 456",
-      created_at: "2025-01-15T10:30:00.000Z",
+      company_name: null,
       root_folder_id: "1ABC123DEF456_GoogleDriveFolderId",
-      suggested_folder_name: "Smith, John",
     },
   },
   "client.updated": {
@@ -81,8 +78,7 @@ const SAMPLE_PAYLOADS: Record<string, object> = {
       client_type: "personal",
       first_name: "John",
       last_name: "Smith-Jones",
-      email: "john.smithjones@example.com",
-      phone: "+61 400 123 456",
+      company_name: null,
       drive_folder_id: "1XYZ789_ClientFolderId",
     },
   },
@@ -92,8 +88,11 @@ const SAMPLE_PAYLOADS: Record<string, object> = {
     data: {
       client_id: "550e8400-e29b-41d4-a716-446655440000",
       company_id: "123e4567-e89b-12d3-a456-426614174000",
+      client_type: "personal",
       first_name: "John",
       last_name: "Smith-Jones",
+      company_name: null,
+      drive_folder_id: "1XYZ789_ClientFolderId",
     },
   },
   "matter.created": {
@@ -101,17 +100,14 @@ const SAMPLE_PAYLOADS: Record<string, object> = {
     timestamp: "2025-01-15T10:35:00.000Z",
     data: {
       matter_id: "660e8400-e29b-41d4-a716-446655440001",
-      client_id: "550e8400-e29b-41d4-a716-446655440000",
       company_id: "123e4567-e89b-12d3-a456-426614174000",
+      client_id: "550e8400-e29b-41d4-a716-446655440000",
       matter_name: "Partner Visa Application",
       visa_subclass: "820/801",
       status: "draft",
-      created_at: "2025-01-15T10:35:00.000Z",
-      client_first_name: "John",
-      client_last_name: "Smith",
       client_folder_id: "1XYZ789_ClientFolderId",
       root_folder_id: "1ABC123DEF456_GoogleDriveFolderId",
-      suggested_folder_name: "820/801 - Partner Visa Application",
+      created_at: "2025-01-15T10:35:00.000Z",
     },
   },
   "matter.updated": {
@@ -119,8 +115,6 @@ const SAMPLE_PAYLOADS: Record<string, object> = {
     timestamp: "2025-01-15T14:00:00.000Z",
     data: {
       matter_id: "660e8400-e29b-41d4-a716-446655440001",
-      client_id: "550e8400-e29b-41d4-a716-446655440000",
-      company_id: "123e4567-e89b-12d3-a456-426614174000",
       matter_name: "Partner Visa Application",
       visa_subclass: "820/801",
       status: "active",
@@ -132,9 +126,9 @@ const SAMPLE_PAYLOADS: Record<string, object> = {
     timestamp: "2025-01-15T16:00:00.000Z",
     data: {
       matter_id: "660e8400-e29b-41d4-a716-446655440001",
-      client_id: "550e8400-e29b-41d4-a716-446655440000",
-      company_id: "123e4567-e89b-12d3-a456-426614174000",
       matter_name: "Partner Visa Application",
+      visa_subclass: "820/801",
+      drive_folder_id: "1MNO456_MatterFolderId",
     },
   },
 };
