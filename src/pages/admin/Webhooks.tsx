@@ -27,7 +27,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Webhook, Plus, Trash2, Copy, ExternalLink } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Webhook, Plus, Trash2, Copy, ExternalLink, Code, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -47,6 +53,117 @@ const WEBHOOK_TOPICS = [
     events: ["matter.created", "matter.updated", "matter.deleted"],
   },
 ];
+
+// Sample payloads for each event type
+const SAMPLE_PAYLOADS: Record<string, object> = {
+  "client.created": {
+    event: "client.created",
+    timestamp: "2025-01-15T10:30:00.000Z",
+    data: {
+      client_id: "550e8400-e29b-41d4-a716-446655440000",
+      company_id: "123e4567-e89b-12d3-a456-426614174000",
+      client_type: "personal",
+      first_name: "John",
+      last_name: "Smith",
+      email: "john.smith@example.com",
+      phone: "+61 400 123 456",
+      created_at: "2025-01-15T10:30:00.000Z",
+      root_folder_id: "1ABC123DEF456_GoogleDriveFolderId",
+      suggested_folder_name: "Smith, John",
+    },
+  },
+  "client.updated": {
+    event: "client.updated",
+    timestamp: "2025-01-15T11:00:00.000Z",
+    data: {
+      client_id: "550e8400-e29b-41d4-a716-446655440000",
+      company_id: "123e4567-e89b-12d3-a456-426614174000",
+      client_type: "personal",
+      first_name: "John",
+      last_name: "Smith-Jones",
+      email: "john.smithjones@example.com",
+      phone: "+61 400 123 456",
+      drive_folder_id: "1XYZ789_ClientFolderId",
+    },
+  },
+  "client.deleted": {
+    event: "client.deleted",
+    timestamp: "2025-01-15T12:00:00.000Z",
+    data: {
+      client_id: "550e8400-e29b-41d4-a716-446655440000",
+      company_id: "123e4567-e89b-12d3-a456-426614174000",
+      first_name: "John",
+      last_name: "Smith-Jones",
+    },
+  },
+  "matter.created": {
+    event: "matter.created",
+    timestamp: "2025-01-15T10:35:00.000Z",
+    data: {
+      matter_id: "660e8400-e29b-41d4-a716-446655440001",
+      client_id: "550e8400-e29b-41d4-a716-446655440000",
+      company_id: "123e4567-e89b-12d3-a456-426614174000",
+      matter_name: "Partner Visa Application",
+      visa_subclass: "820/801",
+      status: "draft",
+      created_at: "2025-01-15T10:35:00.000Z",
+      client_first_name: "John",
+      client_last_name: "Smith",
+      client_folder_id: "1XYZ789_ClientFolderId",
+      root_folder_id: "1ABC123DEF456_GoogleDriveFolderId",
+      suggested_folder_name: "820/801 - Partner Visa Application",
+    },
+  },
+  "matter.updated": {
+    event: "matter.updated",
+    timestamp: "2025-01-15T14:00:00.000Z",
+    data: {
+      matter_id: "660e8400-e29b-41d4-a716-446655440001",
+      client_id: "550e8400-e29b-41d4-a716-446655440000",
+      company_id: "123e4567-e89b-12d3-a456-426614174000",
+      matter_name: "Partner Visa Application",
+      visa_subclass: "820/801",
+      status: "active",
+      drive_folder_id: "1MNO456_MatterFolderId",
+    },
+  },
+  "matter.deleted": {
+    event: "matter.deleted",
+    timestamp: "2025-01-15T16:00:00.000Z",
+    data: {
+      matter_id: "660e8400-e29b-41d4-a716-446655440001",
+      client_id: "550e8400-e29b-41d4-a716-446655440000",
+      company_id: "123e4567-e89b-12d3-a456-426614174000",
+      matter_name: "Partner Visa Application",
+    },
+  },
+};
+
+const PayloadPreview = ({ eventType }: { eventType: string }) => {
+  const payload = SAMPLE_PAYLOADS[eventType];
+  
+  const copyPayload = () => {
+    navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+    toast.success("Payload copied to clipboard");
+  };
+
+  return (
+    <div className="relative">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="absolute top-2 right-2 h-7 px-2"
+        onClick={copyPayload}
+      >
+        <Copy className="w-3.5 h-3.5 mr-1" />
+        Copy
+      </Button>
+      <pre className="bg-muted/50 border rounded-lg p-4 text-xs overflow-x-auto">
+        <code>{JSON.stringify(payload, null, 2)}</code>
+      </pre>
+    </div>
+  );
+};
 
 export default function AdminWebhooks() {
   const { user } = useAuth();
@@ -275,6 +392,39 @@ export default function AdminWebhooks() {
             <p>• Use the webhook URL in Make.com, Zapier, or n8n as a trigger</p>
             <p>• The secret key is used for verifying webhook signatures (HMAC-SHA256)</p>
             <p>• Each event sends a JSON payload with event type and data</p>
+          </CardContent>
+        </Card>
+
+        {/* Payload Preview Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Code className="w-5 h-5" />
+              Payload Preview
+            </CardTitle>
+            <CardDescription>
+              Sample JSON payloads for each event type. Use these to configure your automation workflows.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="client.created" className="w-full">
+              <TabsList className="flex flex-wrap h-auto gap-1 mb-4">
+                {Object.keys(SAMPLE_PAYLOADS).map((eventType) => (
+                  <TabsTrigger 
+                    key={eventType} 
+                    value={eventType}
+                    className="text-xs"
+                  >
+                    {eventType}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {Object.keys(SAMPLE_PAYLOADS).map((eventType) => (
+                <TabsContent key={eventType} value={eventType} className="mt-0">
+                  <PayloadPreview eventType={eventType} />
+                </TabsContent>
+              ))}
+            </Tabs>
           </CardContent>
         </Card>
 
