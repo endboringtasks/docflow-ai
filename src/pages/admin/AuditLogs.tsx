@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Table,
   TableBody,
@@ -23,13 +29,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, FileText, X, Building2 } from "lucide-react";
-import { format } from "date-fns";
+import { Search, FileText, X, Building2, CalendarIcon } from "lucide-react";
+import { format, startOfDay, endOfDay } from "date-fns";
+import { cn } from "@/lib/utils";
+import { DateRange } from "react-day-picker";
 
 export default function AdminAuditLogs() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [entityFilter, setEntityFilter] = useState<string>("all");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const companyFilter = searchParams.get("company");
 
   const { data: company } = useQuery({
@@ -48,7 +57,7 @@ export default function AdminAuditLogs() {
   });
 
   const { data: logs, isLoading } = useQuery({
-    queryKey: ["admin-audit-logs", companyFilter],
+    queryKey: ["admin-audit-logs", companyFilter, dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async () => {
       let query = supabase
         .from("platform_audit_logs")
@@ -59,9 +68,15 @@ export default function AdminAuditLogs() {
         .order("created_at", { ascending: false })
         .limit(500);
 
-      // If filtering by company, filter by entity_id matching the company
       if (companyFilter) {
         query = query.eq("entity_id", companyFilter);
+      }
+
+      if (dateRange?.from) {
+        query = query.gte("created_at", startOfDay(dateRange.from).toISOString());
+      }
+      if (dateRange?.to) {
+        query = query.lte("created_at", endOfDay(dateRange.to).toISOString());
       }
 
       const { data, error } = await query;
@@ -122,11 +137,61 @@ export default function AdminAuditLogs() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-4">
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Activity Log
-              </CardTitle>
               <div className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Activity Log
+                </CardTitle>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[240px] justify-start text-left font-normal",
+                        !dateRange && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange?.from ? (
+                        dateRange.to ? (
+                          <>
+                            {format(dateRange.from, "LLL dd, y")} -{" "}
+                            {format(dateRange.to, "LLL dd, y")}
+                          </>
+                        ) : (
+                          format(dateRange.from, "LLL dd, y")
+                        )
+                      ) : (
+                        <span>Pick a date range</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      initialFocus
+                      mode="range"
+                      defaultMonth={dateRange?.from}
+                      selected={dateRange}
+                      onSelect={setDateRange}
+                      numberOfMonths={2}
+                      className="pointer-events-auto"
+                    />
+                    {dateRange && (
+                      <div className="p-2 border-t">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => setDateRange(undefined)}
+                        >
+                          Clear dates
+                        </Button>
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
                 <Select value={entityFilter} onValueChange={setEntityFilter}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder="Filter by type" />
