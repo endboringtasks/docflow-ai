@@ -72,7 +72,10 @@ Deno.serve(async (req) => {
 
     const { data: matter, error: updateError } = await supabase
       .from("matters")
-      .update({ drive_folder_id: payload.drive_folder_id })
+      .update({ 
+        drive_folder_id: payload.drive_folder_id,
+        folder_status: "created"
+      })
       .eq("id", payload.matter_id)
       .select("id, company_id, client_id, matter_name")
       .single();

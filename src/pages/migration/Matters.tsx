@@ -228,11 +228,23 @@ const MigrationMatters = () => {
     onSuccess: async (data) => {
       // Dispatch webhook for matter.created event
       try {
-        const { data: driveConnection } = await supabase
-          .from("google_drive_connections")
-          .select("root_folder_id")
-          .eq("company_id", currentCompany?.id)
-          .single();
+        // Get drive connection and client folder info
+        const [driveConnectionResult, clientResult] = await Promise.all([
+          supabase
+            .from("google_drive_connections")
+            .select("root_folder_id")
+            .eq("company_id", currentCompany?.id)
+            .single(),
+          supabase
+            .from("clients")
+            .select("drive_folder_id, first_name, last_name, company_name, client_type")
+            .eq("id", data.client_id)
+            .single(),
+        ]);
+
+        const clientName = clientResult.data?.client_type === "corporate"
+          ? clientResult.data?.company_name
+          : `${clientResult.data?.first_name || ""} ${clientResult.data?.last_name || ""}`.trim();
 
         await supabase.functions.invoke("dispatch-webhook", {
           body: {
@@ -242,9 +254,11 @@ const MigrationMatters = () => {
               matter_name: data.matter_name,
               visa_subclass: data.visa_subclass,
               client_id: data.client_id,
+              client_name: clientName || null,
+              client_folder_id: clientResult.data?.drive_folder_id || null,
               company_id: data.company_id,
               status: data.status,
-              root_folder_id: driveConnection?.root_folder_id || null,
+              root_folder_id: driveConnectionResult.data?.root_folder_id || null,
             },
           },
         });
