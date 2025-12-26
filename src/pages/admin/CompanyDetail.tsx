@@ -41,6 +41,8 @@ import {
   UserMinus,
   UserCog,
   Loader2,
+  Unlink,
+  Folder,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useImpersonation } from "@/hooks/useImpersonation";
@@ -134,19 +136,41 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
     enabled: !!companyId && open,
   });
 
-  const { data: driveConnection } = useQuery({
+  const { data: driveConnection, isLoading: driveLoading } = useQuery({
     queryKey: ["admin-drive-connection", companyId],
     queryFn: async () => {
       if (!companyId) return null;
       const { data, error } = await supabase
         .from("google_drive_connections")
-        .select("id, connected_email, root_folder_name, created_at")
+        .select("id, connected_email, root_folder_name, root_folder_id, created_at")
         .eq("company_id", companyId)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
     enabled: !!companyId && open,
+  });
+
+  const disconnectDriveMutation = useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error("No company selected");
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+
+      const { error } = await supabase.functions.invoke("google-drive-disconnect", {
+        body: { companyId },
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-drive-connection", companyId] });
+      toast.success("Google Drive disconnected");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to disconnect Google Drive");
+    },
   });
 
   const { data: stats } = useQuery({
@@ -266,19 +290,63 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
               <HardDrive className="w-4 h-4" />
               Google Drive
             </h3>
-            {driveConnection ? (
-              <div className="p-3 rounded-lg bg-muted/50 space-y-1">
-                <div className="flex items-center gap-2 text-sm">
-                  <Mail className="w-4 h-4 text-muted-foreground" />
-                  {driveConnection.connected_email}
-                </div>
-                {driveConnection.root_folder_name && (
-                  <div className="text-sm text-muted-foreground">
-                    Root: {driveConnection.root_folder_name}
+            {driveLoading ? (
+              <Skeleton className="h-20 w-full" />
+            ) : driveConnection ? (
+              <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Mail className="w-4 h-4 text-muted-foreground" />
+                      {driveConnection.connected_email}
+                    </div>
+                    {driveConnection.root_folder_name && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Folder className="w-4 h-4" />
+                        {driveConnection.root_folder_name}
+                      </div>
+                    )}
+                    <div className="text-xs text-muted-foreground">
+                      Connected {format(new Date(driveConnection.created_at), "MMM d, yyyy")}
+                    </div>
                   </div>
-                )}
-                <div className="text-xs text-muted-foreground">
-                  Connected {format(new Date(driveConnection.created_at), "MMM d, yyyy")}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={disconnectDriveMutation.isPending}
+                      >
+                        {disconnectDriveMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Unlink className="w-4 h-4 mr-1" />
+                            Disconnect
+                          </>
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Disconnect Google Drive?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will remove the Google Drive connection for <strong>{company?.name}</strong>.
+                          Existing folder links will remain but no new folders can be created.
+                          The company owner will need to reconnect from their Settings page.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => disconnectDriveMutation.mutate()}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Disconnect
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             ) : (
