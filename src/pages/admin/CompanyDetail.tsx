@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Sheet,
@@ -7,8 +7,27 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Users,
   Briefcase,
@@ -20,8 +39,16 @@ import {
   Shield,
   User,
   UserMinus,
+  UserCog,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
+import { useImpersonation } from "@/hooks/useImpersonation";
+import { toast } from "sonner";
+import { useState } from "react";
+import { Database } from "@/integrations/supabase/types";
+
+type SubscriptionPlan = Database["public"]["Enums"]["subscription_plan"];
 
 interface CompanyDetailProps {
   companyId: string | null;
@@ -29,7 +56,13 @@ interface CompanyDetailProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const PLANS: SubscriptionPlan[] = ["free", "basic", "pro", "enterprise"];
+
 export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailProps) {
+  const queryClient = useQueryClient();
+  const { startImpersonation, isLoading: impersonationLoading } = useImpersonation();
+  const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
+
   const { data: company, isLoading: companyLoading } = useQuery({
     queryKey: ["admin-company-detail", companyId],
     queryFn: async () => {
@@ -44,6 +77,31 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
     },
     enabled: !!companyId && open,
   });
+
+  const updatePlanMutation = useMutation({
+    mutationFn: async (newPlan: SubscriptionPlan) => {
+      if (!companyId) throw new Error("No company selected");
+      const { error } = await supabase
+        .from("companies")
+        .update({ subscription_plan: newPlan })
+        .eq("id", companyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-company-detail", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["admin-companies"] });
+      toast.success("Subscription plan updated");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update plan");
+    },
+  });
+
+  const handleImpersonate = async (userId: string) => {
+    setImpersonatingUserId(userId);
+    await startImpersonation(userId);
+    setImpersonatingUserId(null);
+  };
 
   const { data: members, isLoading: membersLoading } = useQuery({
     queryKey: ["admin-company-members", companyId],
@@ -144,13 +202,32 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
                 <Skeleton className="h-5 w-40" />
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="capitalize">{company?.niche}</Badge>
-                  <Badge variant="secondary" className="capitalize">{company?.subscription_plan}</Badge>
                   <Badge variant={company?.subscription_status === "active" ? "default" : "destructive"} className="capitalize">
                     {company?.subscription_status || "N/A"}
                   </Badge>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground">Plan:</span>
+                  <Select
+                    value={company?.subscription_plan}
+                    onValueChange={(value) => updatePlanMutation.mutate(value as SubscriptionPlan)}
+                    disabled={updatePlanMutation.isPending}
+                  >
+                    <SelectTrigger className="w-32 h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PLANS.map((plan) => (
+                        <SelectItem key={plan} value={plan} className="capitalize">
+                          {plan}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {updatePlanMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Calendar className="w-4 h-4" />
@@ -240,9 +317,44 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
                         )}
                       </div>
                     </div>
-                    <Badge variant="outline" className="capitalize text-xs">
-                      {member.role}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="capitalize text-xs">
+                        {member.role}
+                      </Badge>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            disabled={impersonationLoading && impersonatingUserId === member.user_id}
+                          >
+                            {impersonationLoading && impersonatingUserId === member.user_id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <UserCog className="w-3.5 h-3.5" />
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Impersonate User</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              You are about to impersonate{" "}
+                              <strong>{member.profile?.display_name || member.profile?.email}</strong>.
+                              This will log you in as this user for support purposes.
+                              The session will expire after 1 hour.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleImpersonate(member.user_id)}>
+                              Start Impersonation
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                 ))}
                 {members?.length === 0 && (
