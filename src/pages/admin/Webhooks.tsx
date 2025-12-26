@@ -33,7 +33,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Webhook, Plus, Trash2, Copy, ExternalLink, Code, ChevronDown, ChevronRight } from "lucide-react";
+import { Webhook, Plus, Trash2, Copy, ExternalLink, Code, ChevronDown, ChevronRight, Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -271,6 +271,45 @@ export default function AdminWebhooks() {
     ).map((t) => t.label);
   };
 
+  // Test webhook mutation
+  const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null);
+  
+  const testWebhook = useMutation({
+    mutationFn: async ({ webhookId, events }: { webhookId: string; events: string[] }) => {
+      setTestingWebhookId(webhookId);
+      
+      // Get the first event type subscribed to use as test
+      const testEventType = events[0] || "client.created";
+      const testPayload = SAMPLE_PAYLOADS[testEventType] || SAMPLE_PAYLOADS["client.created"];
+      
+      // Call dispatch-webhook with test data
+      const response = await supabase.functions.invoke("dispatch-webhook", {
+        body: {
+          event_type: testEventType,
+          data: (testPayload as any).data,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setTestingWebhookId(null);
+      if (data.dispatched > 0) {
+        toast.success(`Test webhook sent successfully! ${data.dispatched} webhook(s) received the payload.`);
+      } else {
+        toast.info("No active webhooks matched the test event.");
+      }
+    },
+    onError: (error) => {
+      setTestingWebhookId(null);
+      toast.error("Failed to send test webhook: " + error.message);
+    },
+  });
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -500,13 +539,28 @@ export default function AdminWebhooks() {
                         {format(new Date(webhook.created_at), "MMM d, yyyy")}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteWebhook.mutate(webhook.id)}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => testWebhook.mutate({ webhookId: webhook.id, events: webhook.events })}
+                            disabled={!webhook.is_active || testingWebhookId === webhook.id}
+                            title={!webhook.is_active ? "Enable webhook to test" : "Send test payload"}
+                          >
+                            {testingWebhookId === webhook.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Send className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteWebhook.mutate(webhook.id)}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                     );
