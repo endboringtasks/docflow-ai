@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { decryptToken, isEncrypted } from "../_shared/token-encryption.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,6 +8,87 @@ const corsHeaders = {
 };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+// Get all permissions for a folder
+async function getFolderPermissions(
+  accessToken: string,
+  folderId: string
+): Promise<Array<{ id: string; emailAddress?: string; role: string; type: string }>> {
+  console.log(`Getting permissions for folder ${folderId}...`);
+  
+  const response = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${folderId}/permissions?fields=permissions(id,emailAddress,role,type)`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("Failed to get folder permissions:", error);
+    return [];
+  }
+
+  const data = await response.json();
+  return data.permissions || [];
+}
+
+// Remove a specific permission from a folder
+async function removePermission(
+  accessToken: string,
+  folderId: string,
+  permissionId: string
+): Promise<boolean> {
+  console.log(`Removing permission ${permissionId} from folder ${folderId}...`);
+  
+  const response = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${folderId}/permissions/${permissionId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error(`Failed to remove permission ${permissionId}:`, error);
+    return false;
+  }
+
+  console.log(`Successfully removed permission ${permissionId}`);
+  return true;
+}
+
+// Refresh access token using refresh token
+async function refreshAccessToken(refreshToken: string): Promise<string | null> {
+  const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID")!;
+  const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("Failed to refresh access token:", error);
+    return null;
+  }
+
+  const data = await response.json();
+  return data.access_token;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -19,6 +101,10 @@ serve(async (req) => {
       throw new Error("No authorization header");
     }
 
+    // Use service role client to bypass RLS for reading tokens
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Also create user client to verify membership
     const supabase = createClient(
       SUPABASE_URL,
       Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -51,8 +137,81 @@ serve(async (req) => {
       );
     }
 
+    // Fetch the connection details using service role (to get tokens)
+    const { data: connection, error: fetchError } = await supabaseAdmin
+      .from("google_drive_connections")
+      .select("id, access_token, refresh_token, root_folder_id, tokens_encrypted")
+      .eq("company_id", companyId)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error("Fetch connection error:", fetchError);
+      throw new Error("Failed to fetch connection details");
+    }
+
+    if (!connection) {
+      console.log("No connection found for company:", companyId);
+      return new Response(JSON.stringify({ success: true, message: "No connection to disconnect" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Remove shared permissions from the root folder if it exists
+    if (connection.root_folder_id) {
+      console.log("Removing shared permissions from root folder:", connection.root_folder_id);
+      
+      try {
+        // Decrypt tokens if encrypted
+        let accessToken = connection.access_token;
+        let refreshToken = connection.refresh_token;
+        
+        if (connection.tokens_encrypted) {
+          if (isEncrypted(accessToken)) {
+            accessToken = await decryptToken(accessToken);
+          }
+          if (isEncrypted(refreshToken)) {
+            refreshToken = await decryptToken(refreshToken);
+          }
+        }
+
+        // Try to refresh the access token to ensure it's valid
+        const freshAccessToken = await refreshAccessToken(refreshToken);
+        if (freshAccessToken) {
+          accessToken = freshAccessToken;
+        }
+
+        // Get all permissions on the folder
+        const permissions = await getFolderPermissions(accessToken, connection.root_folder_id);
+        
+        // Get the Make.com email to identify which permission to remove
+        const makeGoogleEmail = Deno.env.get("MAKE_GOOGLE_EMAIL");
+        
+        // Remove shared permissions (not the owner)
+        for (const permission of permissions) {
+          // Skip the owner permission
+          if (permission.role === "owner") {
+            console.log("Skipping owner permission");
+            continue;
+          }
+          
+          // If we have a specific email configured, only remove that one
+          if (makeGoogleEmail && permission.emailAddress === makeGoogleEmail) {
+            await removePermission(accessToken, connection.root_folder_id, permission.id);
+          } else if (!makeGoogleEmail && permission.type === "user" && permission.role !== "owner") {
+            // If no specific email configured, remove all non-owner user permissions
+            await removePermission(accessToken, connection.root_folder_id, permission.id);
+          }
+        }
+        
+        console.log("Finished removing shared permissions");
+      } catch (permError) {
+        // Log the error but continue with deletion - the main goal is to remove the connection
+        console.error("Error removing folder permissions (continuing with disconnect):", permError);
+      }
+    }
+
     // Delete the connection
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await supabaseAdmin
       .from("google_drive_connections")
       .delete()
       .eq("company_id", companyId);
