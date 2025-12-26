@@ -20,7 +20,8 @@ import {
   Download,
   X,
   File,
-  ExternalLink
+  ExternalLink,
+  Mail
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -59,6 +60,7 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
+import { InviteClientDialog } from "@/components/matter/InviteClientDialog";
 
 interface Matter {
   id: string;
@@ -196,6 +198,7 @@ const MatterDetail = () => {
   
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [newDocName, setNewDocName] = useState("");
   const [documentsInitialized, setDocumentsInitialized] = useState(false);
   
@@ -679,6 +682,10 @@ const MatterDetail = () => {
             </div>
             
             <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsInviteOpen(true)}>
+                <Mail className="w-4 h-4 mr-2" />
+                Invite Client
+              </Button>
               <Button variant="outline" onClick={handleEditMatter}>
                 <Pencil className="w-4 h-4 mr-2" />
                 Edit
@@ -1095,6 +1102,17 @@ const MatterDetail = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Invite Client Dialog */}
+        <InviteClientDialog
+          open={isInviteOpen}
+          onOpenChange={setIsInviteOpen}
+          matterId={matterId!}
+          clientId={matter.client_id}
+          clientEmail={client?.email || null}
+          companyId={matter.company_id}
+          matterName={matter.matter_name}
+        />
       </div>
     </AppLayout>
   );
