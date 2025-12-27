@@ -23,6 +23,82 @@ interface MakeWebhookResponse {
   error?: string;
 }
 
+interface WebhookConfig {
+  id: string;
+  name: string;
+  url: string;
+  secret_key: string | null;
+  included_fields: string[] | null;
+  max_retries: number;
+  retry_backoff_seconds: number;
+}
+
+// Sleep helper for retry backoff
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Send webhook with retry logic
+async function sendWebhookWithRetry(
+  webhook: WebhookConfig,
+  webhookPayload: Record<string, unknown>,
+  maxRetries: number,
+  baseBackoffSeconds: number
+): Promise<{ response: Response; attempts: number }> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (webhook.secret_key) {
+    headers["x-webhook-secret"] = webhook.secret_key;
+  }
+
+  let lastError: Error | null = null;
+  let attempts = 0;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    attempts = attempt + 1;
+    
+    if (attempt > 0) {
+      // Exponential backoff: baseBackoff * 2^(attempt-1)
+      const backoffMs = baseBackoffSeconds * 1000 * Math.pow(2, attempt - 1);
+      console.log(`Retry attempt ${attempt}/${maxRetries} for ${webhook.name}, waiting ${backoffMs}ms`);
+      await sleep(backoffMs);
+    }
+
+    try {
+      const response = await fetch(webhook.url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(webhookPayload),
+      });
+
+      if (response.ok) {
+        if (attempt > 0) {
+          console.log(`Webhook ${webhook.name} succeeded after ${attempt} retries`);
+        }
+        return { response, attempts };
+      }
+
+      // Non-retryable status codes (client errors except 429)
+      if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+        console.log(`Webhook ${webhook.name} returned non-retryable status ${response.status}`);
+        return { response, attempts };
+      }
+
+      // Retryable error - log and continue
+      const errorText = await response.text();
+      lastError = new Error(`HTTP ${response.status}: ${errorText}`);
+      console.log(`Webhook ${webhook.name} attempt ${attempt + 1} failed: ${response.status}`);
+      
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.log(`Webhook ${webhook.name} attempt ${attempt + 1} error: ${lastError.message}`);
+    }
+  }
+
+  // All retries exhausted - throw the last error
+  throw lastError || new Error("Unknown error after retries");
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -136,7 +212,7 @@ Deno.serve(async (req) => {
       return filteredData;
     };
 
-    // Dispatch to all matching webhooks
+    // Dispatch to all matching webhooks with retry logic
     const results = await Promise.allSettled(
       webhooks.map(async (webhook) => {
         // Filter the data based on this webhook's included_fields
@@ -152,25 +228,23 @@ Deno.serve(async (req) => {
         };
 
         console.log(`Sending to webhook: ${webhook.name} (${webhook.url})`);
+        
+        // Get retry configuration with defaults
+        const maxRetries = webhook.max_retries ?? 3;
+        const retryBackoffSeconds = webhook.retry_backoff_seconds ?? 5;
+        
+        console.log(`Webhook ${webhook.name} retry config: max_retries=${maxRetries}, backoff=${retryBackoffSeconds}s`);
 
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-
-        // Add secret key if configured
-        if (webhook.secret_key) {
-          headers["x-webhook-secret"] = webhook.secret_key;
-        }
-
-        const response = await fetch(webhook.url, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(webhookPayload),
-        });
+        const { response, attempts } = await sendWebhookWithRetry(
+          webhook as WebhookConfig,
+          webhookPayload,
+          maxRetries,
+          retryBackoffSeconds
+        );
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`Webhook ${webhook.name} failed:`, response.status, errorText);
+          console.error(`Webhook ${webhook.name} failed after ${attempts} attempts:`, response.status, errorText);
           throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
 
@@ -243,8 +317,8 @@ Deno.serve(async (req) => {
           }
         }
 
-        console.log(`Webhook ${webhook.name} succeeded:`, response.status);
-        return { webhook_id: webhook.id, status: "success", folder_id: responseData?.folder_id };
+        console.log(`Webhook ${webhook.name} succeeded after ${attempts} attempt(s):`, response.status);
+        return { webhook_id: webhook.id, status: "success", attempts, folder_id: responseData?.folder_id };
       })
     );
 

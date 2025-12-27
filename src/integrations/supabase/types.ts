@@ -603,7 +603,9 @@ export type Database = {
           id: string
           included_fields: string[] | null
           is_active: boolean
+          max_retries: number | null
           name: string
+          retry_backoff_seconds: number | null
           secret_key: string | null
           timeout_seconds: number | null
           updated_at: string
@@ -616,7 +618,9 @@ export type Database = {
           id?: string
           included_fields?: string[] | null
           is_active?: boolean
+          max_retries?: number | null
           name: string
+          retry_backoff_seconds?: number | null
           secret_key?: string | null
           timeout_seconds?: number | null
           updated_at?: string
@@ -629,7 +633,9 @@ export type Database = {
           id?: string
           included_fields?: string[] | null
           is_active?: boolean
+          max_retries?: number | null
           name?: string
+          retry_backoff_seconds?: number | null
           secret_key?: string | null
           timeout_seconds?: number | null
           updated_at?: string
