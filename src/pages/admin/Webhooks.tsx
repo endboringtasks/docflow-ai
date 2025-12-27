@@ -66,6 +66,7 @@ const ALL_FIELDS = {
     { id: "email", label: "Email", description: "Client email address", default: true },
     { id: "phone", label: "Phone", description: "Client phone number", default: true },
     { id: "drive_folder_id", label: "Drive Folder ID", description: "Client's Google Drive folder", default: true },
+    { id: "root_folder_id", label: "Root Folder ID", description: "Company's root Google Drive folder", default: true },
     { id: "folder_status", label: "Folder Status", description: "Drive folder creation status", default: true },
     { id: "folder_status_updated_at", label: "Folder Status Updated At", description: "When folder status last changed", default: true },
     { id: "created_at", label: "Created At", description: "Timestamp when client was created", default: true },
