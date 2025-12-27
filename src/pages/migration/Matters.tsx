@@ -257,6 +257,7 @@ const MigrationMatters = () => {
             },
           },
         });
+        console.log("Webhook dispatched for matter:", data.id);
       } catch (webhookError) {
         console.error("Failed to dispatch webhook:", webhookError);
       }
