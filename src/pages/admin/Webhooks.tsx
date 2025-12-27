@@ -54,22 +54,36 @@ const WEBHOOK_TOPICS = [
   },
 ];
 
-// Optional fields that can be included in webhook payloads
-const OPTIONAL_FIELDS = {
+// All available fields for webhook payloads (organized by entity)
+// Essential fields (always included): client_id/matter_id, client_type, first_name, last_name, company_name, matter_name, visa_subclass
+const ALL_FIELDS = {
   client: [
-    { id: "company_id", label: "Company ID", description: "Internal company identifier" },
-    { id: "email", label: "Email", description: "Client email address" },
-    { id: "phone", label: "Phone", description: "Client phone number" },
-    { id: "root_folder_id", label: "Root Folder ID", description: "Google Drive root folder" },
-    { id: "created_at", label: "Created At", description: "Timestamp when client was created" },
+    { id: "company_id", label: "Company ID", description: "Internal company identifier", default: false },
+    { id: "email", label: "Email", description: "Client email address", default: true },
+    { id: "phone", label: "Phone", description: "Client phone number", default: false },
+    { id: "drive_folder_id", label: "Drive Folder ID", description: "Client's Google Drive folder", default: false },
+    { id: "folder_status", label: "Folder Status", description: "Drive folder creation status", default: false },
+    { id: "folder_status_updated_at", label: "Folder Status Updated At", description: "When folder status last changed", default: false },
+    { id: "created_at", label: "Created At", description: "Timestamp when client was created", default: false },
   ],
   matter: [
-    { id: "company_id", label: "Company ID", description: "Internal company identifier" },
-    { id: "client_id", label: "Client ID", description: "Associated client identifier" },
-    { id: "status", label: "Status", description: "Matter status (draft, active, done)" },
-    { id: "root_folder_id", label: "Root Folder ID", description: "Google Drive root folder" },
-    { id: "created_at", label: "Created At", description: "Timestamp when matter was created" },
+    { id: "company_id", label: "Company ID", description: "Internal company identifier", default: false },
+    { id: "client_id", label: "Client ID", description: "Associated client identifier", default: true },
+    { id: "status", label: "Status", description: "Matter status (draft, active, done)", default: true },
+    { id: "drive_folder_id", label: "Drive Folder ID", description: "Matter's Google Drive folder", default: false },
+    { id: "folder_status", label: "Folder Status", description: "Drive folder creation status", default: false },
+    { id: "folder_status_updated_at", label: "Folder Status Updated At", description: "When folder status last changed", default: false },
+    { id: "created_at", label: "Created At", description: "Timestamp when matter was created", default: false },
   ],
+};
+
+// Get default selected fields
+const getDefaultFields = () => {
+  const defaults: string[] = [];
+  Object.values(ALL_FIELDS).forEach(fields => {
+    fields.filter(f => f.default).forEach(f => defaults.push(f.id));
+  });
+  return [...new Set(defaults)]; // Remove duplicates
 };
 
 // Sample payloads for each event type (matches actual webhook structure)
@@ -180,7 +194,7 @@ export default function AdminWebhooks() {
     name: "",
     url: "",
     events: [] as string[],
-    included_fields: [] as string[],
+    included_fields: getDefaultFields(),
     timeout_seconds: 10,
   });
 
@@ -215,7 +229,7 @@ export default function AdminWebhooks() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
       setIsDialogOpen(false);
-      setNewWebhook({ name: "", url: "", events: [], included_fields: [], timeout_seconds: 10 });
+      setNewWebhook({ name: "", url: "", events: [], included_fields: getDefaultFields(), timeout_seconds: 10 });
       toast.success("Webhook created successfully");
     },
     onError: (error) => {
@@ -450,16 +464,16 @@ export default function AdminWebhooks() {
                 {/* Optional Fields Section */}
                 {newWebhook.events.length > 0 && (
                   <div className="space-y-2">
-                    <Label>Optional Fields to Include</Label>
+                    <Label>Additional Fields to Include</Label>
                     <p className="text-xs text-muted-foreground">
-                      By default, only essential fields are sent. Select additional fields to include in the payload.
+                      Essential fields (ID, name, type) are always included. Toggle additional fields below.
                     </p>
                     <div className="space-y-3 mt-2">
                       {getRelevantFieldCategories().map((category) => (
                         <div key={category.key} className="p-3 border rounded-lg space-y-2">
                           <span className="text-sm font-medium">{category.label}</span>
                           <div className="flex flex-wrap gap-1.5">
-                            {OPTIONAL_FIELDS[category.key].map((field) => {
+                            {ALL_FIELDS[category.key].map((field) => {
                               const isSelected = newWebhook.included_fields.includes(field.id);
                               return (
                                 <Badge
