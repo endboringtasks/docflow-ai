@@ -100,14 +100,9 @@ const SAMPLE_PAYLOADS: Record<string, object> = {
     timestamp: "2025-01-15T10:35:00.000Z",
     data: {
       matter_id: "660e8400-e29b-41d4-a716-446655440001",
-      company_id: "123e4567-e89b-12d3-a456-426614174000",
-      client_id: "550e8400-e29b-41d4-a716-446655440000",
       matter_name: "Partner Visa Application",
       visa_subclass: "820/801",
-      status: "draft",
       client_folder_id: "1XYZ789_ClientFolderId",
-      root_folder_id: "1ABC123DEF456_GoogleDriveFolderId",
-      created_at: "2025-01-15T10:35:00.000Z",
     },
   },
   "matter.updated": {
