@@ -166,7 +166,7 @@ export default function AdminWebhooks() {
   const [newWebhook, setNewWebhook] = useState({
     name: "",
     url: "",
-    topics: [] as string[],
+    events: [] as string[],
     timeout_seconds: 10,
   });
 
@@ -186,15 +186,11 @@ export default function AdminWebhooks() {
   const createWebhook = useMutation({
     mutationFn: async () => {
       const secretKey = crypto.randomUUID();
-      // Expand topics to individual events for storage
-      const events = newWebhook.topics.flatMap(
-        (topicId) => WEBHOOK_TOPICS.find((t) => t.id === topicId)?.events || []
-      );
       
       const { error } = await supabase.from("platform_webhooks").insert({
         name: newWebhook.name,
         url: newWebhook.url,
-        events: events,
+        events: newWebhook.events,
         timeout_seconds: newWebhook.timeout_seconds,
         secret_key: secretKey,
         created_by: user?.id,
@@ -204,7 +200,7 @@ export default function AdminWebhooks() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
       setIsDialogOpen(false);
-      setNewWebhook({ name: "", url: "", topics: [], timeout_seconds: 10 });
+      setNewWebhook({ name: "", url: "", events: [], timeout_seconds: 10 });
       toast.success("Webhook created successfully");
     },
     onError: (error) => {
@@ -255,12 +251,12 @@ export default function AdminWebhooks() {
     toast.success("Secret copied to clipboard");
   };
 
-  const handleTopicToggle = (topicId: string) => {
+  const handleEventToggle = (eventName: string) => {
     setNewWebhook((prev) => ({
       ...prev,
-      topics: prev.topics.includes(topicId)
-        ? prev.topics.filter((t) => t !== topicId)
-        : [...prev.topics, topicId],
+      events: prev.events.includes(eventName)
+        ? prev.events.filter((e) => e !== eventName)
+        : [...prev.events, eventName],
     }));
   };
 
@@ -354,32 +350,66 @@ export default function AdminWebhooks() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Topics to Subscribe</Label>
+                  <Label>Events to Subscribe</Label>
                   <div className="space-y-3">
-                    {WEBHOOK_TOPICS.map((topic) => (
-                      <div key={topic.id} className="flex items-start space-x-3 p-3 border rounded-lg">
-                        <Checkbox
-                          id={topic.id}
-                          checked={newWebhook.topics.includes(topic.id)}
-                          onCheckedChange={() => handleTopicToggle(topic.id)}
-                        />
-                        <div className="flex-1">
-                          <label htmlFor={topic.id} className="text-sm font-medium cursor-pointer">
-                            {topic.label}
-                          </label>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {topic.description}
-                          </p>
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {topic.events.map((event) => (
-                              <Badge key={event} variant="outline" className="text-xs">
-                                {event.split(".")[1]}
-                              </Badge>
-                            ))}
+                    {WEBHOOK_TOPICS.map((topic) => {
+                      const topicEvents = topic.events;
+                      const selectedTopicEvents = topicEvents.filter(e => newWebhook.events.includes(e));
+                      const allSelected = selectedTopicEvents.length === topicEvents.length;
+                      const someSelected = selectedTopicEvents.length > 0 && !allSelected;
+                      
+                      const handleTopicCheckboxChange = () => {
+                        if (allSelected) {
+                          // Deselect all events in this topic
+                          setNewWebhook(prev => ({
+                            ...prev,
+                            events: prev.events.filter(e => !topicEvents.includes(e))
+                          }));
+                        } else {
+                          // Select all events in this topic
+                          setNewWebhook(prev => ({
+                            ...prev,
+                            events: [...new Set([...prev.events, ...topicEvents])]
+                          }));
+                        }
+                      };
+                      
+                      return (
+                        <div key={topic.id} className="p-3 border rounded-lg space-y-2">
+                          <div className="flex items-start space-x-3">
+                            <Checkbox
+                              id={topic.id}
+                              checked={allSelected}
+                              className={someSelected ? "data-[state=unchecked]:bg-primary/30" : ""}
+                              onCheckedChange={handleTopicCheckboxChange}
+                            />
+                            <div className="flex-1">
+                              <label htmlFor={topic.id} className="text-sm font-medium cursor-pointer">
+                                {topic.label}
+                              </label>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {topic.description}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 ml-7">
+                            {topic.events.map((event) => {
+                              const isSelected = newWebhook.events.includes(event);
+                              return (
+                                <Badge 
+                                  key={event} 
+                                  variant={isSelected ? "default" : "outline"} 
+                                  className="text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                                  onClick={() => handleEventToggle(event)}
+                                >
+                                  {event.split(".")[1]}
+                                </Badge>
+                              );
+                            })}
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -404,7 +434,7 @@ export default function AdminWebhooks() {
                 </Button>
                 <Button
                   onClick={() => createWebhook.mutate()}
-                  disabled={!newWebhook.name || !newWebhook.url || newWebhook.topics.length === 0}
+                  disabled={!newWebhook.name || !newWebhook.url || newWebhook.events.length === 0}
                 >
                   Create Webhook
                 </Button>
