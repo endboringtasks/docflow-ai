@@ -18,6 +18,9 @@ const RATE_LIMIT_CONFIG = {
 interface WebhookPayload {
   client_id: string;
   drive_folder_id: string;
+  // Accept both for flexibility - organization_id is the preferred external name
+  company_id?: string;
+  organization_id?: string;
 }
 
 Deno.serve(async (req) => {
