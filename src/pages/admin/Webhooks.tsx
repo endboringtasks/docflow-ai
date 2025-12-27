@@ -466,7 +466,14 @@ export default function AdminWebhooks() {
                   <div className="space-y-2">
                     <Label>Additional Fields to Include</Label>
                     <p className="text-xs text-muted-foreground">
-                      Essential fields (ID, name, type) are always included. Toggle additional fields below.
+                      Essential fields are always included:
+                    </p>
+                    <div className="text-xs text-muted-foreground space-y-1 mb-2">
+                      <div><span className="font-medium">Clients:</span> client_id, client_type, first_name, last_name, company_name</div>
+                      <div><span className="font-medium">Matters:</span> matter_id, matter_name, visa_subclass</div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Toggle additional fields below:
                     </p>
                     <div className="space-y-3 mt-2">
                       {getRelevantFieldCategories().map((category) => (
