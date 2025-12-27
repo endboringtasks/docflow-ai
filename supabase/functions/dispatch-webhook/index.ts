@@ -98,20 +98,38 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${webhooks.length} webhook(s) for event:`, payload.event_type);
 
+    // Helper to rename company_id to organization_id for clearer webhook payloads
+    const renameCompanyIdToOrganizationId = (data: Record<string, unknown>): Record<string, unknown> => {
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(data)) {
+        if (key === 'company_id') {
+          result['organization_id'] = value;
+        } else {
+          result[key] = value;
+        }
+      }
+      return result;
+    };
+
     // Helper to filter data based on webhook's included_fields setting
     const filterPayloadData = (data: Record<string, unknown>, includedFields: string[] | null) => {
+      // First rename company_id to organization_id
+      const renamedData = renameCompanyIdToOrganizationId(data);
+      
       // If no included_fields specified or empty array, include all fields
       if (!includedFields || includedFields.length === 0) {
-        return data;
+        return renamedData;
       }
       
-      // Only include specified fields
-      const fieldsToInclude = new Set(includedFields);
+      // Only include specified fields (map company_id -> organization_id in the filter)
+      const fieldsToInclude = new Set(
+        includedFields.map(f => f === 'company_id' ? 'organization_id' : f)
+      );
       
       const filteredData: Record<string, unknown> = {};
-      for (const key of Object.keys(data)) {
+      for (const key of Object.keys(renamedData)) {
         if (fieldsToInclude.has(key)) {
-          filteredData[key] = data[key];
+          filteredData[key] = renamedData[key];
         }
       }
       
