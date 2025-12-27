@@ -303,6 +303,8 @@ const MigrationMatters = () => {
             event_type: "matter.updated",
             data: {
               matter_id: data.id,
+              company_id: currentCompany?.id,
+              client_id: data.client_id,
               matter_name: data.matter_name,
               visa_subclass: data.visa_subclass,
               status: data.status,
@@ -357,8 +359,11 @@ const MigrationMatters = () => {
             event_type: "matter.deleted",
             data: {
               matter_id: matter.id,
+              company_id: currentCompany?.id,
+              client_id: matter.client_id,
               matter_name: matter.matter_name,
               visa_subclass: matter.visa_subclass,
+              status: matter.status,
               drive_folder_id: matter.drive_folder_id,
             },
           },
@@ -407,6 +412,8 @@ const MigrationMatters = () => {
             event_type: "matter.updated",
             data: {
               matter_id: data.id,
+              company_id: currentCompany?.id,
+              client_id: data.client_id,
               matter_name: data.matter_name,
               visa_subclass: data.visa_subclass,
               status: data.status,

@@ -278,7 +278,7 @@ const ClientDetail = () => {
       // Get matter data before deletion for webhook
       const { data: matterData } = await supabase
         .from("matters")
-        .select("id, matter_name, visa_subclass, drive_folder_id")
+        .select("id, company_id, client_id, matter_name, visa_subclass, status, drive_folder_id")
         .eq("id", matterId)
         .single();
       
@@ -299,8 +299,11 @@ const ClientDetail = () => {
               event_type: "matter.deleted",
               data: {
                 matter_id: matterData.id,
+                company_id: matterData.company_id,
+                client_id: matterData.client_id,
                 matter_name: matterData.matter_name,
                 visa_subclass: matterData.visa_subclass,
+                status: matterData.status,
                 drive_folder_id: matterData.drive_folder_id,
               },
             },
