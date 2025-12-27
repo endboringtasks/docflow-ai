@@ -55,9 +55,13 @@ const WEBHOOK_TOPICS = [
 ];
 
 // All available fields for webhook payloads (organized by entity)
-// Essential fields (always included): client_id/matter_id, client_type, first_name, last_name, company_name, matter_name, visa_subclass
 const ALL_FIELDS = {
   client: [
+    { id: "client_id", label: "Client ID", description: "Unique client identifier", default: true },
+    { id: "client_type", label: "Client Type", description: "Personal or corporate", default: true },
+    { id: "first_name", label: "First Name", description: "Client first name", default: true },
+    { id: "last_name", label: "Last Name", description: "Client last name", default: true },
+    { id: "company_name", label: "Company Name", description: "Company name (for corporate clients)", default: true },
     { id: "company_id", label: "Company ID", description: "Internal company identifier", default: true },
     { id: "email", label: "Email", description: "Client email address", default: true },
     { id: "phone", label: "Phone", description: "Client phone number", default: true },
@@ -67,6 +71,9 @@ const ALL_FIELDS = {
     { id: "created_at", label: "Created At", description: "Timestamp when client was created", default: true },
   ],
   matter: [
+    { id: "matter_id", label: "Matter ID", description: "Unique matter identifier", default: true },
+    { id: "matter_name", label: "Matter Name", description: "Name of the matter/case", default: true },
+    { id: "visa_subclass", label: "Visa Subclass", description: "Visa type being applied for", default: true },
     { id: "company_id", label: "Company ID", description: "Internal company identifier", default: true },
     { id: "client_id", label: "Client ID", description: "Associated client identifier", default: true },
     { id: "status", label: "Status", description: "Matter status (draft, active, done)", default: true },
@@ -464,16 +471,9 @@ export default function AdminWebhooks() {
                 {/* Optional Fields Section */}
                 {newWebhook.events.length > 0 && (
                   <div className="space-y-2">
-                    <Label>Additional Fields to Include</Label>
+                    <Label>Fields to Include</Label>
                     <p className="text-xs text-muted-foreground">
-                      Essential fields are always included:
-                    </p>
-                    <div className="text-xs text-muted-foreground space-y-1 mb-2">
-                      <div><span className="font-medium">Clients:</span> client_id, client_type, first_name, last_name, company_name</div>
-                      <div><span className="font-medium">Matters:</span> matter_id, matter_name, visa_subclass</div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Toggle additional fields below:
+                      Select which fields to include in webhook payloads:
                     </p>
                     <div className="space-y-3 mt-2">
                       {getRelevantFieldCategories().map((category) => (

@@ -99,20 +99,14 @@ Deno.serve(async (req) => {
     console.log(`Found ${webhooks.length} webhook(s) for event:`, payload.event_type);
 
     // Helper to filter data based on webhook's included_fields setting
-    const filterPayloadData = (data: Record<string, unknown>, includedFields: string[] | null, eventType: string) => {
-      // Default minimal fields based on event type
-      const isClientEvent = eventType.startsWith("client.");
-      const isMatterEvent = eventType.startsWith("matter.");
+    const filterPayloadData = (data: Record<string, unknown>, includedFields: string[] | null) => {
+      // If no included_fields specified or empty array, include all fields
+      if (!includedFields || includedFields.length === 0) {
+        return data;
+      }
       
-      // Always include these essential fields
-      const essentialFields = isClientEvent 
-        ? ["client_id", "client_type", "first_name", "last_name", "company_name", "drive_folder_id"]
-        : isMatterEvent
-        ? ["matter_id", "matter_name", "visa_subclass", "client_folder_id", "drive_folder_id"]
-        : Object.keys(data);
-      
-      // If no included_fields specified, use essential fields only
-      const fieldsToInclude = new Set([...essentialFields, ...(includedFields || [])]);
+      // Only include specified fields
+      const fieldsToInclude = new Set(includedFields);
       
       const filteredData: Record<string, unknown> = {};
       for (const key of Object.keys(data)) {
@@ -130,8 +124,7 @@ Deno.serve(async (req) => {
         // Filter the data based on this webhook's included_fields
         const filteredData = filterPayloadData(
           payload.data, 
-          webhook.included_fields as string[] | null, 
-          payload.event_type
+          webhook.included_fields as string[] | null
         );
         
         const webhookPayload = {
