@@ -460,7 +460,25 @@ const MatterDetail = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async (data) => {
+      // Dispatch webhook for matter.updated event
+      try {
+        await supabase.functions.invoke("dispatch-webhook", {
+          body: {
+            event_type: "matter.updated",
+            data: {
+              matter_id: data.id,
+              matter_name: data.matter_name,
+              visa_subclass: data.visa_subclass,
+              status: data.status,
+              drive_folder_id: data.drive_folder_id,
+            },
+          },
+        });
+      } catch (webhookError) {
+        console.error("Failed to dispatch webhook:", webhookError);
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["matter", matterId] });
       queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
       setIsEditOpen(false);
@@ -488,7 +506,25 @@ const MatterDetail = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async (data) => {
+      // Dispatch webhook for matter.updated event
+      try {
+        await supabase.functions.invoke("dispatch-webhook", {
+          body: {
+            event_type: "matter.updated",
+            data: {
+              matter_id: data.id,
+              matter_name: data.matter_name,
+              visa_subclass: data.visa_subclass,
+              status: data.status,
+              drive_folder_id: data.drive_folder_id,
+            },
+          },
+        });
+      } catch (webhookError) {
+        console.error("Failed to dispatch webhook:", webhookError);
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["matter", matterId] });
       queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
       toast.success("Status updated!");
@@ -503,7 +539,15 @@ const MatterDetail = () => {
   // Delete matter mutation
   const deleteMatterMutation = useMutation({
     mutationFn: async () => {
-      if (!matterId) throw new Error("No matter ID");
+      if (!matterId || !matter) throw new Error("No matter ID");
+      
+      // Store matter data before deletion for webhook
+      const matterData = {
+        matter_id: matter.id,
+        matter_name: matter.matter_name,
+        visa_subclass: matter.visa_subclass,
+        drive_folder_id: matter.drive_folder_id,
+      };
       
       const { error } = await supabase
         .from("matters")
@@ -511,8 +555,21 @@ const MatterDetail = () => {
         .eq("id", matterId);
       
       if (error) throw error;
+      return matterData;
     },
-    onSuccess: () => {
+    onSuccess: async (matterData) => {
+      // Dispatch webhook for matter.deleted event
+      try {
+        await supabase.functions.invoke("dispatch-webhook", {
+          body: {
+            event_type: "matter.deleted",
+            data: matterData,
+          },
+        });
+      } catch (webhookError) {
+        console.error("Failed to dispatch webhook:", webhookError);
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
       toast.success("Application deleted");
       navigate("/app/migration/matters");

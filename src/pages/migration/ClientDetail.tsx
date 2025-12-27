@@ -275,14 +275,41 @@ const ClientDetail = () => {
   // Delete matter mutation
   const deleteMatterMutation = useMutation({
     mutationFn: async (matterId: string) => {
+      // Get matter data before deletion for webhook
+      const { data: matterData } = await supabase
+        .from("matters")
+        .select("id, matter_name, visa_subclass, drive_folder_id")
+        .eq("id", matterId)
+        .single();
+      
       const { error } = await supabase
         .from("matters")
         .delete()
         .eq("id", matterId);
       
       if (error) throw error;
+      return matterData;
     },
-    onSuccess: () => {
+    onSuccess: async (matterData) => {
+      // Dispatch webhook for matter.deleted event
+      if (matterData) {
+        try {
+          await supabase.functions.invoke("dispatch-webhook", {
+            body: {
+              event_type: "matter.deleted",
+              data: {
+                matter_id: matterData.id,
+                matter_name: matterData.matter_name,
+                visa_subclass: matterData.visa_subclass,
+                drive_folder_id: matterData.drive_folder_id,
+              },
+            },
+          });
+        } catch (webhookError) {
+          console.error("Failed to dispatch webhook:", webhookError);
+        }
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["client-matters", clientId] });
       queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
