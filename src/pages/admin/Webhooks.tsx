@@ -54,6 +54,24 @@ const WEBHOOK_TOPICS = [
   },
 ];
 
+// Optional fields that can be included in webhook payloads
+const OPTIONAL_FIELDS = {
+  client: [
+    { id: "company_id", label: "Company ID", description: "Internal company identifier" },
+    { id: "email", label: "Email", description: "Client email address" },
+    { id: "phone", label: "Phone", description: "Client phone number" },
+    { id: "root_folder_id", label: "Root Folder ID", description: "Google Drive root folder" },
+    { id: "created_at", label: "Created At", description: "Timestamp when client was created" },
+  ],
+  matter: [
+    { id: "company_id", label: "Company ID", description: "Internal company identifier" },
+    { id: "client_id", label: "Client ID", description: "Associated client identifier" },
+    { id: "status", label: "Status", description: "Matter status (draft, active, done)" },
+    { id: "root_folder_id", label: "Root Folder ID", description: "Google Drive root folder" },
+    { id: "created_at", label: "Created At", description: "Timestamp when matter was created" },
+  ],
+};
+
 // Sample payloads for each event type (matches actual webhook structure)
 const SAMPLE_PAYLOADS: Record<string, object> = {
   "client.created": {
@@ -162,6 +180,7 @@ export default function AdminWebhooks() {
     name: "",
     url: "",
     events: [] as string[],
+    included_fields: [] as string[],
     timeout_seconds: 10,
   });
 
@@ -186,6 +205,7 @@ export default function AdminWebhooks() {
         name: newWebhook.name,
         url: newWebhook.url,
         events: newWebhook.events,
+        included_fields: newWebhook.included_fields,
         timeout_seconds: newWebhook.timeout_seconds,
         secret_key: secretKey,
         created_by: user?.id,
@@ -195,7 +215,7 @@ export default function AdminWebhooks() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
       setIsDialogOpen(false);
-      setNewWebhook({ name: "", url: "", events: [], timeout_seconds: 10 });
+      setNewWebhook({ name: "", url: "", events: [], included_fields: [], timeout_seconds: 10 });
       toast.success("Webhook created successfully");
     },
     onError: (error) => {
@@ -255,11 +275,30 @@ export default function AdminWebhooks() {
     }));
   };
 
+  const handleFieldToggle = (fieldId: string) => {
+    setNewWebhook((prev) => ({
+      ...prev,
+      included_fields: prev.included_fields.includes(fieldId)
+        ? prev.included_fields.filter((f) => f !== fieldId)
+        : [...prev.included_fields, fieldId],
+    }));
+  };
+
   // Helper to determine which topics a webhook is subscribed to based on its events
   const getWebhookTopics = (events: string[]) => {
     return WEBHOOK_TOPICS.filter((topic) =>
       topic.events.every((event) => events.includes(event))
     ).map((t) => t.label);
+  };
+
+  // Determine which optional field categories to show based on selected events
+  const getRelevantFieldCategories = () => {
+    const hasClientEvents = newWebhook.events.some(e => e.startsWith("client."));
+    const hasMatterEvents = newWebhook.events.some(e => e.startsWith("matter."));
+    const categories: Array<{ key: "client" | "matter"; label: string }> = [];
+    if (hasClientEvents) categories.push({ key: "client", label: "Client Fields" });
+    if (hasMatterEvents) categories.push({ key: "matter", label: "Matter Fields" });
+    return categories;
   };
 
   // Test webhook mutation
@@ -407,6 +446,40 @@ export default function AdminWebhooks() {
                     })}
                   </div>
                 </div>
+                
+                {/* Optional Fields Section */}
+                {newWebhook.events.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Optional Fields to Include</Label>
+                    <p className="text-xs text-muted-foreground">
+                      By default, only essential fields are sent. Select additional fields to include in the payload.
+                    </p>
+                    <div className="space-y-3 mt-2">
+                      {getRelevantFieldCategories().map((category) => (
+                        <div key={category.key} className="p-3 border rounded-lg space-y-2">
+                          <span className="text-sm font-medium">{category.label}</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {OPTIONAL_FIELDS[category.key].map((field) => {
+                              const isSelected = newWebhook.included_fields.includes(field.id);
+                              return (
+                                <Badge
+                                  key={field.id}
+                                  variant={isSelected ? "default" : "outline"}
+                                  className="text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                                  onClick={() => handleFieldToggle(field.id)}
+                                  title={field.description}
+                                >
+                                  {field.label}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
                 <div className="space-y-2">
                   <Label htmlFor="timeout">Folder Creation Timeout (seconds)</Label>
                   <Input

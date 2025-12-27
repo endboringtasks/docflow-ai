@@ -198,10 +198,17 @@ const ClientDetail = () => {
           body: {
             event_type: "matter.created",
             data: {
+              // Essential fields (always sent)
               matter_id: data.id,
               matter_name: data.matter_name,
               visa_subclass: data.visa_subclass,
               client_folder_id: client?.drive_folder_id || null,
+              // Optional fields (filtered by edge function based on webhook config)
+              company_id: currentCompany?.id,
+              client_id: data.client_id,
+              status: data.status,
+              root_folder_id: driveConnection?.root_folder_id || null,
+              created_at: data.created_at,
             },
           },
         });

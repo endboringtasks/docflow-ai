@@ -601,6 +601,7 @@ export type Database = {
           created_by: string | null
           events: string[]
           id: string
+          included_fields: string[] | null
           is_active: boolean
           name: string
           secret_key: string | null
@@ -613,6 +614,7 @@ export type Database = {
           created_by?: string | null
           events?: string[]
           id?: string
+          included_fields?: string[] | null
           is_active?: boolean
           name: string
           secret_key?: string | null
@@ -625,6 +627,7 @@ export type Database = {
           created_by?: string | null
           events?: string[]
           id?: string
+          included_fields?: string[] | null
           is_active?: boolean
           name?: string
           secret_key?: string | null
