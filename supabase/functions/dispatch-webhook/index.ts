@@ -80,15 +80,22 @@ async function sendWebhookWithRetry(
 
       // Non-retryable status codes (client errors except 429)
       if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-        console.log(`Webhook ${webhook.name} returned non-retryable status ${response.status}`);
+        const errorText = await response.clone().text();
+        const snippet = errorText ? errorText.slice(0, 800) : "";
+        console.log(
+          `Webhook ${webhook.name} returned non-retryable status ${response.status}${snippet ? `; body: ${snippet}` : ""}`
+        );
         return { response, attempts };
       }
 
       // Retryable error - log and continue
       const errorText = await response.text();
       lastError = new Error(`HTTP ${response.status}: ${errorText}`);
-      console.log(`Webhook ${webhook.name} attempt ${attempt + 1} failed: ${response.status}`);
-      
+      const contentType = response.headers.get("content-type") || "unknown";
+      const snippet = errorText ? errorText.slice(0, 800) : "";
+      console.log(
+        `Webhook ${webhook.name} attempt ${attempt + 1} failed: ${response.status} (content-type: ${contentType})${snippet ? `; body: ${snippet}` : ""}`
+      );
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       console.log(`Webhook ${webhook.name} attempt ${attempt + 1} error: ${lastError.message}`);
