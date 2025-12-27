@@ -216,6 +216,8 @@ export default function AdminWebhooks() {
     events: [] as string[],
     included_fields: getDefaultFields(),
     timeout_seconds: 10,
+    max_retries: 3,
+    retry_backoff_seconds: 5,
   });
 
   const [deletingWebhook, setDeletingWebhook] = useState<{ id: string; name: string } | null>(null);
@@ -227,6 +229,8 @@ export default function AdminWebhooks() {
       events: [],
       included_fields: getDefaultFields(),
       timeout_seconds: 10,
+      max_retries: 3,
+      retry_backoff_seconds: 5,
     });
     setEditingWebhook(null);
   };
@@ -239,6 +243,8 @@ export default function AdminWebhooks() {
       events: webhook.events || [],
       included_fields: webhook.included_fields || getDefaultFields(),
       timeout_seconds: webhook.timeout_seconds ?? 10,
+      max_retries: webhook.max_retries ?? 3,
+      retry_backoff_seconds: webhook.retry_backoff_seconds ?? 5,
     });
     setIsDialogOpen(true);
   };
@@ -251,6 +257,8 @@ export default function AdminWebhooks() {
       events: webhook.events || [],
       included_fields: webhook.included_fields || getDefaultFields(),
       timeout_seconds: webhook.timeout_seconds ?? 10,
+      max_retries: webhook.max_retries ?? 3,
+      retry_backoff_seconds: webhook.retry_backoff_seconds ?? 5,
     });
     setIsDialogOpen(true);
   };
@@ -278,6 +286,8 @@ export default function AdminWebhooks() {
         events: newWebhook.events,
         included_fields: newWebhook.included_fields,
         timeout_seconds: newWebhook.timeout_seconds,
+        max_retries: newWebhook.max_retries,
+        retry_backoff_seconds: newWebhook.retry_backoff_seconds,
         secret_key: secretKey,
         created_by: user?.id,
       });
@@ -306,6 +316,8 @@ export default function AdminWebhooks() {
           events: newWebhook.events,
           included_fields: newWebhook.included_fields,
           timeout_seconds: newWebhook.timeout_seconds,
+          max_retries: newWebhook.max_retries,
+          retry_backoff_seconds: newWebhook.retry_backoff_seconds,
         })
         .eq("id", editingWebhook.id);
       if (error) throw error;
@@ -628,6 +640,39 @@ export default function AdminWebhooks() {
                   <p className="text-xs text-muted-foreground">
                     Time to wait before marking folder creation as failed (5-300 seconds)
                   </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="max_retries">Max Retries</Label>
+                    <Input
+                      id="max_retries"
+                      type="number"
+                      min={0}
+                      max={10}
+                      placeholder="3"
+                      value={newWebhook.max_retries}
+                      onChange={(e) => setNewWebhook((prev) => ({ ...prev, max_retries: parseInt(e.target.value) || 0 }))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Retry attempts on failure (0-10)
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="retry_backoff">Backoff (seconds)</Label>
+                    <Input
+                      id="retry_backoff"
+                      type="number"
+                      min={5}
+                      max={60}
+                      placeholder="5"
+                      value={newWebhook.retry_backoff_seconds}
+                      onChange={(e) => setNewWebhook((prev) => ({ ...prev, retry_backoff_seconds: parseInt(e.target.value) || 5 }))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Wait time between retries (doubles each attempt)
+                    </p>
+                  </div>
                 </div>
               </div>
               <DialogFooter>
