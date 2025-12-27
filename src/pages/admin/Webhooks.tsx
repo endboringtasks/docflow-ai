@@ -77,6 +77,7 @@ const ALL_FIELDS = {
     { id: "visa_subclass", label: "Visa Subclass", description: "Visa type being applied for", default: true },
     { id: "company_id", label: "Company ID", description: "Internal company identifier", default: true },
     { id: "client_id", label: "Client ID", description: "Associated client identifier", default: true },
+    { id: "client_folder_id", label: "Client Folder ID", description: "Client's Google Drive folder", default: true },
     { id: "status", label: "Status", description: "Matter status (draft, active, done)", default: true },
     { id: "drive_folder_id", label: "Drive Folder ID", description: "Matter's Google Drive folder", default: true },
     { id: "folder_status", label: "Folder Status", description: "Drive folder creation status", default: true },
