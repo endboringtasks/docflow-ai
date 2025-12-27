@@ -33,7 +33,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Webhook, Plus, Trash2, Copy, ExternalLink, Code, ChevronDown, ChevronRight, Send, Loader2 } from "lucide-react";
+import { Webhook, Plus, Trash2, Copy, ExternalLink, Code, ChevronDown, ChevronRight, Send, Loader2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -199,6 +199,7 @@ export default function AdminWebhooks() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingWebhook, setEditingWebhook] = useState<{ id: string } | null>(null);
   const [newWebhook, setNewWebhook] = useState({
     name: "",
     url: "",
@@ -206,6 +207,29 @@ export default function AdminWebhooks() {
     included_fields: getDefaultFields(),
     timeout_seconds: 10,
   });
+
+  const resetForm = () => {
+    setNewWebhook({
+      name: "",
+      url: "",
+      events: [],
+      included_fields: getDefaultFields(),
+      timeout_seconds: 10,
+    });
+    setEditingWebhook(null);
+  };
+
+  const openEditDialog = (webhook: any) => {
+    setEditingWebhook({ id: webhook.id });
+    setNewWebhook({
+      name: webhook.name,
+      url: webhook.url,
+      events: webhook.events || [],
+      included_fields: webhook.included_fields || getDefaultFields(),
+      timeout_seconds: webhook.timeout_seconds ?? 10,
+    });
+    setIsDialogOpen(true);
+  };
 
   const { data: webhooks, isLoading } = useQuery({
     queryKey: ["admin-webhooks"],
@@ -238,11 +262,38 @@ export default function AdminWebhooks() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
       setIsDialogOpen(false);
-      setNewWebhook({ name: "", url: "", events: [], included_fields: getDefaultFields(), timeout_seconds: 10 });
+      resetForm();
       toast.success("Webhook created successfully");
     },
     onError: (error) => {
       toast.error("Failed to create webhook: " + error.message);
+    },
+  });
+
+  const updateWebhook = useMutation({
+    mutationFn: async () => {
+      if (!editingWebhook) throw new Error("No webhook selected for editing");
+      
+      const { error } = await supabase
+        .from("platform_webhooks")
+        .update({
+          name: newWebhook.name,
+          url: newWebhook.url,
+          events: newWebhook.events,
+          included_fields: newWebhook.included_fields,
+          timeout_seconds: newWebhook.timeout_seconds,
+        })
+        .eq("id", editingWebhook.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
+      setIsDialogOpen(false);
+      resetForm();
+      toast.success("Webhook updated successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to update webhook: " + error.message);
     },
   });
 
@@ -373,7 +424,10 @@ export default function AdminWebhooks() {
               Connect to external tools like Make.com, Zapier, or n8n
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) resetForm();
+          }}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
@@ -382,9 +436,11 @@ export default function AdminWebhooks() {
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
-                <DialogTitle>Create Webhook</DialogTitle>
+                <DialogTitle>{editingWebhook ? "Edit Webhook" : "Create Webhook"}</DialogTitle>
                 <DialogDescription>
-                  Add a new webhook to send events to external services
+                  {editingWebhook 
+                    ? "Update the webhook configuration" 
+                    : "Add a new webhook to send events to external services"}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -520,14 +576,17 @@ export default function AdminWebhooks() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                <Button variant="outline" onClick={() => {
+                  setIsDialogOpen(false);
+                  resetForm();
+                }}>
                   Cancel
                 </Button>
                 <Button
-                  onClick={() => createWebhook.mutate()}
+                  onClick={() => editingWebhook ? updateWebhook.mutate() : createWebhook.mutate()}
                   disabled={!newWebhook.name || !newWebhook.url || newWebhook.events.length === 0}
                 >
-                  Create Webhook
+                  {editingWebhook ? "Update Webhook" : "Create Webhook"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -682,6 +741,14 @@ export default function AdminWebhooks() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => openEditDialog(webhook)}
+                            title="Edit webhook"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => testWebhook.mutate({ webhookId: webhook.id, events: webhook.events })}
                             disabled={!webhook.is_active || testingWebhookId === webhook.id}
                             title={!webhook.is_active ? "Enable webhook to test" : "Send test payload"}
@@ -696,6 +763,7 @@ export default function AdminWebhooks() {
                             variant="ghost"
                             size="sm"
                             onClick={() => deleteWebhook.mutate(webhook.id)}
+                            title="Delete webhook"
                           >
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
