@@ -42,8 +42,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Webhook, Plus, Trash2, Copy, ExternalLink, Code, ChevronDown, ChevronRight, Send, Loader2, Pencil, CopyPlus } from "lucide-react";
+import { Webhook, Plus, Trash2, Copy, ExternalLink, ChevronDown, ChevronRight, Send, Loader2, Pencil, CopyPlus } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -106,104 +105,6 @@ const getDefaultFields = () => {
 };
 
 // Sample payloads for each event type (matches actual webhook structure)
-const SAMPLE_PAYLOADS: Record<string, object> = {
-  "client.created": {
-    event: "client.created",
-    timestamp: "2025-01-15T10:30:00.000Z",
-    data: {
-      client_id: "550e8400-e29b-41d4-a716-446655440000",
-      company_id: "123e4567-e89b-12d3-a456-426614174000",
-      client_type: "personal",
-      first_name: "John",
-      last_name: "Smith",
-      company_name: null,
-      root_folder_id: "1ABC123DEF456_GoogleDriveFolderId",
-    },
-  },
-  "client.updated": {
-    event: "client.updated",
-    timestamp: "2025-01-15T11:00:00.000Z",
-    data: {
-      client_id: "550e8400-e29b-41d4-a716-446655440000",
-      company_id: "123e4567-e89b-12d3-a456-426614174000",
-      client_type: "personal",
-      first_name: "John",
-      last_name: "Smith-Jones",
-      company_name: null,
-      drive_folder_id: "1XYZ789_ClientFolderId",
-    },
-  },
-  "client.deleted": {
-    event: "client.deleted",
-    timestamp: "2025-01-15T12:00:00.000Z",
-    data: {
-      client_id: "550e8400-e29b-41d4-a716-446655440000",
-      company_id: "123e4567-e89b-12d3-a456-426614174000",
-      client_type: "personal",
-      first_name: "John",
-      last_name: "Smith-Jones",
-      company_name: null,
-      drive_folder_id: "1XYZ789_ClientFolderId",
-    },
-  },
-  "matter.created": {
-    event: "matter.created",
-    timestamp: "2025-01-15T10:35:00.000Z",
-    data: {
-      matter_id: "660e8400-e29b-41d4-a716-446655440001",
-      matter_name: "Partner Visa Application",
-      visa_subclass: "820/801",
-      client_folder_id: "1XYZ789_ClientFolderId",
-    },
-  },
-  "matter.updated": {
-    event: "matter.updated",
-    timestamp: "2025-01-15T14:00:00.000Z",
-    data: {
-      matter_id: "660e8400-e29b-41d4-a716-446655440001",
-      matter_name: "Partner Visa Application",
-      visa_subclass: "820/801",
-      status: "active",
-      drive_folder_id: "1MNO456_MatterFolderId",
-    },
-  },
-  "matter.deleted": {
-    event: "matter.deleted",
-    timestamp: "2025-01-15T16:00:00.000Z",
-    data: {
-      matter_id: "660e8400-e29b-41d4-a716-446655440001",
-      matter_name: "Partner Visa Application",
-      visa_subclass: "820/801",
-      drive_folder_id: "1MNO456_MatterFolderId",
-    },
-  },
-};
-
-const PayloadPreview = ({ eventType }: { eventType: string }) => {
-  const payload = SAMPLE_PAYLOADS[eventType];
-  
-  const copyPayload = () => {
-    navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
-    toast.success("Payload copied to clipboard");
-  };
-
-  return (
-    <div className="relative">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="absolute top-2 right-2 h-7 px-2"
-        onClick={copyPayload}
-      >
-        <Copy className="w-3.5 h-3.5 mr-1" />
-        Copy
-      </Button>
-      <pre className="bg-muted/50 border rounded-lg p-4 text-xs overflow-x-auto">
-        <code>{JSON.stringify(payload, null, 2)}</code>
-      </pre>
-    </div>
-  );
-};
 
 export default function AdminWebhooks() {
   const { user } = useAuth();
@@ -437,13 +338,27 @@ export default function AdminWebhooks() {
       
       // Get the first event type subscribed to use as test
       const testEventType = events[0] || "client.created";
-      const testPayload = SAMPLE_PAYLOADS[testEventType] || SAMPLE_PAYLOADS["client.created"];
+      
+      // Generate a sample test payload
+      const isClientEvent = testEventType.startsWith("client.");
+      const testData = isClientEvent ? {
+        client_id: "550e8400-e29b-41d4-a716-446655440000",
+        company_id: "123e4567-e89b-12d3-a456-426614174000",
+        client_type: "personal",
+        first_name: "Test",
+        last_name: "Client",
+      } : {
+        matter_id: "660e8400-e29b-41d4-a716-446655440001",
+        matter_name: "Test Matter",
+        visa_subclass: "820/801",
+        client_id: "550e8400-e29b-41d4-a716-446655440000",
+      };
       
       // Call dispatch-webhook with test data
       const response = await supabase.functions.invoke("dispatch-webhook", {
         body: {
           event_type: testEventType,
-          data: (testPayload as any).data,
+          data: testData,
         },
       });
 
@@ -709,38 +624,6 @@ export default function AdminWebhooks() {
           </CardContent>
         </Card>
 
-        {/* Payload Preview Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Code className="w-5 h-5" />
-              Payload Preview
-            </CardTitle>
-            <CardDescription>
-              Sample JSON payloads for each event type. Use these to configure your automation workflows.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="client.created" className="w-full">
-              <TabsList className="flex flex-wrap h-auto gap-1 mb-4">
-                {Object.keys(SAMPLE_PAYLOADS).map((eventType) => (
-                  <TabsTrigger 
-                    key={eventType} 
-                    value={eventType}
-                    className="text-xs"
-                  >
-                    {eventType}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              {Object.keys(SAMPLE_PAYLOADS).map((eventType) => (
-                <TabsContent key={eventType} value={eventType} className="mt-0">
-                  <PayloadPreview eventType={eventType} />
-                </TabsContent>
-              ))}
-            </Tabs>
-          </CardContent>
-        </Card>
 
         {/* Webhooks Table */}
         <Card>
