@@ -106,6 +106,102 @@ async function sendWebhookWithRetry(
   throw lastError || new Error("Unknown error after retries");
 }
 
+async function hydratePayloadData(
+  eventType: string,
+  data: Record<string, unknown>,
+  supabase: any
+): Promise<Record<string, unknown>> {
+  if (!eventType.startsWith("matter.")) return data;
+
+  let hydrated: Record<string, unknown> = { ...data };
+
+  const matterId = (data.matter_id ?? data.id) as string | undefined;
+  if (matterId) {
+    try {
+      const { data: matterRow, error } = await supabase
+        .from("matters")
+        .select(
+          "id, company_id, client_id, matter_name, visa_subclass, status, drive_folder_id, folder_status, folder_status_updated_at, created_at"
+        )
+        .eq("id", matterId)
+        .maybeSingle();
+
+      if (error) {
+        console.log("Hydration: failed to load matter", { matter_id: matterId, error: error.message });
+      } else if (matterRow) {
+        hydrated = {
+          ...hydrated,
+          matter_id: matterRow.id,
+          company_id: matterRow.company_id,
+          client_id: matterRow.client_id,
+          matter_name: matterRow.matter_name,
+          visa_subclass: matterRow.visa_subclass,
+          status: matterRow.status,
+          drive_folder_id: matterRow.drive_folder_id,
+          folder_status: matterRow.folder_status,
+          folder_status_updated_at: matterRow.folder_status_updated_at,
+          created_at: matterRow.created_at,
+        };
+      } else {
+        hydrated = { ...hydrated, matter_id: (hydrated as any).matter_id ?? matterId };
+      }
+    } catch (e) {
+      console.log("Hydration: exception loading matter", { matter_id: matterId, error: String(e) });
+    }
+  }
+
+  const companyId = (hydrated.company_id ?? data.company_id) as string | undefined;
+  const clientId = (hydrated.client_id ?? data.client_id) as string | undefined;
+
+  if (clientId) {
+    try {
+      const { data: clientRow, error } = await supabase
+        .from("clients")
+        .select("id, client_type, first_name, last_name, company_name, email, phone, drive_folder_id")
+        .eq("id", clientId)
+        .maybeSingle();
+
+      if (error) {
+        console.log("Hydration: failed to load client", { client_id: clientId, error: error.message });
+      } else if (clientRow) {
+        hydrated = {
+          ...hydrated,
+          client_id: clientRow.id,
+          client_type: clientRow.client_type,
+          first_name: clientRow.first_name,
+          last_name: clientRow.last_name,
+          company_name: clientRow.company_name,
+          email: clientRow.email,
+          phone: clientRow.phone,
+          client_folder_id: clientRow.drive_folder_id,
+        };
+      }
+    } catch (e) {
+      console.log("Hydration: exception loading client", { client_id: clientId, error: String(e) });
+    }
+  }
+
+  if (companyId) {
+    try {
+      const { data: connectionRow, error } = await supabase
+        .from("google_drive_connections")
+        .select("root_folder_id")
+        .eq("company_id", companyId)
+        .maybeSingle();
+
+      if (error) {
+        console.log("Hydration: failed to load drive connection", { company_id: companyId, error: error.message });
+      } else if (connectionRow) {
+        hydrated = { ...hydrated, root_folder_id: connectionRow.root_folder_id };
+      }
+    } catch (e) {
+      console.log("Hydration: exception loading drive connection", { company_id: companyId, error: String(e) });
+    }
+  }
+
+  return hydrated;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -181,6 +277,9 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${webhooks.length} webhook(s) for event:`, payload.event_type);
 
+    const hydratedData = await hydratePayloadData(payload.event_type, payload.data, supabase);
+    console.log("Hydrated payload keys:", Object.keys(hydratedData));
+
     // Helper to rename company_id to organization_id for clearer webhook payloads
     const renameCompanyIdToOrganizationId = (data: Record<string, unknown>): Record<string, unknown> => {
       const result: Record<string, unknown> = {};
@@ -224,7 +323,7 @@ Deno.serve(async (req) => {
       webhooks.map(async (webhook) => {
         // Filter the data based on this webhook's included_fields
         const filteredData = filterPayloadData(
-          payload.data, 
+          hydratedData,
           webhook.included_fields as string[] | null
         );
         
