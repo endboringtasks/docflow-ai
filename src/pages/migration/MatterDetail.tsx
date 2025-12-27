@@ -463,7 +463,7 @@ const MatterDetail = () => {
     onSuccess: async (data) => {
       // Dispatch webhook for matter.updated event
       try {
-        await supabase.functions.invoke("dispatch-webhook", {
+        const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
             event_type: "matter.updated",
             data: {
@@ -477,6 +477,8 @@ const MatterDetail = () => {
             },
           },
         });
+
+        if (invokeError) throw invokeError;
       } catch (webhookError) {
         console.error("Failed to dispatch webhook:", webhookError);
       }
@@ -511,7 +513,7 @@ const MatterDetail = () => {
     onSuccess: async (data) => {
       // Dispatch webhook for matter.updated event
       try {
-        await supabase.functions.invoke("dispatch-webhook", {
+        const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
             event_type: "matter.updated",
             data: {
@@ -525,6 +527,8 @@ const MatterDetail = () => {
             },
           },
         });
+
+        if (invokeError) throw invokeError;
       } catch (webhookError) {
         console.error("Failed to dispatch webhook:", webhookError);
       }
@@ -567,12 +571,14 @@ const MatterDetail = () => {
     onSuccess: async (matterData) => {
       // Dispatch webhook for matter.deleted event
       try {
-        await supabase.functions.invoke("dispatch-webhook", {
+        const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
             event_type: "matter.deleted",
             data: matterData,
           },
         });
+
+        if (invokeError) throw invokeError;
       } catch (webhookError) {
         console.error("Failed to dispatch webhook:", webhookError);
       }

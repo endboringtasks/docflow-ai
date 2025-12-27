@@ -298,7 +298,7 @@ const MigrationMatters = () => {
 
       // Dispatch webhook for matter.updated event
       try {
-        await supabase.functions.invoke("dispatch-webhook", {
+        const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
             event_type: "matter.updated",
             data: {
@@ -312,6 +312,8 @@ const MigrationMatters = () => {
             },
           },
         });
+
+        if (invokeError) throw invokeError;
       } catch (webhookError) {
         console.warn("Failed to dispatch webhook:", webhookError);
       }
@@ -354,7 +356,7 @@ const MigrationMatters = () => {
 
       // Dispatch webhook for matter.deleted event
       try {
-        await supabase.functions.invoke("dispatch-webhook", {
+        const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
             event_type: "matter.deleted",
             data: {
@@ -368,6 +370,8 @@ const MigrationMatters = () => {
             },
           },
         });
+
+        if (invokeError) throw invokeError;
       } catch (webhookError) {
         console.warn("Failed to dispatch webhook:", webhookError);
       }
@@ -407,7 +411,7 @@ const MigrationMatters = () => {
 
       // Dispatch webhook for matter.updated event
       try {
-        await supabase.functions.invoke("dispatch-webhook", {
+        const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
             event_type: "matter.updated",
             data: {
@@ -421,6 +425,8 @@ const MigrationMatters = () => {
             },
           },
         });
+
+        if (invokeError) throw invokeError;
       } catch (webhookError) {
         console.warn("Failed to dispatch webhook:", webhookError);
       }
