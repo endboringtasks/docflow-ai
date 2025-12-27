@@ -58,22 +58,22 @@ const WEBHOOK_TOPICS = [
 // Essential fields (always included): client_id/matter_id, client_type, first_name, last_name, company_name, matter_name, visa_subclass
 const ALL_FIELDS = {
   client: [
-    { id: "company_id", label: "Company ID", description: "Internal company identifier", default: false },
+    { id: "company_id", label: "Company ID", description: "Internal company identifier", default: true },
     { id: "email", label: "Email", description: "Client email address", default: true },
-    { id: "phone", label: "Phone", description: "Client phone number", default: false },
-    { id: "drive_folder_id", label: "Drive Folder ID", description: "Client's Google Drive folder", default: false },
-    { id: "folder_status", label: "Folder Status", description: "Drive folder creation status", default: false },
-    { id: "folder_status_updated_at", label: "Folder Status Updated At", description: "When folder status last changed", default: false },
-    { id: "created_at", label: "Created At", description: "Timestamp when client was created", default: false },
+    { id: "phone", label: "Phone", description: "Client phone number", default: true },
+    { id: "drive_folder_id", label: "Drive Folder ID", description: "Client's Google Drive folder", default: true },
+    { id: "folder_status", label: "Folder Status", description: "Drive folder creation status", default: true },
+    { id: "folder_status_updated_at", label: "Folder Status Updated At", description: "When folder status last changed", default: true },
+    { id: "created_at", label: "Created At", description: "Timestamp when client was created", default: true },
   ],
   matter: [
-    { id: "company_id", label: "Company ID", description: "Internal company identifier", default: false },
+    { id: "company_id", label: "Company ID", description: "Internal company identifier", default: true },
     { id: "client_id", label: "Client ID", description: "Associated client identifier", default: true },
     { id: "status", label: "Status", description: "Matter status (draft, active, done)", default: true },
-    { id: "drive_folder_id", label: "Drive Folder ID", description: "Matter's Google Drive folder", default: false },
-    { id: "folder_status", label: "Folder Status", description: "Drive folder creation status", default: false },
-    { id: "folder_status_updated_at", label: "Folder Status Updated At", description: "When folder status last changed", default: false },
-    { id: "created_at", label: "Created At", description: "Timestamp when matter was created", default: false },
+    { id: "drive_folder_id", label: "Drive Folder ID", description: "Matter's Google Drive folder", default: true },
+    { id: "folder_status", label: "Folder Status", description: "Drive folder creation status", default: true },
+    { id: "folder_status_updated_at", label: "Folder Status Updated At", description: "When folder status last changed", default: true },
+    { id: "created_at", label: "Created At", description: "Timestamp when matter was created", default: true },
   ],
 };
 
