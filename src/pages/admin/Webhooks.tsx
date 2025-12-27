@@ -516,7 +516,7 @@ export default function AdminWebhooks() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>URL</TableHead>
-                    <TableHead>Topics</TableHead>
+                    <TableHead>Events</TableHead>
                     <TableHead>Timeout</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
@@ -525,7 +525,10 @@ export default function AdminWebhooks() {
                 </TableHeader>
                 <TableBody>
                   {webhooks?.map((webhook) => {
-                    const topics = getWebhookTopics(webhook.events);
+                    // Group events by topic for display
+                    const clientEvents = webhook.events.filter(e => e.startsWith("client."));
+                    const matterEvents = webhook.events.filter(e => e.startsWith("matter."));
+                    
                     return (
                     <TableRow key={webhook.id}>
                       <TableCell className="font-medium">{webhook.name}</TableCell>
@@ -533,14 +536,29 @@ export default function AdminWebhooks() {
                         {webhook.url}
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {topics.map((topic) => (
-                            <Badge key={topic} variant="secondary" className="text-xs">
-                              {topic}
-                            </Badge>
-                          ))}
-                          {topics.length === 0 && (
-                            <span className="text-xs text-muted-foreground">No topics</span>
+                        <div className="flex flex-col gap-1.5">
+                          {clientEvents.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className="text-xs font-medium text-muted-foreground w-12">Client:</span>
+                              {clientEvents.map((event) => (
+                                <Badge key={event} variant="secondary" className="text-xs">
+                                  {event.split(".")[1]}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          {matterEvents.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className="text-xs font-medium text-muted-foreground w-12">Matter:</span>
+                              {matterEvents.map((event) => (
+                                <Badge key={event} variant="secondary" className="text-xs">
+                                  {event.split(".")[1]}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          {webhook.events.length === 0 && (
+                            <span className="text-xs text-muted-foreground">No events</span>
                           )}
                         </div>
                       </TableCell>
