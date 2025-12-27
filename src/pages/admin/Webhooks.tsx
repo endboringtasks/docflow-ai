@@ -360,6 +360,22 @@ export default function AdminWebhooks() {
     },
   });
 
+  const toggleAllWebhooks = useMutation({
+    mutationFn: async (activate: boolean) => {
+      if (!webhooks) return;
+      const ids = webhooks.map(w => w.id);
+      const { error } = await supabase
+        .from("platform_webhooks")
+        .update({ is_active: activate })
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: (_, activate) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
+      toast.success(activate ? "All webhooks resumed" : "All webhooks paused");
+    },
+  });
+
   const copySecret = (secret: string) => {
     navigator.clipboard.writeText(secret);
     toast.success("Secret copied to clipboard");
@@ -449,16 +465,30 @@ export default function AdminWebhooks() {
               Connect to external tools like Make.com, Zapier, or n8n
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) resetForm();
-          }}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Webhook
-              </Button>
-            </DialogTrigger>
+          <div className="flex items-center gap-4">
+            {webhooks && webhooks.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Label htmlFor="pause-all" className="text-sm text-muted-foreground">
+                  {webhooks.some(w => w.is_active) ? "Pause All" : "Resume All"}
+                </Label>
+                <Switch
+                  id="pause-all"
+                  checked={webhooks.some(w => w.is_active)}
+                  onCheckedChange={(checked) => toggleAllWebhooks.mutate(checked)}
+                  disabled={toggleAllWebhooks.isPending}
+                />
+              </div>
+            )}
+            <Dialog open={isDialogOpen} onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) resetForm();
+            }}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Webhook
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>{editingWebhook ? "Edit Webhook" : "Create Webhook"}</DialogTitle>
@@ -616,6 +646,7 @@ export default function AdminWebhooks() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Info Card */}
