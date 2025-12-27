@@ -20,6 +20,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -33,7 +43,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Webhook, Plus, Trash2, Copy, ExternalLink, Code, ChevronDown, ChevronRight, Send, Loader2, Pencil } from "lucide-react";
+import { Webhook, Plus, Trash2, Copy, ExternalLink, Code, ChevronDown, ChevronRight, Send, Loader2, Pencil, CopyPlus } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -208,6 +218,8 @@ export default function AdminWebhooks() {
     timeout_seconds: 10,
   });
 
+  const [deletingWebhook, setDeletingWebhook] = useState<{ id: string; name: string } | null>(null);
+
   const resetForm = () => {
     setNewWebhook({
       name: "",
@@ -223,6 +235,18 @@ export default function AdminWebhooks() {
     setEditingWebhook({ id: webhook.id });
     setNewWebhook({
       name: webhook.name,
+      url: webhook.url,
+      events: webhook.events || [],
+      included_fields: webhook.included_fields || getDefaultFields(),
+      timeout_seconds: webhook.timeout_seconds ?? 10,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const openDuplicateDialog = (webhook: any) => {
+    setEditingWebhook(null);
+    setNewWebhook({
+      name: `${webhook.name} (Copy)`,
       url: webhook.url,
       events: webhook.events || [],
       included_fields: webhook.included_fields || getDefaultFields(),
@@ -331,6 +355,7 @@ export default function AdminWebhooks() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
+      setDeletingWebhook(null);
       toast.success("Webhook deleted");
     },
   });
@@ -749,6 +774,14 @@ export default function AdminWebhooks() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => openDuplicateDialog(webhook)}
+                            title="Duplicate webhook"
+                          >
+                            <CopyPlus className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => testWebhook.mutate({ webhookId: webhook.id, events: webhook.events })}
                             disabled={!webhook.is_active || testingWebhookId === webhook.id}
                             title={!webhook.is_active ? "Enable webhook to test" : "Send test payload"}
@@ -762,7 +795,7 @@ export default function AdminWebhooks() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => deleteWebhook.mutate(webhook.id)}
+                            onClick={() => setDeletingWebhook({ id: webhook.id, name: webhook.name })}
                             title="Delete webhook"
                           >
                             <Trash2 className="w-4 h-4 text-destructive" />
@@ -778,6 +811,27 @@ export default function AdminWebhooks() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingWebhook} onOpenChange={(open) => !open && setDeletingWebhook(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Webhook</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deletingWebhook?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingWebhook && deleteWebhook.mutate(deletingWebhook.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 }
