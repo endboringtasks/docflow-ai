@@ -105,18 +105,14 @@ export default function WebhookMonitoring() {
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
-  // Fetch hourly stats
+  // Fetch hourly stats using RPC function
   const { data: hourlyStats, isLoading: statsLoading } = useQuery({
     queryKey: ["webhook-hourly-stats"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("webhook_hourly_stats")
-        .select("*")
-        .order("hour", { ascending: false })
-        .limit(168); // Last 7 days
+      const { data, error } = await supabase.rpc("get_webhook_hourly_stats");
 
       if (error) throw error;
-      return data as HourlyStat[];
+      return (data as HourlyStat[])?.slice(0, 168) || []; // Last 7 days
     },
     refetchInterval: 60000,
   });
