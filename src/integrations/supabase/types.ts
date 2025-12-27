@@ -817,20 +817,7 @@ export type Database = {
       }
     }
     Views: {
-      webhook_hourly_stats: {
-        Row: {
-          avg_duration_ms: number | null
-          client_error_count: number | null
-          endpoint: string | null
-          hour: string | null
-          max_duration_ms: number | null
-          rate_limited_count: number | null
-          server_error_count: number | null
-          success_count: number | null
-          total_requests: number | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       check_rate_limit: {
@@ -917,6 +904,20 @@ export type Database = {
           matter_name: string
           status: string
           visa_subclass: string
+        }[]
+      }
+      get_webhook_hourly_stats: {
+        Args: never
+        Returns: {
+          avg_duration_ms: number
+          client_error_count: number
+          endpoint: string
+          hour: string
+          max_duration_ms: number
+          rate_limited_count: number
+          server_error_count: number
+          success_count: number
+          total_requests: number
         }[]
       }
       has_client_access: {
