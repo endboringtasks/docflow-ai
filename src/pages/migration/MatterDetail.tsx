@@ -1078,9 +1078,6 @@ const MatterDetail = () => {
                           <span className={doc.completed ? "line-through text-muted-foreground" : ""}>
                             {doc.name}
                           </span>
-                          {doc.required && (
-                            <Badge variant="destructive" className="text-xs">Required</Badge>
-                          )}
                           {/* Review Status Badge */}
                           {doc.filePath && doc.reviewStatus === "approved" && (
                             <Badge variant="default" className="text-xs bg-green-600">
