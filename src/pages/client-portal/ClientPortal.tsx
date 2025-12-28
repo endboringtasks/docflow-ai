@@ -10,6 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
   Loader2, 
   FileText, 
@@ -262,37 +269,38 @@ export default function ClientPortal() {
   };
 
   const handleFileUpload = async (docId: string, file: File) => {
-    if (!portalAccess) return;
+    if (!portalAccess || !token) return;
 
     try {
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${docId}/${Date.now()}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from("document-attachments")
-        .upload(filePath, file);
-      
-      if (uploadError) throw uploadError;
-      
-      const { error: updateError } = await supabase
-        .from("document_checklist")
-        .update({ file_path: filePath, is_completed: true })
-        .eq("id", docId);
-      
-      if (updateError) throw updateError;
+      // Use edge function for unauthenticated upload
+      const formData = new FormData();
+      formData.append('token', token);
+      formData.append('doc_id', docId);
+      formData.append('file', file);
 
-      // Refresh documents
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-portal-upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload failed');
+      }
+
+      // Refresh documents using secure RPC
       const { data: docsData } = await supabase
-        .from("document_checklist")
-        .select("id, document_name, is_completed, file_path")
-        .eq("matter_id", portalAccess.matter_id)
-        .order("created_at", { ascending: true });
+        .rpc("get_portal_documents", { p_token: token });
 
       if (docsData) setDocuments(docsData);
       toast.success("Document uploaded successfully");
     } catch (err) {
       console.error("Upload failed:", err);
-      toast.error("Failed to upload document");
+      toast.error(err instanceof Error ? err.message : "Failed to upload document");
     }
   };
 
@@ -315,7 +323,7 @@ export default function ClientPortal() {
       // Note: Notifications are handled separately since this is unauthenticated access
       // The edge function or backend should handle notifying team members
 
-      setPortalAccess({ ...portalAccess, is_submitted: true });
+      setPortalAccess({ ...portalAccess, is_submitted: true, submitted_at: new Date().toISOString() });
       setIsSubmitDialogOpen(false);
       toast.success("Application submitted successfully!");
     } catch (err) {
@@ -453,12 +461,39 @@ export default function ClientPortal() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="nationality">Nationality</Label>
-                    <Input
-                      id="nationality"
+                    <Select
                       value={formData.personal_info.nationality}
-                      onChange={(e) => updateFormField("personal_info", "nationality", e.target.value)}
-                      placeholder="Enter your nationality"
-                    />
+                      onValueChange={(value) => updateFormField("personal_info", "nationality", value)}
+                    >
+                      <SelectTrigger id="nationality">
+                        <SelectValue placeholder="Select your nationality" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[
+                          "Afghan", "Albanian", "Algerian", "American", "Andorran", "Angolan", "Argentine", "Armenian", "Australian", "Austrian",
+                          "Azerbaijani", "Bahamian", "Bahraini", "Bangladeshi", "Barbadian", "Belarusian", "Belgian", "Belizean", "Beninese", "Bhutanese",
+                          "Bolivian", "Bosnian", "Brazilian", "British", "Bruneian", "Bulgarian", "Burkinabe", "Burmese", "Burundian", "Cambodian",
+                          "Cameroonian", "Canadian", "Cape Verdean", "Central African", "Chadian", "Chilean", "Chinese", "Colombian", "Comorian", "Congolese",
+                          "Costa Rican", "Croatian", "Cuban", "Cypriot", "Czech", "Danish", "Djiboutian", "Dominican", "Dutch", "Ecuadorian",
+                          "Egyptian", "Emirati", "Equatorial Guinean", "Eritrean", "Estonian", "Ethiopian", "Fijian", "Filipino", "Finnish", "French",
+                          "Gabonese", "Gambian", "Georgian", "German", "Ghanaian", "Greek", "Grenadian", "Guatemalan", "Guinean", "Guyanese",
+                          "Haitian", "Honduran", "Hungarian", "Icelandic", "Indian", "Indonesian", "Iranian", "Iraqi", "Irish", "Israeli",
+                          "Italian", "Ivorian", "Jamaican", "Japanese", "Jordanian", "Kazakh", "Kenyan", "Kuwaiti", "Kyrgyz", "Laotian",
+                          "Latvian", "Lebanese", "Liberian", "Libyan", "Lithuanian", "Luxembourgish", "Macedonian", "Malagasy", "Malawian", "Malaysian",
+                          "Maldivian", "Malian", "Maltese", "Mauritanian", "Mauritian", "Mexican", "Moldovan", "Monacan", "Mongolian", "Montenegrin",
+                          "Moroccan", "Mozambican", "Namibian", "Nepalese", "New Zealand", "Nicaraguan", "Nigerian", "North Korean", "Norwegian", "Omani",
+                          "Pakistani", "Palestinian", "Panamanian", "Paraguayan", "Peruvian", "Polish", "Portuguese", "Qatari", "Romanian", "Russian",
+                          "Rwandan", "Saudi", "Senegalese", "Serbian", "Singaporean", "Slovak", "Slovenian", "Somali", "South African", "South Korean",
+                          "Spanish", "Sri Lankan", "Sudanese", "Surinamese", "Swedish", "Swiss", "Syrian", "Taiwanese", "Tajik", "Tanzanian",
+                          "Thai", "Togolese", "Trinidadian", "Tunisian", "Turkish", "Turkmen", "Ugandan", "Ukrainian", "Uruguayan", "Uzbek",
+                          "Venezuelan", "Vietnamese", "Yemeni", "Zambian", "Zimbabwean"
+                        ].map((nationality) => (
+                          <SelectItem key={nationality} value={nationality}>
+                            {nationality}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="passport_number">Passport Number</Label>
