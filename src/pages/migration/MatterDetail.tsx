@@ -21,7 +21,10 @@ import {
   X,
   File,
   ExternalLink,
-  Mail
+  Mail,
+  Eye,
+  AlertCircle,
+  XCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -61,6 +64,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { InviteClientDialog } from "@/components/matter/InviteClientDialog";
+import { DocumentPreviewDialog, ReviewStatus } from "@/components/matter/DocumentPreviewDialog";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Matter {
   id: string;
@@ -90,6 +95,8 @@ interface DocumentItem {
   required: boolean;
   completed: boolean;
   filePath: string | null;
+  reviewStatus: ReviewStatus;
+  reviewComment: string | null;
 }
 
 interface DbDocumentItem {
@@ -99,6 +106,10 @@ interface DbDocumentItem {
   document_name: string;
   is_completed: boolean;
   file_path: string | null;
+  review_status: string | null;
+  review_comment: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -120,9 +131,11 @@ const statusOptions = [
   { value: "done", label: "Done", description: "Application is completed" },
 ];
 
-// Default document checklist based on visa subclass
-const getDefaultDocuments = (visaSubclass: string | null): Omit<DocumentItem, "id" | "filePath">[] => {
-  const baseDocuments: Omit<DocumentItem, "id" | "filePath">[] = [
+// Default document checklist based on visa subclass (excluding review fields which are set on DB insert)
+type DefaultDocFields = Omit<DocumentItem, "id" | "filePath" | "reviewStatus" | "reviewComment">;
+
+const getDefaultDocuments = (visaSubclass: string | null): DefaultDocFields[] => {
+  const baseDocuments: DefaultDocFields[] = [
     { name: "Passport (certified copy)", category: "Identity", required: true, completed: false },
     { name: "Birth Certificate", category: "Identity", required: true, completed: false },
     { name: "Passport Photos", category: "Identity", required: true, completed: false },
@@ -130,7 +143,7 @@ const getDefaultDocuments = (visaSubclass: string | null): Omit<DocumentItem, "i
     { name: "Health Examination Results", category: "Health", required: true, completed: false },
   ];
 
-  const additionalDocsByVisa: Record<string, Omit<DocumentItem, "id" | "filePath">[]> = {
+  const additionalDocsByVisa: Record<string, DefaultDocFields[]> = {
     "482": [
       { name: "Employment Contract", category: "Employment", required: true, completed: false },
       { name: "Skills Assessment", category: "Skills", required: true, completed: false },
@@ -183,7 +196,7 @@ const parseDocumentName = (name: string): { displayName: string; category: strin
 };
 
 // Format document for storage
-const formatDocumentForStorage = (doc: Omit<DocumentItem, "id" | "completed" | "filePath">): string => {
+const formatDocumentForStorage = (doc: DefaultDocFields): string => {
   if (doc.category === "Custom") {
     return `[Custom] ${doc.name}`;
   }
@@ -195,12 +208,14 @@ const MatterDetail = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentCompany } = useCompany();
+  const { user } = useAuth();
   
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [newDocName, setNewDocName] = useState("");
   const [documentsInitialized, setDocumentsInitialized] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
   
   const [editForm, setEditForm] = useState({
     matterName: "",
@@ -261,7 +276,7 @@ const MatterDetail = () => {
 
   // Initialize documents in database if none exist
   const initializeDocumentsMutation = useMutation({
-    mutationFn: async (docs: Omit<DocumentItem, "id" | "filePath">[]) => {
+    mutationFn: async (docs: DefaultDocFields[]) => {
       if (!matterId || !matter?.company_id) throw new Error("Missing IDs");
       
       const documentsToInsert = docs.map(doc => ({
@@ -306,6 +321,8 @@ const MatterDetail = () => {
       required: parsed.required,
       completed: doc.is_completed,
       filePath: doc.file_path,
+      reviewStatus: (doc.review_status as ReviewStatus) || "pending",
+      reviewComment: doc.review_comment,
     };
   });
 
@@ -438,6 +455,40 @@ const MatterDetail = () => {
       toast.error("Failed to remove file", { description: error.message });
     },
   });
+
+  // Update document review status
+  const updateReviewMutation = useMutation({
+    mutationFn: async ({ docId, status, comment }: { docId: string; status: ReviewStatus; comment: string }) => {
+      const { error } = await supabase
+        .from("document_checklist")
+        .update({
+          review_status: status,
+          review_comment: comment || null,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: user?.id,
+        })
+        .eq("id", docId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
+    },
+    onError: (error) => {
+      toast.error("Failed to update review", { description: error.message });
+    },
+  });
+
+  // Handle review update from dialog
+  const handleReviewUpdate = async (docId: string, status: ReviewStatus, comment: string) => {
+    await updateReviewMutation.mutateAsync({ docId, status, comment });
+  };
+
+  // Handle request for new/different document
+  const handleRequestNewDocument = async (docId: string, comment: string) => {
+    await updateReviewMutation.mutateAsync({ docId, status: "needs_revision", comment });
+    // TODO: Could trigger notification to client here
+  };
 
   // Update matter mutation
   const updateMatterMutation = useMutation({
@@ -880,7 +931,13 @@ const MatterDetail = () => {
                     <motion.div
                       key={doc.id}
                       className={`p-3 rounded-lg border transition-colors ${
-                        doc.completed 
+                        doc.reviewStatus === "approved" 
+                          ? "bg-green-500/5 border-green-500/20"
+                          : doc.reviewStatus === "rejected"
+                          ? "bg-destructive/5 border-destructive/20"
+                          : doc.reviewStatus === "needs_revision"
+                          ? "bg-amber-500/5 border-amber-500/20"
+                          : doc.completed 
                           ? "bg-primary/5 border-primary/20" 
                           : "bg-secondary/50 border-border/50"
                       }`}
@@ -900,6 +957,25 @@ const MatterDetail = () => {
                           {doc.required && (
                             <Badge variant="destructive" className="text-xs">Required</Badge>
                           )}
+                          {/* Review Status Badge */}
+                          {doc.filePath && doc.reviewStatus === "approved" && (
+                            <Badge variant="default" className="text-xs bg-green-600">
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              Approved
+                            </Badge>
+                          )}
+                          {doc.filePath && doc.reviewStatus === "rejected" && (
+                            <Badge variant="destructive" className="text-xs">
+                              <XCircle className="w-3 h-3 mr-1" />
+                              Rejected
+                            </Badge>
+                          )}
+                          {doc.filePath && doc.reviewStatus === "needs_revision" && (
+                            <Badge variant="outline" className="text-xs text-amber-600 border-amber-500">
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              Needs Revision
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           {/* File actions */}
@@ -909,6 +985,15 @@ const MatterDetail = () => {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-primary"
+                                onClick={() => setPreviewDoc(doc)}
+                                title="Preview & Review"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground"
                                 onClick={() => handleDownloadFile(doc.filePath!, doc.name)}
                                 title="Download file"
                               >
@@ -967,13 +1052,20 @@ const MatterDetail = () => {
                           )}
                         </div>
                       </div>
-                      {/* File indicator */}
+                      {/* File indicator with review comment */}
                       {doc.filePath && (
-                        <div className="mt-2 ml-8 flex items-center gap-2 text-sm text-muted-foreground">
-                          <File className="w-3 h-3" />
-                          <span className="truncate max-w-[200px]">
-                            {doc.filePath.split('/').pop()}
-                          </span>
+                        <div className="mt-2 ml-8 space-y-1">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <File className="w-3 h-3" />
+                            <span className="truncate max-w-[200px]">
+                              {doc.filePath.split('/').pop()}
+                            </span>
+                          </div>
+                          {doc.reviewComment && (
+                            <p className="text-sm text-muted-foreground italic pl-5">
+                              "{doc.reviewComment}"
+                            </p>
+                          )}
                         </div>
                       )}
                     </motion.div>
@@ -1182,6 +1274,15 @@ const MatterDetail = () => {
           clientEmail={client?.email || null}
           companyId={matter.company_id}
           matterName={matter.matter_name}
+        />
+
+        {/* Document Preview Dialog */}
+        <DocumentPreviewDialog
+          open={!!previewDoc}
+          onOpenChange={(open) => !open && setPreviewDoc(null)}
+          document={previewDoc}
+          onReviewUpdate={handleReviewUpdate}
+          onRequestNewDocument={handleRequestNewDocument}
         />
       </div>
     </AppLayout>
