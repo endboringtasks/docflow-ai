@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
     // Update the document checklist
     const { error: updateError } = await supabase
       .from('document_checklist')
-      .update({ file_path: filePath, is_completed: true })
+      .update({ file_path: filePath, is_completed: true, uploaded_at: new Date().toISOString() })
       .eq('id', docId)
 
     if (updateError) {

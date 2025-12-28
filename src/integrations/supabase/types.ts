@@ -320,6 +320,7 @@ export type Database = {
           reviewed_at: string | null
           reviewed_by: string | null
           updated_at: string
+          uploaded_at: string | null
         }
         Insert: {
           company_id: string
@@ -334,6 +335,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           updated_at?: string
+          uploaded_at?: string | null
         }
         Update: {
           company_id?: string
@@ -348,6 +350,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           updated_at?: string
+          uploaded_at?: string | null
         }
         Relationships: [
           {
