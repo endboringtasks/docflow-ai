@@ -584,7 +584,7 @@ export default function ClientPortal() {
                   Thank you for submitting your documents. Your agent will review them and contact you if anything else is needed.
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Submitted on {new Date(portalAccess.submitted_at!).toLocaleDateString()}
+                  Submitted on {new Date(portalAccess.submitted_at!).toLocaleString()}
                 </p>
               </CardContent>
             </Card>
