@@ -121,7 +121,7 @@ async function hydratePayloadData(
       const { data: matterRow, error } = await supabase
         .from("matters")
         .select(
-          "id, company_id, client_id, matter_name, visa_subclass, status, drive_folder_id, folder_status, folder_status_updated_at, created_at"
+          "id, company_id, client_id, matter_name, visa_subclass, status, visa_application_folder_id, folder_status, folder_status_updated_at, created_at"
         )
         .eq("id", matterId)
         .maybeSingle();
@@ -137,7 +137,7 @@ async function hydratePayloadData(
           matter_name: matterRow.matter_name,
           visa_subclass: matterRow.visa_subclass,
           status: matterRow.status,
-          drive_folder_id: matterRow.drive_folder_id,
+          visa_application_folder_id: matterRow.visa_application_folder_id,
           folder_status: matterRow.folder_status,
           folder_status_updated_at: matterRow.folder_status_updated_at,
           created_at: matterRow.created_at,
@@ -457,10 +457,11 @@ Deno.serve(async (req) => {
               const table = entityType === "client" ? "clients" : "matters";
               console.log(`Updating ${table} ${entityId} with folder_id: ${folderId}`);
 
+              const folderColumn = entityType === "client" ? "drive_folder_id" : "visa_application_folder_id";
               const { error: updateError } = await supabase
                 .from(table)
                 .update({
-                  drive_folder_id: folderId,
+                  [folderColumn]: folderId,
                   folder_status: "created",
                 })
                 .eq("id", entityId);
@@ -478,7 +479,7 @@ Deno.serve(async (req) => {
                   matter_id: entityType === "matter" ? entityId : null,
                   event_type: eventType,
                   payload: {
-                    drive_folder_id: folderId,
+                    folder_id: folderId,
                     source: "make_webhook_response",
                     timestamp: new Date().toISOString(),
                   },
