@@ -90,7 +90,7 @@ export function NotificationBell() {
     }
 
     if (notification.metadata?.matter_id) {
-      navigate(`/app/migration/matters/${notification.metadata.matter_id}`);
+      navigate(`/app/migration/visa-applications/${notification.metadata.matter_id}`);
       setOpen(false);
     }
   };

@@ -201,7 +201,7 @@ const MigrationDashboard = () => {
               </Link>
             </Button>
             <Button variant="gradient" asChild>
-              <Link to="/app/migration/matters">
+              <Link to="/app/migration/visa-applications">
                 <Plus className="w-4 h-4 mr-2" />
                 New Application
               </Link>
@@ -292,7 +292,7 @@ const MigrationDashboard = () => {
                 Create your first visa application to get started
               </p>
               <Button variant="gradient" asChild>
-                <Link to="/app/migration/matters">
+                <Link to="/app/migration/visa-applications">
                   <Plus className="w-4 h-4 mr-2" />
                   New Application
                 </Link>
@@ -303,7 +303,7 @@ const MigrationDashboard = () => {
           {filteredMatters.length > 0 && (
             <div className="p-4 border-t border-border/50">
               <Button variant="ghost" className="w-full" asChild>
-                <Link to="/app/migration/matters">
+                <Link to="/app/migration/visa-applications">
                   View All Applications
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Link>
@@ -330,7 +330,7 @@ const MigrationDashboard = () => {
               Review pending document validations and update application statuses.
             </p>
             <Button variant="outline" size="sm" asChild>
-              <Link to="/app/migration/matters">Review Now</Link>
+              <Link to="/app/migration/visa-applications">Review Now</Link>
             </Button>
           </div>
 

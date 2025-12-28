@@ -746,7 +746,7 @@ const MigrationMatters = () => {
                     >
                       <td 
                         className="p-4 cursor-pointer"
-                        onClick={() => navigate(`/app/migration/matters/${matter.id}`)}
+                        onClick={() => navigate(`/app/migration/visa-applications/${matter.id}`)}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-lg gradient-bg flex items-center justify-center">
