@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   Eye,
   AlertCircle,
   XCircle,
+  Filter,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -216,6 +217,7 @@ const MatterDetail = () => {
   const [newDocName, setNewDocName] = useState("");
   const [documentsInitialized, setDocumentsInitialized] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
+  const [reviewFilter, setReviewFilter] = useState<"all" | ReviewStatus>("all");
   
   const [editForm, setEditForm] = useState({
     matterName: "",
@@ -762,7 +764,13 @@ const MatterDetail = () => {
     );
   }
 
-  const groupedDocuments = documents.reduce((acc, doc) => {
+  // Apply review status filter
+  const filteredDocuments = useMemo(() => {
+    if (reviewFilter === "all") return documents;
+    return documents.filter(d => d.reviewStatus === reviewFilter);
+  }, [documents, reviewFilter]);
+
+  const groupedDocuments = filteredDocuments.reduce((acc, doc) => {
     if (!acc[doc.category]) {
       acc[doc.category] = [];
     }
@@ -919,9 +927,38 @@ const MatterDetail = () => {
             {/* Review Status Summary */}
             {documents.some(d => d.filePath) && (
               <div className="card-gradient rounded-xl border border-border/50 p-6">
-                <h3 className="font-semibold mb-4">Review Status</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">Review Status</h3>
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-muted-foreground" />
+                    <Select value={reviewFilter} onValueChange={(value) => setReviewFilter(value as "all" | ReviewStatus)}>
+                      <SelectTrigger className="w-[160px] h-8">
+                        <SelectValue placeholder="Filter by status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Documents</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                        <SelectItem value="needs_revision">Needs Revision</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {reviewFilter !== "all" && (
+                      <Button variant="ghost" size="sm" onClick={() => setReviewFilter("all")} className="h-8 px-2">
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
+                  <button
+                    onClick={() => setReviewFilter(reviewFilter === "pending" ? "all" : "pending")}
+                    className={`flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
+                      reviewFilter === "pending" 
+                        ? "bg-secondary ring-2 ring-primary" 
+                        : "bg-secondary/50 hover:bg-secondary/80"
+                    }`}
+                  >
                     <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
                       <AlertCircle className="w-5 h-5 text-muted-foreground" />
                     </div>
@@ -931,8 +968,15 @@ const MatterDetail = () => {
                       </p>
                       <p className="text-xs text-muted-foreground">Pending</p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-green-500/10">
+                  </button>
+                  <button
+                    onClick={() => setReviewFilter(reviewFilter === "approved" ? "all" : "approved")}
+                    className={`flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
+                      reviewFilter === "approved" 
+                        ? "bg-green-500/20 ring-2 ring-green-500" 
+                        : "bg-green-500/10 hover:bg-green-500/20"
+                    }`}
+                  >
                     <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
                       <CheckCircle2 className="w-5 h-5 text-green-600" />
                     </div>
@@ -942,8 +986,15 @@ const MatterDetail = () => {
                       </p>
                       <p className="text-xs text-muted-foreground">Approved</p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10">
+                  </button>
+                  <button
+                    onClick={() => setReviewFilter(reviewFilter === "needs_revision" ? "all" : "needs_revision")}
+                    className={`flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
+                      reviewFilter === "needs_revision" 
+                        ? "bg-amber-500/20 ring-2 ring-amber-500" 
+                        : "bg-amber-500/10 hover:bg-amber-500/20"
+                    }`}
+                  >
                     <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
                       <AlertCircle className="w-5 h-5 text-amber-600" />
                     </div>
@@ -953,8 +1004,15 @@ const MatterDetail = () => {
                       </p>
                       <p className="text-xs text-muted-foreground">Needs Revision</p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10">
+                  </button>
+                  <button
+                    onClick={() => setReviewFilter(reviewFilter === "rejected" ? "all" : "rejected")}
+                    className={`flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
+                      reviewFilter === "rejected" 
+                        ? "bg-destructive/20 ring-2 ring-destructive" 
+                        : "bg-destructive/10 hover:bg-destructive/20"
+                    }`}
+                  >
                     <div className="w-10 h-10 rounded-full bg-destructive/20 flex items-center justify-center">
                       <XCircle className="w-5 h-5 text-destructive" />
                     </div>
@@ -964,8 +1022,13 @@ const MatterDetail = () => {
                       </p>
                       <p className="text-xs text-muted-foreground">Rejected</p>
                     </div>
-                  </div>
+                  </button>
                 </div>
+                {reviewFilter !== "all" && (
+                  <p className="text-sm text-muted-foreground mt-4">
+                    Showing {filteredDocuments.length} of {documents.length} documents
+                  </p>
+                )}
               </div>
             )}
 
