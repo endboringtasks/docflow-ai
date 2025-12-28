@@ -41,6 +41,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
 
 interface PortalAccess {
   id: string;
@@ -125,6 +129,8 @@ export default function ClientPortal() {
   const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
   const [removingDocId, setRemovingDocId] = useState<string | null>(null);
   const [dragOverDocId, setDragOverDocId] = useState<string | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   // File validation constants
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -418,6 +424,61 @@ export default function ClientPortal() {
     return match ? match[1] : fileName;
   };
 
+  const isImageFile = (filePath: string | null): boolean => {
+    if (!filePath) return false;
+    const ext = filePath.split('.').pop()?.toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '');
+  };
+
+  const getPreviewUrl = async (filePath: string): Promise<string | null> => {
+    if (!token || previewUrls[filePath]) return previewUrls[filePath] || null;
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-portal-get-file-url`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, file_path: filePath }),
+        }
+      );
+
+      const result = await response.json();
+      if (response.ok && result.url) {
+        setPreviewUrls(prev => ({ ...prev, [filePath]: result.url }));
+        return result.url;
+      }
+    } catch (err) {
+      console.error('Failed to get preview URL:', err);
+    }
+    return null;
+  };
+
+  // Load preview URLs for completed documents
+  useEffect(() => {
+    if (!token || documents.length === 0) return;
+
+    const loadPreviews = async () => {
+      for (const doc of documents) {
+        if (doc.is_completed && doc.file_path && isImageFile(doc.file_path) && !previewUrls[doc.file_path]) {
+          await getPreviewUrl(doc.file_path);
+        }
+      }
+    };
+
+    loadPreviews();
+  }, [documents, token]);
+
+  const openPreview = async (filePath: string) => {
+    let url = previewUrls[filePath];
+    if (!url) {
+      url = await getPreviewUrl(filePath) || '';
+    }
+    if (url) {
+      setPreviewImage(url);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!portalAccess) return;
 
@@ -700,7 +761,20 @@ export default function ClientPortal() {
                       onDrop={(e) => !doc.is_completed && handleDrop(e, doc.id)}
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        {doc.is_completed ? (
+                        {/* Thumbnail for images */}
+                        {doc.is_completed && doc.file_path && isImageFile(doc.file_path) && previewUrls[doc.file_path] ? (
+                          <button
+                            type="button"
+                            onClick={() => openPreview(doc.file_path!)}
+                            className="w-10 h-10 rounded border overflow-hidden shrink-0 hover:ring-2 ring-primary transition-all cursor-pointer"
+                          >
+                            <img
+                              src={previewUrls[doc.file_path]}
+                              alt={doc.document_name}
+                              className="w-full h-full object-cover"
+                            />
+                          </button>
+                        ) : doc.is_completed ? (
                           <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
                         ) : (
                           <Circle className="h-5 w-5 text-muted-foreground shrink-0" />
@@ -713,6 +787,15 @@ export default function ClientPortal() {
                             <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
                               <File className="h-3 w-3" />
                               <span className="truncate">{getFileName(doc.file_path)}</span>
+                              {isImageFile(doc.file_path) && previewUrls[doc.file_path] && (
+                                <button
+                                  type="button"
+                                  onClick={() => openPreview(doc.file_path!)}
+                                  className="text-primary hover:underline ml-1"
+                                >
+                                  View
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -866,6 +949,19 @@ export default function ClientPortal() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Image Preview Dialog */}
+      <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
+        <DialogContent className="max-w-3xl p-2">
+          {previewImage && (
+            <img
+              src={previewImage}
+              alt="Document preview"
+              className="w-full h-auto max-h-[80vh] object-contain rounded"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
