@@ -741,6 +741,22 @@ const MatterDetail = () => {
   const requiredCompleted = documents.filter(d => d.required && d.completed).length;
   const progress = documents.length > 0 ? Math.round((completedCount / documents.length) * 100) : 0;
 
+  // Apply review status filter - MUST be before any conditional returns (hooks rule)
+  const filteredDocuments = useMemo(() => {
+    if (reviewFilter === "all") return documents;
+    return documents.filter(d => d.reviewStatus === reviewFilter);
+  }, [documents, reviewFilter]);
+
+  const groupedDocuments = useMemo(() => {
+    return filteredDocuments.reduce((acc, doc) => {
+      if (!acc[doc.category]) {
+        acc[doc.category] = [];
+      }
+      acc[doc.category].push(doc);
+      return acc;
+    }, {} as Record<string, DocumentItem[]>);
+  }, [filteredDocuments]);
+
   const isLoading = isLoadingMatter || isLoadingClient || isLoadingDocuments;
 
   if (isLoading) {
@@ -770,21 +786,6 @@ const MatterDetail = () => {
       </AppLayout>
     );
   }
-
-  // Apply review status filter
-  const filteredDocuments = useMemo(() => {
-    if (reviewFilter === "all") return documents;
-    return documents.filter(d => d.reviewStatus === reviewFilter);
-  }, [documents, reviewFilter]);
-
-  const groupedDocuments = filteredDocuments.reduce((acc, doc) => {
-    if (!acc[doc.category]) {
-      acc[doc.category] = [];
-    }
-    acc[doc.category].push(doc);
-    return acc;
-  }, {} as Record<string, DocumentItem[]>);
-
   return (
     <AppLayout niche="migration">
       <div className="p-6 lg:p-8 space-y-6">
