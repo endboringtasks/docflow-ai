@@ -57,8 +57,8 @@ const WEBHOOK_TOPICS = [
   },
   {
     id: "matters",
-    label: "Matter",
-    description: "All matter/application lifecycle events",
+    label: "Visa Application",
+    description: "All visa application lifecycle events",
     events: ["matter.created", "matter.updated", "matter.deleted"],
   },
 ];
@@ -81,17 +81,17 @@ const ALL_FIELDS = {
     { id: "created_at", label: "Created At", description: "Timestamp when client was created", default: true },
   ],
   matter: [
-    { id: "matter_id", label: "Matter ID", description: "Unique matter identifier", default: true },
-    { id: "matter_name", label: "Matter Name", description: "Name of the matter/case", default: true },
+    { id: "matter_id", label: "Application ID", description: "Unique visa application identifier", default: true },
+    { id: "matter_name", label: "Application Name", description: "Name of the visa application", default: true },
     { id: "visa_subclass", label: "Visa Subclass", description: "Visa type being applied for", default: true },
     { id: "company_id", label: "Organization ID", description: "Your firm/agency identifier", default: true },
     { id: "client_id", label: "Client ID", description: "Associated client identifier", default: true },
     { id: "client_folder_id", label: "Client Folder ID", description: "Client's Google Drive folder", default: true },
-    { id: "status", label: "Status", description: "Matter status (draft, active, done)", default: true },
-    { id: "drive_folder_id", label: "Drive Folder ID", description: "Matter's Google Drive folder", default: true },
+    { id: "status", label: "Status", description: "Application status (draft, active, done)", default: true },
+    { id: "drive_folder_id", label: "Drive Folder ID", description: "Application's Google Drive folder", default: true },
     { id: "folder_status", label: "Folder Status", description: "Drive folder creation status", default: true },
     { id: "folder_status_updated_at", label: "Folder Status Updated At", description: "When folder status last changed", default: true },
-    { id: "created_at", label: "Created At", description: "Timestamp when matter was created", default: true },
+    { id: "created_at", label: "Created At", description: "Timestamp when application was created", default: true },
   ],
 };
 
@@ -349,7 +349,7 @@ export default function AdminWebhooks() {
         last_name: "Client",
       } : {
         matter_id: "660e8400-e29b-41d4-a716-446655440001",
-        matter_name: "Test Matter",
+        matter_name: "Test Visa Application",
         visa_subclass: "820/801",
         client_id: "550e8400-e29b-41d4-a716-446655440000",
       };
