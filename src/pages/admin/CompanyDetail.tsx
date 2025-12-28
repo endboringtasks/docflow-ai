@@ -279,7 +279,7 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
             <div className="flex flex-col items-center p-3 rounded-lg bg-muted/50">
               <FileText className="w-5 h-5 text-muted-foreground mb-1" />
               <span className="text-xl font-semibold">{stats?.matters ?? 0}</span>
-              <span className="text-xs text-muted-foreground">Matters</span>
+              <span className="text-xs text-muted-foreground">Visa Applications</span>
             </div>
           </div>
 

@@ -56,7 +56,7 @@ const Privacy = () => {
                 <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
                   <li>Account information (name, email address, password)</li>
                   <li>Company information (company name, industry type)</li>
-                  <li>Client and matter data you input into the platform</li>
+                  <li>Client and visa application data you input into the platform</li>
                   <li>Documents you upload for processing</li>
                   <li>Payment and billing information</li>
                   <li>Communications you send to us</li>
