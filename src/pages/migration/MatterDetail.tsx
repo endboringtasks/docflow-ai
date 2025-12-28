@@ -26,6 +26,8 @@ import {
   AlertCircle,
   XCircle,
   Filter,
+  Clock,
+  Calendar,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -98,6 +100,8 @@ interface DocumentItem {
   filePath: string | null;
   reviewStatus: ReviewStatus;
   reviewComment: string | null;
+  uploadedAt: string | null;
+  reviewedAt: string | null;
 }
 
 interface DbDocumentItem {
@@ -111,6 +115,7 @@ interface DbDocumentItem {
   review_comment: string | null;
   reviewed_at: string | null;
   reviewed_by: string | null;
+  uploaded_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -132,8 +137,8 @@ const statusOptions = [
   { value: "done", label: "Done", description: "Application is completed" },
 ];
 
-// Default document checklist based on visa subclass (excluding review fields which are set on DB insert)
-type DefaultDocFields = Omit<DocumentItem, "id" | "filePath" | "reviewStatus" | "reviewComment">;
+// Default document checklist based on visa subclass (excluding DB-only fields)
+type DefaultDocFields = Omit<DocumentItem, "id" | "filePath" | "reviewStatus" | "reviewComment" | "uploadedAt" | "reviewedAt">;
 
 const getDefaultDocuments = (visaSubclass: string | null): DefaultDocFields[] => {
   const baseDocuments: DefaultDocFields[] = [
@@ -325,6 +330,8 @@ const MatterDetail = () => {
       filePath: doc.file_path,
       reviewStatus: (doc.review_status as ReviewStatus) || "pending",
       reviewComment: doc.review_comment,
+      uploadedAt: doc.uploaded_at,
+      reviewedAt: doc.reviewed_at,
     };
   });
 
@@ -417,7 +424,7 @@ const MatterDetail = () => {
       
       const { error: updateError } = await supabase
         .from("document_checklist")
-        .update({ file_path: filePath })
+        .update({ file_path: filePath, uploaded_at: new Date().toISOString() })
         .eq("id", docId);
       
       if (updateError) throw updateError;
@@ -1093,6 +1100,23 @@ const MatterDetail = () => {
                             </Badge>
                           )}
                         </div>
+                        {/* Document Timeline */}
+                        {(doc.uploadedAt || doc.reviewedAt) && (
+                          <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-muted-foreground">
+                            {doc.uploadedAt && (
+                              <span className="flex items-center gap-1">
+                                <Upload className="w-3 h-3" />
+                                Uploaded {new Date(doc.uploadedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                              </span>
+                            )}
+                            {doc.reviewedAt && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                Reviewed {new Date(doc.reviewedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                              </span>
+                            )}
+                          </div>
+                        )}
                         <div className="flex items-center gap-2">
                           {/* File actions */}
                           {doc.filePath ? (
