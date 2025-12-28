@@ -120,6 +120,19 @@ export default function ClientPortal() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
+
+  // File validation constants
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const ALLOWED_FILE_TYPES = [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/heic',
+  ];
+  const ALLOWED_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'];
 
   // Load portal data
   useEffect(() => {
@@ -268,9 +281,38 @@ export default function ClientPortal() {
     });
   };
 
+  const validateFile = (file: File): string | null => {
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return `File size exceeds 10MB limit. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB.`;
+    }
+
+    // Check file type
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (!extension || !ALLOWED_EXTENSIONS.includes(extension)) {
+      return `Invalid file type. Allowed types: PDF, JPG, PNG, GIF, WebP, HEIC`;
+    }
+
+    // Also check MIME type if available
+    if (file.type && !ALLOWED_FILE_TYPES.includes(file.type) && file.type !== '') {
+      return `Invalid file type. Allowed types: PDF, JPG, PNG, GIF, WebP, HEIC`;
+    }
+
+    return null;
+  };
+
   const handleFileUpload = async (docId: string, file: File) => {
     if (!portalAccess || !token) return;
 
+    // Validate file before upload
+    const validationError = validateFile(file);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
+    setUploadingDocId(docId);
+    
     try {
       // Use edge function for unauthenticated upload
       const formData = new FormData();
@@ -301,6 +343,8 @@ export default function ClientPortal() {
     } catch (err) {
       console.error("Upload failed:", err);
       toast.error(err instanceof Error ? err.message : "Failed to upload document");
+    } finally {
+      setUploadingDocId(null);
     }
   };
 
@@ -588,22 +632,32 @@ export default function ClientPortal() {
                         </span>
                       </div>
                       {!doc.is_completed && (
-                        <label className="cursor-pointer">
-                          <input
-                            type="file"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) handleFileUpload(doc.id, file);
-                            }}
-                          />
-                          <Button size="sm" variant="outline" asChild>
-                            <span>
-                              <Upload className="h-4 w-4 mr-2" />
-                              Upload
-                            </span>
-                          </Button>
-                        </label>
+                        uploadingDocId === doc.id ? (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Uploading...</span>
+                          </div>
+                        ) : (
+                          <label className={`cursor-pointer ${uploadingDocId ? 'pointer-events-none opacity-50' : ''}`}>
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic"
+                              disabled={!!uploadingDocId}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleFileUpload(doc.id, file);
+                                e.target.value = ''; // Reset input for re-upload
+                              }}
+                            />
+                            <Button size="sm" variant="outline" asChild disabled={!!uploadingDocId}>
+                              <span>
+                                <Upload className="h-4 w-4 mr-2" />
+                                Upload
+                              </span>
+                            </Button>
+                          </label>
+                        )
                       )}
                     </div>
                   ))}
