@@ -916,6 +916,59 @@ const MatterDetail = () => {
               </p>
             </div>
 
+            {/* Review Status Summary */}
+            {documents.some(d => d.filePath) && (
+              <div className="card-gradient rounded-xl border border-border/50 p-6">
+                <h3 className="font-semibold mb-4">Review Status</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                      <AlertCircle className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">
+                        {documents.filter(d => d.filePath && d.reviewStatus === "pending").length}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Pending</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-green-500/10">
+                    <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-green-600">
+                        {documents.filter(d => d.reviewStatus === "approved").length}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Approved</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10">
+                    <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                      <AlertCircle className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-amber-600">
+                        {documents.filter(d => d.reviewStatus === "needs_revision").length}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Needs Revision</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10">
+                    <div className="w-10 h-10 rounded-full bg-destructive/20 flex items-center justify-center">
+                      <XCircle className="w-5 h-5 text-destructive" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-destructive">
+                        {documents.filter(d => d.reviewStatus === "rejected").length}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Rejected</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Document Categories */}
             {Object.entries(groupedDocuments).map(([category, docs]) => (
               <div key={category} className="card-gradient rounded-xl border border-border/50 p-6">
