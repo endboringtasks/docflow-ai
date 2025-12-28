@@ -645,7 +645,7 @@ const MatterDetail = () => {
       
       queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
       toast.success("Application deleted");
-      navigate("/app/migration/matters");
+      navigate("/app/migration/visa-applications");
     },
     onError: (error) => {
       toast.error("Failed to delete application", {
@@ -777,7 +777,7 @@ const MatterDetail = () => {
             <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Application not found</h2>
             <p className="text-muted-foreground mb-4">The application you're looking for doesn't exist.</p>
-            <Button variant="outline" onClick={() => navigate("/app/migration/matters")}>
+            <Button variant="outline" onClick={() => navigate("/app/migration/visa-applications")}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Applications
             </Button>
@@ -790,7 +790,7 @@ const MatterDetail = () => {
     <AppLayout niche="migration">
       <div className="p-6 lg:p-8 space-y-6">
         {/* Back Button */}
-        <Button variant="ghost" onClick={() => navigate("/app/migration/matters")} className="gap-2">
+        <Button variant="ghost" onClick={() => navigate("/app/migration/visa-applications")} className="gap-2">
           <ArrowLeft className="w-4 h-4" />
           Back to Applications
         </Button>
