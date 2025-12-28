@@ -17,7 +17,7 @@ const RATE_LIMIT_CONFIG = {
 
 interface WebhookPayload {
   matter_id: string;
-  drive_folder_id: string;
+  visa_application_folder_id: string;
   // Accept both for flexibility - organization_id is the preferred external name
   company_id?: string;
   organization_id?: string;
@@ -64,11 +64,11 @@ Deno.serve(async (req) => {
 
     const payload: WebhookPayload = await req.json();
 
-    if (!payload.matter_id || !payload.drive_folder_id) {
+    if (!payload.matter_id || !payload.visa_application_folder_id) {
       logRequestEnd(ctx, 400, { reason: "missing_fields" });
       EdgeRuntime.waitUntil(saveRequestLog(supabase, { ctx, statusCode: 400, errorMessage: "Missing required fields" }));
       return new Response(
-        JSON.stringify({ error: "Missing required fields: matter_id and drive_folder_id", request_id: ctx.requestId }),
+        JSON.stringify({ error: "Missing required fields: matter_id and visa_application_folder_id", request_id: ctx.requestId }),
         { status: 400, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
     const { data: matter, error: updateError } = await supabase
       .from("matters")
       .update({ 
-        drive_folder_id: payload.drive_folder_id,
+        visa_application_folder_id: payload.visa_application_folder_id,
         folder_status: "created"
       })
       .eq("id", payload.matter_id)
@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
         matter_id: matter.id,
         event_type: "visa_application_folder_created",
         payload: {
-          drive_folder_id: payload.drive_folder_id,
+          visa_application_folder_id: payload.visa_application_folder_id,
           matter_name: matter.matter_name,
           request_id: ctx.requestId,
           timestamp: new Date().toISOString(),

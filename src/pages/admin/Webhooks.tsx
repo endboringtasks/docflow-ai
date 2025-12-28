@@ -88,7 +88,7 @@ const ALL_FIELDS = {
     { id: "client_id", label: "Client ID", description: "Associated client identifier", default: true },
     { id: "client_folder_id", label: "Client Folder ID", description: "Client's Google Drive folder", default: true },
     { id: "status", label: "Status", description: "Application status (draft, active, done)", default: true },
-    { id: "drive_folder_id", label: "Drive Folder ID", description: "Application's Google Drive folder", default: true },
+    { id: "visa_application_folder_id", label: "Drive Folder ID", description: "Application's Google Drive folder", default: true },
     { id: "folder_status", label: "Folder Status", description: "Drive folder creation status", default: true },
     { id: "folder_status_updated_at", label: "Folder Status Updated At", description: "When folder status last changed", default: true },
     { id: "created_at", label: "Created At", description: "Timestamp when application was created", default: true },

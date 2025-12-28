@@ -76,7 +76,7 @@ interface Matter {
   matter_name: string;
   visa_subclass: string | null;
   status: "draft" | "active" | "done";
-  drive_folder_id: string | null;
+  visa_application_folder_id: string | null;
   folder_status: "pending" | "creating" | "created" | "failed";
   created_at: string;
   company_id: string;
@@ -533,7 +533,7 @@ const MatterDetail = () => {
               matter_name: data.matter_name,
               visa_subclass: data.visa_subclass,
               status: data.status,
-              drive_folder_id: data.drive_folder_id,
+              visa_application_folder_id: data.visa_application_folder_id,
             },
           },
         });
@@ -583,7 +583,7 @@ const MatterDetail = () => {
               matter_name: data.matter_name,
               visa_subclass: data.visa_subclass,
               status: data.status,
-              drive_folder_id: data.drive_folder_id,
+              visa_application_folder_id: data.visa_application_folder_id,
             },
           },
         });
@@ -617,7 +617,7 @@ const MatterDetail = () => {
         matter_name: matter.matter_name,
         visa_subclass: matter.visa_subclass,
         status: matter.status,
-        drive_folder_id: matter.drive_folder_id,
+        visa_application_folder_id: matter.visa_application_folder_id,
       };
       
       const { error } = await supabase
@@ -850,12 +850,12 @@ const MatterDetail = () => {
               <FolderOpen className="w-5 h-5 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground">Drive Folder</p>
-                {matter.folder_status === 'created' && matter.drive_folder_id ? (
+                {matter.folder_status === 'created' && matter.visa_application_folder_id ? (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <a 
-                          href={`https://drive.google.com/drive/folders/${matter.drive_folder_id}`}
+                          href={`https://drive.google.com/drive/folders/${matter.visa_application_folder_id}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 hover:underline transition-all group"

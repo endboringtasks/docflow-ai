@@ -73,7 +73,7 @@ interface Matter {
   matter_name: string;
   visa_subclass: string | null;
   status: "draft" | "active" | "done";
-  drive_folder_id: string | null;
+  visa_application_folder_id: string | null;
   created_at: string;
 }
 
@@ -278,7 +278,7 @@ const ClientDetail = () => {
       // Get matter data before deletion for webhook
       const { data: matterData } = await supabase
         .from("matters")
-        .select("id, company_id, client_id, matter_name, visa_subclass, status, drive_folder_id")
+        .select("id, company_id, client_id, matter_name, visa_subclass, status, visa_application_folder_id")
         .eq("id", matterId)
         .single();
       
@@ -304,7 +304,7 @@ const ClientDetail = () => {
                 matter_name: matterData.matter_name,
                 visa_subclass: matterData.visa_subclass,
                 status: matterData.status,
-                drive_folder_id: matterData.drive_folder_id,
+                visa_application_folder_id: matterData.visa_application_folder_id,
               },
             },
           });
