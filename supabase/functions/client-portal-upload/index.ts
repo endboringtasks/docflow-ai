@@ -34,15 +34,22 @@ async function getValidAccessToken(
 
   const conn = connection as DriveConnection
 
-  // Decrypt tokens if encrypted
+  // Decrypt tokens only if explicitly marked as encrypted
   let accessToken = conn.access_token
   let refreshToken = conn.refresh_token
-  const tokensAreEncrypted = conn.tokens_encrypted || isEncrypted(conn.access_token)
-
-  if (tokensAreEncrypted) {
+  
+  // Only use the tokens_encrypted flag, don't guess based on token format
+  if (conn.tokens_encrypted === true) {
     console.log('Decrypting stored tokens...')
-    accessToken = await decryptToken(conn.access_token)
-    refreshToken = await decryptToken(conn.refresh_token)
+    try {
+      accessToken = await decryptToken(conn.access_token)
+      refreshToken = await decryptToken(conn.refresh_token)
+    } catch (decryptError) {
+      console.error('Failed to decrypt tokens:', decryptError)
+      return null
+    }
+  } else {
+    console.log('Using unencrypted tokens (tokens_encrypted:', conn.tokens_encrypted, ')')
   }
 
   // Check if token needs refresh
