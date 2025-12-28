@@ -315,6 +315,10 @@ export type Database = {
           id: string
           is_completed: boolean
           matter_id: string
+          review_comment: string | null
+          review_status: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           updated_at: string
         }
         Insert: {
@@ -325,6 +329,10 @@ export type Database = {
           id?: string
           is_completed?: boolean
           matter_id: string
+          review_comment?: string | null
+          review_status?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           updated_at?: string
         }
         Update: {
@@ -335,6 +343,10 @@ export type Database = {
           id?: string
           is_completed?: boolean
           matter_id?: string
+          review_comment?: string | null
+          review_status?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           updated_at?: string
         }
         Relationships: [
