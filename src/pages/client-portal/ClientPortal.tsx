@@ -26,7 +26,9 @@ import {
   Send,
   Save,
   AlertCircle,
-  Clock
+  Clock,
+  X,
+  File
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -121,6 +123,8 @@ export default function ClientPortal() {
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
+  const [removingDocId, setRemovingDocId] = useState<string | null>(null);
+  const [dragOverDocId, setDragOverDocId] = useState<string | null>(null);
 
   // File validation constants
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -346,6 +350,72 @@ export default function ClientPortal() {
     } finally {
       setUploadingDocId(null);
     }
+  };
+
+  const handleRemoveDocument = async (docId: string) => {
+    if (!token) return;
+
+    setRemovingDocId(docId);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-portal-remove-document`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, doc_id: docId }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Remove failed');
+      }
+
+      // Refresh documents
+      const { data: docsData } = await supabase
+        .rpc("get_portal_documents", { p_token: token });
+
+      if (docsData) setDocuments(docsData);
+      toast.success("Document removed");
+    } catch (err) {
+      console.error("Remove failed:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to remove document");
+    } finally {
+      setRemovingDocId(null);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, docId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverDocId(docId);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverDocId(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, docId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverDocId(null);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileUpload(docId, file);
+    }
+  };
+
+  const getFileName = (filePath: string | null): string => {
+    if (!filePath) return '';
+    const parts = filePath.split('/');
+    const fileName = parts[parts.length - 1];
+    // Remove timestamp prefix if present
+    const match = fileName.match(/^\d+\.(.+)$/);
+    return match ? match[1] : fileName;
   };
 
   const handleSubmit = async () => {
@@ -611,7 +681,8 @@ export default function ClientPortal() {
                   Document Checklist
                 </CardTitle>
                 <CardDescription>
-                  Please upload the required documents. Progress: {completedDocs}/{totalDocs}
+                  Please upload the required documents (PDF or images, max 10MB). Drag & drop or click to upload.
+                  <br />Progress: {completedDocs}/{totalDocs}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -619,46 +690,108 @@ export default function ClientPortal() {
                   {documents.map((doc) => (
                     <div
                       key={doc.id}
-                      className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border transition-colors ${
+                        dragOverDocId === doc.id && !doc.is_completed
+                          ? 'border-primary bg-primary/10'
+                          : 'bg-card hover:bg-accent/5'
+                      }`}
+                      onDragOver={(e) => !doc.is_completed && handleDragOver(e, doc.id)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => !doc.is_completed && handleDrop(e, doc.id)}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
                         {doc.is_completed ? (
-                          <CheckCircle2 className="h-5 w-5 text-green-500" />
+                          <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
                         ) : (
-                          <Circle className="h-5 w-5 text-muted-foreground" />
+                          <Circle className="h-5 w-5 text-muted-foreground shrink-0" />
                         )}
-                        <span className={doc.is_completed ? "line-through text-muted-foreground" : ""}>
-                          {doc.document_name.replace(/^\[.*?\]\s*/, "")}
-                        </span>
+                        <div className="flex flex-col min-w-0">
+                          <span className={doc.is_completed ? "text-muted-foreground" : ""}>
+                            {doc.document_name.replace(/^\[.*?\]\s*/, "")}
+                          </span>
+                          {doc.is_completed && doc.file_path && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                              <File className="h-3 w-3" />
+                              <span className="truncate">{getFileName(doc.file_path)}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      {!doc.is_completed && (
-                        uploadingDocId === doc.id ? (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>Uploading...</span>
-                          </div>
+                      
+                      <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                        {doc.is_completed ? (
+                          // Show remove/replace options for completed documents
+                          removingDocId === doc.id ? (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>Removing...</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <label className={`cursor-pointer ${uploadingDocId || removingDocId ? 'pointer-events-none opacity-50' : ''}`}>
+                                <input
+                                  type="file"
+                                  className="hidden"
+                                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic"
+                                  disabled={!!uploadingDocId || !!removingDocId}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      // First remove, then upload
+                                      handleRemoveDocument(doc.id).then(() => {
+                                        handleFileUpload(doc.id, file);
+                                      });
+                                    }
+                                    e.target.value = '';
+                                  }}
+                                />
+                                <Button size="sm" variant="ghost" asChild className="text-muted-foreground hover:text-foreground">
+                                  <span>
+                                    <Upload className="h-4 w-4" />
+                                  </span>
+                                </Button>
+                              </label>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-muted-foreground hover:text-destructive"
+                                onClick={() => handleRemoveDocument(doc.id)}
+                                disabled={!!uploadingDocId || !!removingDocId}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )
                         ) : (
-                          <label className={`cursor-pointer ${uploadingDocId ? 'pointer-events-none opacity-50' : ''}`}>
-                            <input
-                              type="file"
-                              className="hidden"
-                              accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic"
-                              disabled={!!uploadingDocId}
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleFileUpload(doc.id, file);
-                                e.target.value = ''; // Reset input for re-upload
-                              }}
-                            />
-                            <Button size="sm" variant="outline" asChild disabled={!!uploadingDocId}>
-                              <span>
-                                <Upload className="h-4 w-4 mr-2" />
-                                Upload
-                              </span>
-                            </Button>
-                          </label>
-                        )
-                      )}
+                          // Show upload for incomplete documents
+                          uploadingDocId === doc.id ? (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>Uploading...</span>
+                            </div>
+                          ) : (
+                            <label className={`cursor-pointer ${uploadingDocId || removingDocId ? 'pointer-events-none opacity-50' : ''}`}>
+                              <input
+                                type="file"
+                                className="hidden"
+                                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic"
+                                disabled={!!uploadingDocId || !!removingDocId}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleFileUpload(doc.id, file);
+                                  e.target.value = '';
+                                }}
+                              />
+                              <Button size="sm" variant="outline" asChild disabled={!!uploadingDocId || !!removingDocId}>
+                                <span>
+                                  <Upload className="h-4 w-4 mr-2" />
+                                  {dragOverDocId === doc.id ? 'Drop here' : 'Upload'}
+                                </span>
+                              </Button>
+                            </label>
+                          )
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
