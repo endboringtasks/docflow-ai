@@ -141,7 +141,7 @@ export default function AdminDashboard() {
       icon: Briefcase,
     },
     {
-      title: "Total Matters",
+      title: "Total Visa Applications",
       value: stats?.totalMatters ?? 0,
       icon: FileText,
     },

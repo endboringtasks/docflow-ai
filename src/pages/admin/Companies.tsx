@@ -241,7 +241,7 @@ export default function AdminCompanies() {
                     <TableHead>Status</TableHead>
                     <TableHead>Members</TableHead>
                     <TableHead>Clients</TableHead>
-                    <TableHead>Matters</TableHead>
+                    <TableHead>Applications</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead></TableHead>
                   </TableRow>

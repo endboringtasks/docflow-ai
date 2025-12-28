@@ -88,16 +88,16 @@ Deno.serve(async (req) => {
       logRequestEnd(ctx, 500, { reason: "update_failed" });
       EdgeRuntime.waitUntil(saveRequestLog(supabase, { ctx, statusCode: 500, errorMessage: updateError.message }));
       return new Response(
-        JSON.stringify({ error: "Failed to update matter", details: updateError.message, request_id: ctx.requestId }),
+        JSON.stringify({ error: "Failed to update visa application", details: updateError.message, request_id: ctx.requestId }),
         { status: 500, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
 
     if (!matter) {
-      logRequestEnd(ctx, 404, { reason: "matter_not_found", matter_id: payload.matter_id });
-      EdgeRuntime.waitUntil(saveRequestLog(supabase, { ctx, statusCode: 404, errorMessage: "Matter not found" }));
+      logRequestEnd(ctx, 404, { reason: "application_not_found", matter_id: payload.matter_id });
+      EdgeRuntime.waitUntil(saveRequestLog(supabase, { ctx, statusCode: 404, errorMessage: "Visa application not found" }));
       return new Response(
-        JSON.stringify({ error: "Matter not found", request_id: ctx.requestId }),
+        JSON.stringify({ error: "Visa application not found", request_id: ctx.requestId }),
         { status: 404, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: "Matter drive folder updated",
+        message: "Visa application drive folder updated",
         matter_id: matter.id,
         request_id: ctx.requestId,
       }),
