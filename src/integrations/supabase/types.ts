@@ -427,36 +427,36 @@ export type Database = {
           client_id: string
           company_id: string
           created_at: string
-          drive_folder_id: string | null
           folder_status: string
           folder_status_updated_at: string | null
           id: string
           matter_name: string
           status: Database["public"]["Enums"]["matter_status"]
+          visa_application_folder_id: string | null
           visa_subclass: string | null
         }
         Insert: {
           client_id: string
           company_id: string
           created_at?: string
-          drive_folder_id?: string | null
           folder_status?: string
           folder_status_updated_at?: string | null
           id?: string
           matter_name: string
           status?: Database["public"]["Enums"]["matter_status"]
+          visa_application_folder_id?: string | null
           visa_subclass?: string | null
         }
         Update: {
           client_id?: string
           company_id?: string
           created_at?: string
-          drive_folder_id?: string | null
           folder_status?: string
           folder_status_updated_at?: string | null
           id?: string
           matter_name?: string
           status?: Database["public"]["Enums"]["matter_status"]
+          visa_application_folder_id?: string | null
           visa_subclass?: string | null
         }
         Relationships: [

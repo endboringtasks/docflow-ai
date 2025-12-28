@@ -223,7 +223,7 @@ Deno.serve(async (req) => {
     // Get the matter's Google Drive folder ID
     const { data: matterData, error: matterError } = await supabase
       .from('matters')
-      .select('drive_folder_id, company_id')
+      .select('visa_application_folder_id, company_id')
       .eq('id', portalAccess.matter_id)
       .single()
 
@@ -236,7 +236,7 @@ Deno.serve(async (req) => {
     let driveFileId: string | null = null
 
     // Try to upload to Google Drive if folder exists
-    if (matterData?.drive_folder_id) {
+    if (matterData?.visa_application_folder_id) {
       console.log('Matter has Drive folder, attempting Google Drive upload...')
       
       const accessToken = await getValidAccessToken(supabase, matterData.company_id)
@@ -248,7 +248,7 @@ Deno.serve(async (req) => {
         
         const driveResult = await uploadToGoogleDrive(
           accessToken,
-          matterData.drive_folder_id,
+          matterData.visa_application_folder_id,
           driveFileName,
           arrayBuffer,
           file.type || 'application/octet-stream'

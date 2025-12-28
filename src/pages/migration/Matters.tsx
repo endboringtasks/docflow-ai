@@ -64,7 +64,7 @@ interface Matter {
   matter_name: string;
   visa_subclass: string | null;
   status: "draft" | "active" | "done";
-  drive_folder_id: string | null;
+  visa_application_folder_id: string | null;
   folder_status: string;
   created_at: string;
 }
@@ -150,7 +150,7 @@ const MigrationMatters = () => {
           matter_name,
           visa_subclass,
           status,
-          drive_folder_id,
+          visa_application_folder_id,
           folder_status,
           created_at,
           clients (
@@ -184,7 +184,7 @@ const MigrationMatters = () => {
           matter_name: matter.matter_name,
           visa_subclass: matter.visa_subclass,
           status: matter.status as "draft" | "active" | "done",
-          drive_folder_id: matter.drive_folder_id,
+          visa_application_folder_id: matter.visa_application_folder_id,
           folder_status: matter.folder_status,
           created_at: matter.created_at,
         };
@@ -308,7 +308,7 @@ const MigrationMatters = () => {
               matter_name: data.matter_name,
               visa_subclass: data.visa_subclass,
               status: data.status,
-              drive_folder_id: data.drive_folder_id,
+              visa_application_folder_id: data.visa_application_folder_id,
             },
           },
         });
@@ -366,7 +366,7 @@ const MigrationMatters = () => {
               matter_name: matter.matter_name,
               visa_subclass: matter.visa_subclass,
               status: matter.status,
-              drive_folder_id: matter.drive_folder_id,
+              visa_application_folder_id: matter.visa_application_folder_id,
             },
           },
         });
@@ -421,7 +421,7 @@ const MigrationMatters = () => {
               matter_name: data.matter_name,
               visa_subclass: data.visa_subclass,
               status: data.status,
-              drive_folder_id: data.drive_folder_id,
+              visa_application_folder_id: data.visa_application_folder_id,
             },
           },
         });
@@ -777,12 +777,12 @@ const MigrationMatters = () => {
                         </Badge>
                       </td>
                       <td className="p-4 hidden lg:table-cell">
-                        {matter.folder_status === "created" && matter.drive_folder_id ? (
+                        {matter.folder_status === "created" && matter.visa_application_folder_id ? (
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <a
-                                  href={`https://drive.google.com/drive/folders/${matter.drive_folder_id}`}
+                                  href={`https://drive.google.com/drive/folders/${matter.visa_application_folder_id}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()}
@@ -945,7 +945,7 @@ const MigrationMatters = () => {
                       </div>
                       <div className="glass rounded-lg p-4">
                         <p className="text-sm text-muted-foreground mb-1">Drive Folder</p>
-                        <p className="font-medium">{selectedMatter.drive_folder_id ? "Linked" : "Pending"}</p>
+                        <p className="font-medium">{selectedMatter.visa_application_folder_id ? "Linked" : "Pending"}</p>
                       </div>
                       <div className="glass rounded-lg p-4">
                         <p className="text-sm text-muted-foreground mb-1">Actions</p>

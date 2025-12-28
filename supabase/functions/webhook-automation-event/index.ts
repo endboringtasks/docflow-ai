@@ -36,7 +36,7 @@ const ALLOWED_PAYLOAD_FIELDS = new Set([
   'event_source', 'event_category', 'action', 'status', 'result', 'count',
   'duration_ms', 'error_code', 'error_type', 'entity_type', 'entity_id',
   'previous_status', 'new_status', 'change_type', 'workflow_id', 'step_name',
-  'timestamp', 'received_at', 'drive_folder_id', 'matter_name', 'client_name',
+  'timestamp', 'received_at', 'visa_application_folder_id', 'matter_name', 'client_name',
   'folder_name', 'request_id',
 ]);
 
