@@ -6,6 +6,8 @@ const corsHeaders = {
 }
 
 Deno.serve(async (req) => {
+  console.log('Client portal upload request received');
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -16,7 +18,16 @@ Deno.serve(async (req) => {
     const docId = formData.get('doc_id') as string
     const file = formData.get('file') as File
 
+    console.log('Upload request:', { 
+      hasToken: !!token, 
+      docId, 
+      fileName: file?.name, 
+      fileSize: file?.size,
+      fileType: file?.type 
+    });
+
     if (!token || !docId || !file) {
+      console.error('Missing required fields:', { hasToken: !!token, hasDocId: !!docId, hasFile: !!file });
       return new Response(
         JSON.stringify({ error: 'Missing required fields: token, doc_id, or file' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
