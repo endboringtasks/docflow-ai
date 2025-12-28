@@ -29,3 +29,15 @@ verify_jwt = true
 
 [functions.timeout-folder-creation]
 verify_jwt = true
+
+[functions.client-portal-upload]
+verify_jwt = false
+
+[functions.client-portal-remove-document]
+verify_jwt = false
+
+[functions.client-portal-get-file-url]
+verify_jwt = false
+
+[functions.client-portal-submit]
+verify_jwt = false
