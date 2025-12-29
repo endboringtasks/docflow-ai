@@ -181,8 +181,16 @@ async function uploadToGoogleDrive(
     'Content-Transfer-Encoding: base64\r\n\r\n'
   )
 
-  // Convert file content to base64
-  const base64Content = btoa(String.fromCharCode(...new Uint8Array(fileContent)))
+  // Convert file content to base64 in chunks to avoid stack overflow
+  const uint8Array = new Uint8Array(fileContent)
+  const chunkSize = 8192
+  let base64Content = ''
+  for (let i = 0; i < uint8Array.length; i += chunkSize) {
+    const chunk = uint8Array.slice(i, i + chunkSize)
+    base64Content += String.fromCharCode.apply(null, Array.from(chunk))
+  }
+  base64Content = btoa(base64Content)
+  
   const base64Bytes = new TextEncoder().encode(base64Content)
   const closeBytes = new TextEncoder().encode(closeDelimiter)
 
