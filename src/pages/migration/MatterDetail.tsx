@@ -101,6 +101,8 @@ interface DocumentItem {
   reviewStatus: ReviewStatus;
   reviewComment: string | null;
   uploadedAt: string | null;
+  uploadedBy: string | null;
+  uploadedByName: string | null;
   reviewedAt: string | null;
 }
 
@@ -116,6 +118,8 @@ interface DbDocumentItem {
   reviewed_at: string | null;
   reviewed_by: string | null;
   uploaded_at: string | null;
+  uploaded_by: string | null;
+  uploader_profile?: { display_name: string | null; email: string | null } | null;
   created_at: string;
   updated_at: string;
 }
@@ -138,7 +142,7 @@ const statusOptions = [
 ];
 
 // Default document checklist based on visa subclass (excluding DB-only fields)
-type DefaultDocFields = Omit<DocumentItem, "id" | "filePath" | "reviewStatus" | "reviewComment" | "uploadedAt" | "reviewedAt">;
+type DefaultDocFields = Omit<DocumentItem, "id" | "filePath" | "reviewStatus" | "reviewComment" | "uploadedAt" | "uploadedBy" | "uploadedByName" | "reviewedAt">;
 
 const getDefaultDocuments = (visaSubclass: string | null): DefaultDocFields[] => {
   const baseDocuments: DefaultDocFields[] = [
@@ -263,7 +267,7 @@ const MatterDetail = () => {
     enabled: !!matter?.client_id,
   });
 
-  // Fetch document checklist from database
+  // Fetch document checklist from database with uploader profile
   const { data: dbDocuments, isLoading: isLoadingDocuments } = useQuery({
     queryKey: ["document-checklist", matterId],
     queryFn: async () => {
@@ -271,7 +275,7 @@ const MatterDetail = () => {
       
       const { data, error } = await supabase
         .from("document_checklist")
-        .select("*")
+        .select("*, uploader_profile:profiles!document_checklist_uploaded_by_fkey(display_name, email)")
         .eq("matter_id", matterId)
         .order("created_at", { ascending: true });
       
@@ -321,6 +325,8 @@ const MatterDetail = () => {
   // Transform DB documents to UI format
   const documents: DocumentItem[] = (dbDocuments || []).map(doc => {
     const parsed = parseDocumentName(doc.document_name);
+    const uploaderProfile = doc.uploader_profile;
+    const uploaderName = uploaderProfile?.display_name || uploaderProfile?.email || null;
     return {
       id: doc.id,
       name: parsed.displayName,
@@ -331,6 +337,8 @@ const MatterDetail = () => {
       reviewStatus: (doc.review_status as ReviewStatus) || "pending",
       reviewComment: doc.review_comment,
       uploadedAt: doc.uploaded_at,
+      uploadedBy: doc.uploaded_by,
+      uploadedByName: uploaderName,
       reviewedAt: doc.reviewed_at,
     };
   });
@@ -424,7 +432,11 @@ const MatterDetail = () => {
       
       const { error: updateError } = await supabase
         .from("document_checklist")
-        .update({ file_path: filePath, uploaded_at: new Date().toISOString() })
+        .update({ 
+          file_path: filePath, 
+          uploaded_at: new Date().toISOString(),
+          uploaded_by: user?.id 
+        })
         .eq("id", docId);
       
       if (updateError) throw updateError;
@@ -1105,6 +1117,7 @@ const MatterDetail = () => {
                               <span className="flex items-center gap-1">
                                 <Upload className="w-3 h-3" />
                                 Uploaded {new Date(doc.uploadedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                                {doc.uploadedByName && <span className="text-muted-foreground">by {doc.uploadedByName}</span>}
                               </span>
                             )}
                             {doc.reviewedAt && (
