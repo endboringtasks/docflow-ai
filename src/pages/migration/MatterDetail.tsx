@@ -267,23 +267,53 @@ const MatterDetail = () => {
     enabled: !!matter?.client_id,
   });
 
-  // Fetch document checklist from database with uploader profile
-  const { data: dbDocuments, isLoading: isLoadingDocuments } = useQuery({
+  // Fetch document checklist from database
+  const { data: dbDocumentsRaw, isLoading: isLoadingDocuments } = useQuery({
     queryKey: ["document-checklist", matterId],
     queryFn: async () => {
       if (!matterId) return [];
       
       const { data, error } = await supabase
         .from("document_checklist")
-        .select("*, uploader_profile:profiles!document_checklist_uploaded_by_fkey(display_name, email)")
+        .select("*")
         .eq("matter_id", matterId)
         .order("created_at", { ascending: true });
       
       if (error) throw error;
-      return data as DbDocumentItem[];
+      return data;
     },
     enabled: !!matterId,
   });
+
+  // Fetch uploader profiles for documents
+  const uploaderIds = [...new Set((dbDocumentsRaw || []).map(d => d.uploaded_by).filter(Boolean))] as string[];
+  
+  const { data: uploaderProfiles } = useQuery({
+    queryKey: ["uploader-profiles", uploaderIds],
+    queryFn: async () => {
+      if (uploaderIds.length === 0) return {};
+      
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, email")
+        .in("id", uploaderIds);
+      
+      if (error) throw error;
+      
+      const profileMap: Record<string, { display_name: string | null; email: string | null }> = {};
+      (data || []).forEach(p => {
+        profileMap[p.id] = { display_name: p.display_name, email: p.email };
+      });
+      return profileMap;
+    },
+    enabled: uploaderIds.length > 0,
+  });
+
+  // Merge documents with uploader profiles
+  const dbDocuments: DbDocumentItem[] = (dbDocumentsRaw || []).map(doc => ({
+    ...doc,
+    uploader_profile: doc.uploaded_by && uploaderProfiles ? uploaderProfiles[doc.uploaded_by] : null,
+  }));
 
   // Initialize documents in database if none exist
   const initializeDocumentsMutation = useMutation({
