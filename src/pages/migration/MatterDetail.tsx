@@ -494,34 +494,45 @@ const MatterDetail = () => {
     },
   });
 
-  // Upload file for a document
+  // Upload file for a document - uses edge function for Google Drive sync
   const uploadFileMutation = useMutation({
-    mutationFn: async ({ docId, file }: { docId: string; file: File }) => {
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${docId}/${Date.now()}.${fileExt}`;
+    mutationFn: async ({ docId, file, documentName }: { docId: string; file: File; documentName: string }) => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
       
-      const { error: uploadError } = await supabase.storage
-        .from("document-attachments")
-        .upload(filePath, file);
+      if (!accessToken) {
+        throw new Error('Not authenticated');
+      }
+
+      const formData = new FormData();
+      formData.append('matter_id', matterId!);
+      formData.append('doc_id', docId);
+      formData.append('file', file);
+      formData.append('document_name', documentName);
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/internal-upload`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: formData,
+        }
+      );
+
+      const result = await response.json();
       
-      if (uploadError) throw uploadError;
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload failed');
+      }
       
-      const { error: updateError } = await supabase
-        .from("document_checklist")
-        .update({ 
-          file_path: filePath, 
-          uploaded_at: new Date().toISOString(),
-          uploaded_by: user?.id 
-        })
-        .eq("id", docId);
-      
-      if (updateError) throw updateError;
-      
-      return filePath;
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
-      toast.success("File uploaded successfully");
+      const location = data.uploaded_to === 'google_drive' ? 'Google Drive' : 'storage';
+      toast.success(`File uploaded to ${location}`);
     },
     onError: (error) => {
       toast.error("Failed to upload file", { description: error.message });
@@ -773,8 +784,8 @@ const MatterDetail = () => {
     removeDocumentMutation.mutate(docId);
   };
 
-  const handleFileUpload = (docId: string, file: File) => {
-    uploadFileMutation.mutate({ docId, file });
+  const handleFileUpload = (docId: string, file: File, documentName: string) => {
+    uploadFileMutation.mutate({ docId, file, documentName });
   };
 
   const handleFileRemove = (docId: string, filePath: string) => {
@@ -1246,7 +1257,7 @@ const MatterDetail = () => {
                                 className="hidden"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
-                                  if (file) handleFileUpload(doc.id, file);
+                                  if (file) handleFileUpload(doc.id, file, doc.name);
                                   e.target.value = "";
                                 }}
                                 disabled={uploadFileMutation.isPending}
