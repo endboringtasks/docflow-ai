@@ -496,42 +496,33 @@ const MatterDetail = () => {
 
   // Upload file for a document - uses edge function for Google Drive sync
   const uploadFileMutation = useMutation({
-    mutationFn: async ({ docId, file, documentName }: { docId: string; file: File; documentName: string }) => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-      
-      if (!accessToken) {
-        throw new Error('Not authenticated');
-      }
-
+    mutationFn: async ({
+      docId,
+      file,
+      documentName,
+    }: {
+      docId: string;
+      file: File;
+      documentName: string;
+    }) => {
       const formData = new FormData();
-      formData.append('matter_id', matterId!);
-      formData.append('doc_id', docId);
-      formData.append('file', file);
-      formData.append('document_name', documentName);
+      formData.append("matter_id", matterId!);
+      formData.append("doc_id", docId);
+      formData.append("file", file);
+      formData.append("document_name", documentName);
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/internal-upload`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-          body: formData,
-        }
-      );
+      const { data, error } = await supabase.functions.invoke("internal-upload", {
+        body: formData,
+      });
 
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || 'Upload failed');
-      }
-      
-      return result;
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Upload failed");
+
+      return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
-      const location = data.uploaded_to === 'google_drive' ? 'Google Drive' : 'storage';
+      const location = data.uploaded_to === "google_drive" ? "Google Drive" : "storage";
       toast.success(`File uploaded to ${location}`);
     },
     onError: (error) => {
