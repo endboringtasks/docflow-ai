@@ -103,6 +103,8 @@ interface DocumentItem {
   uploadedAt: string | null;
   uploadedBy: string | null;
   uploadedByName: string | null;
+  uploadedByClient: string | null;
+  uploadedByClientName: string | null;
   reviewedAt: string | null;
   reviewedBy: string | null;
   reviewedByName: string | null;
@@ -121,7 +123,9 @@ interface DbDocumentItem {
   reviewed_by: string | null;
   uploaded_at: string | null;
   uploaded_by: string | null;
+  uploaded_by_client: string | null;
   uploader_profile?: { display_name: string | null; email: string | null } | null;
+  uploader_client?: { first_name: string | null; last_name: string | null; email: string | null } | null;
   reviewer_profile?: { display_name: string | null; email: string | null } | null;
   created_at: string;
   updated_at: string;
@@ -145,7 +149,7 @@ const statusOptions = [
 ];
 
 // Default document checklist based on visa subclass (excluding DB-only fields)
-type DefaultDocFields = Omit<DocumentItem, "id" | "filePath" | "reviewStatus" | "reviewComment" | "uploadedAt" | "uploadedBy" | "uploadedByName" | "reviewedAt" | "reviewedBy" | "reviewedByName">;
+type DefaultDocFields = Omit<DocumentItem, "id" | "filePath" | "reviewStatus" | "reviewComment" | "uploadedAt" | "uploadedBy" | "uploadedByName" | "uploadedByClient" | "uploadedByClientName" | "reviewedAt" | "reviewedBy" | "reviewedByName">;
 
 const getDefaultDocuments = (visaSubclass: string | null): DefaultDocFields[] => {
   const baseDocuments: DefaultDocFields[] = [
@@ -291,6 +295,7 @@ const MatterDetail = () => {
   // Fetch uploader and reviewer profiles for documents
   const uploaderIds = [...new Set((dbDocumentsRaw || []).map(d => d.uploaded_by).filter(Boolean))] as string[];
   const reviewerIds = [...new Set((dbDocumentsRaw || []).map(d => d.reviewed_by).filter(Boolean))] as string[];
+  const clientUploaderIds = [...new Set((dbDocumentsRaw || []).map(d => d.uploaded_by_client).filter(Boolean))] as string[];
   const allProfileIds = [...new Set([...uploaderIds, ...reviewerIds])];
   
   const { data: userProfiles } = useQuery({
@@ -314,10 +319,33 @@ const MatterDetail = () => {
     enabled: allProfileIds.length > 0,
   });
 
+  // Fetch client uploader details
+  const { data: clientProfiles } = useQuery({
+    queryKey: ["document-client-profiles", clientUploaderIds],
+    queryFn: async () => {
+      if (clientUploaderIds.length === 0) return {};
+      
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, first_name, last_name, email")
+        .in("id", clientUploaderIds);
+      
+      if (error) throw error;
+      
+      const clientMap: Record<string, { first_name: string | null; last_name: string | null; email: string | null }> = {};
+      (data || []).forEach(c => {
+        clientMap[c.id] = { first_name: c.first_name, last_name: c.last_name, email: c.email };
+      });
+      return clientMap;
+    },
+    enabled: clientUploaderIds.length > 0,
+  });
+
   // Merge documents with uploader and reviewer profiles
   const dbDocuments: DbDocumentItem[] = (dbDocumentsRaw || []).map(doc => ({
     ...doc,
     uploader_profile: doc.uploaded_by && userProfiles ? userProfiles[doc.uploaded_by] : null,
+    uploader_client: doc.uploaded_by_client && clientProfiles ? clientProfiles[doc.uploaded_by_client] : null,
     reviewer_profile: doc.reviewed_by && userProfiles ? userProfiles[doc.reviewed_by] : null,
   }));
 
@@ -363,6 +391,12 @@ const MatterDetail = () => {
     const parsed = parseDocumentName(doc.document_name);
     const uploaderProfile = doc.uploader_profile;
     const uploaderName = uploaderProfile?.display_name || uploaderProfile?.email || null;
+    const uploaderClient = doc.uploader_client;
+    const uploaderClientName = uploaderClient 
+      ? (uploaderClient.first_name && uploaderClient.last_name 
+          ? `${uploaderClient.first_name} ${uploaderClient.last_name}` 
+          : uploaderClient.email || "Client")
+      : null;
     const reviewerProfile = doc.reviewer_profile;
     const reviewerName = reviewerProfile?.display_name || reviewerProfile?.email || null;
     return {
@@ -377,6 +411,8 @@ const MatterDetail = () => {
       uploadedAt: doc.uploaded_at,
       uploadedBy: doc.uploaded_by,
       uploadedByName: uploaderName,
+      uploadedByClient: doc.uploaded_by_client,
+      uploadedByClientName: uploaderClientName,
       reviewedAt: doc.reviewed_at,
       reviewedBy: doc.reviewed_by,
       reviewedByName: reviewerName,
@@ -1157,7 +1193,8 @@ const MatterDetail = () => {
                               <span className="flex items-center gap-1">
                                 <Upload className="w-3 h-3" />
                                 Uploaded {new Date(doc.uploadedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
-                                {doc.uploadedByName && <span className="text-muted-foreground">by {doc.uploadedByName}</span>}
+                                {doc.uploadedByClientName && <span className="text-muted-foreground">by {doc.uploadedByClientName} (Client)</span>}
+                                {!doc.uploadedByClientName && doc.uploadedByName && <span className="text-muted-foreground">by {doc.uploadedByName}</span>}
                               </span>
                             )}
                             {doc.reviewedAt && (

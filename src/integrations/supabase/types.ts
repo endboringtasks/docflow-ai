@@ -322,6 +322,7 @@ export type Database = {
           updated_at: string
           uploaded_at: string | null
           uploaded_by: string | null
+          uploaded_by_client: string | null
         }
         Insert: {
           company_id: string
@@ -338,6 +339,7 @@ export type Database = {
           updated_at?: string
           uploaded_at?: string | null
           uploaded_by?: string | null
+          uploaded_by_client?: string | null
         }
         Update: {
           company_id?: string
@@ -354,6 +356,7 @@ export type Database = {
           updated_at?: string
           uploaded_at?: string | null
           uploaded_by?: string | null
+          uploaded_by_client?: string | null
         }
         Relationships: [
           {
@@ -368,6 +371,13 @@ export type Database = {
             columns: ["matter_id"]
             isOneToOne: false
             referencedRelation: "matters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_checklist_uploaded_by_client_fkey"
+            columns: ["uploaded_by_client"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
