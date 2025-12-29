@@ -104,6 +104,8 @@ interface DocumentItem {
   uploadedBy: string | null;
   uploadedByName: string | null;
   reviewedAt: string | null;
+  reviewedBy: string | null;
+  reviewedByName: string | null;
 }
 
 interface DbDocumentItem {
@@ -120,6 +122,7 @@ interface DbDocumentItem {
   uploaded_at: string | null;
   uploaded_by: string | null;
   uploader_profile?: { display_name: string | null; email: string | null } | null;
+  reviewer_profile?: { display_name: string | null; email: string | null } | null;
   created_at: string;
   updated_at: string;
 }
@@ -142,7 +145,7 @@ const statusOptions = [
 ];
 
 // Default document checklist based on visa subclass (excluding DB-only fields)
-type DefaultDocFields = Omit<DocumentItem, "id" | "filePath" | "reviewStatus" | "reviewComment" | "uploadedAt" | "uploadedBy" | "uploadedByName" | "reviewedAt">;
+type DefaultDocFields = Omit<DocumentItem, "id" | "filePath" | "reviewStatus" | "reviewComment" | "uploadedAt" | "uploadedBy" | "uploadedByName" | "reviewedAt" | "reviewedBy" | "reviewedByName">;
 
 const getDefaultDocuments = (visaSubclass: string | null): DefaultDocFields[] => {
   const baseDocuments: DefaultDocFields[] = [
@@ -285,18 +288,20 @@ const MatterDetail = () => {
     enabled: !!matterId,
   });
 
-  // Fetch uploader profiles for documents
+  // Fetch uploader and reviewer profiles for documents
   const uploaderIds = [...new Set((dbDocumentsRaw || []).map(d => d.uploaded_by).filter(Boolean))] as string[];
+  const reviewerIds = [...new Set((dbDocumentsRaw || []).map(d => d.reviewed_by).filter(Boolean))] as string[];
+  const allProfileIds = [...new Set([...uploaderIds, ...reviewerIds])];
   
-  const { data: uploaderProfiles } = useQuery({
-    queryKey: ["uploader-profiles", uploaderIds],
+  const { data: userProfiles } = useQuery({
+    queryKey: ["document-user-profiles", allProfileIds],
     queryFn: async () => {
-      if (uploaderIds.length === 0) return {};
+      if (allProfileIds.length === 0) return {};
       
       const { data, error } = await supabase
         .from("profiles")
         .select("id, display_name, email")
-        .in("id", uploaderIds);
+        .in("id", allProfileIds);
       
       if (error) throw error;
       
@@ -306,13 +311,14 @@ const MatterDetail = () => {
       });
       return profileMap;
     },
-    enabled: uploaderIds.length > 0,
+    enabled: allProfileIds.length > 0,
   });
 
-  // Merge documents with uploader profiles
+  // Merge documents with uploader and reviewer profiles
   const dbDocuments: DbDocumentItem[] = (dbDocumentsRaw || []).map(doc => ({
     ...doc,
-    uploader_profile: doc.uploaded_by && uploaderProfiles ? uploaderProfiles[doc.uploaded_by] : null,
+    uploader_profile: doc.uploaded_by && userProfiles ? userProfiles[doc.uploaded_by] : null,
+    reviewer_profile: doc.reviewed_by && userProfiles ? userProfiles[doc.reviewed_by] : null,
   }));
 
   // Initialize documents in database if none exist
@@ -357,6 +363,8 @@ const MatterDetail = () => {
     const parsed = parseDocumentName(doc.document_name);
     const uploaderProfile = doc.uploader_profile;
     const uploaderName = uploaderProfile?.display_name || uploaderProfile?.email || null;
+    const reviewerProfile = doc.reviewer_profile;
+    const reviewerName = reviewerProfile?.display_name || reviewerProfile?.email || null;
     return {
       id: doc.id,
       name: parsed.displayName,
@@ -370,6 +378,8 @@ const MatterDetail = () => {
       uploadedBy: doc.uploaded_by,
       uploadedByName: uploaderName,
       reviewedAt: doc.reviewed_at,
+      reviewedBy: doc.reviewed_by,
+      reviewedByName: reviewerName,
     };
   });
 
@@ -1154,6 +1164,7 @@ const MatterDetail = () => {
                               <span className="flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
                                 Reviewed {new Date(doc.reviewedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                                {doc.reviewedByName && <span className="text-muted-foreground">by {doc.reviewedByName}</span>}
                               </span>
                             )}
                           </div>
