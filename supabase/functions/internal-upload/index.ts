@@ -34,9 +34,10 @@ async function getValidAccessToken(
 
   const conn = connection as DriveConnection
 
-  // Get usable tokens (decrypt if needed)
+  // Get usable tokens (decrypt if needed) and self-heal inconsistent encryption state
   let accessToken = conn.access_token
   let refreshToken = conn.refresh_token
+  let tokensNeedReencrypt = false
 
   if (conn.tokens_encrypted === true) {
     console.log('Decrypting stored tokens...')
@@ -45,23 +46,64 @@ async function getValidAccessToken(
       refreshToken = await decryptToken(conn.refresh_token)
     } catch (decryptError) {
       console.error('Failed to decrypt tokens:', decryptError)
-      return null
+
+      // If the tokens were stored as plaintext but marked encrypted, atob() throws InvalidCharacterError
+      const errName = decryptError instanceof Error ? decryptError.name : ''
+      const errMsg = decryptError instanceof Error ? decryptError.message : String(decryptError)
+      const looksLikePlaintext = errName === 'InvalidCharacterError' || /base64/i.test(errMsg)
+
+      if (!looksLikePlaintext) {
+        return null
+      }
+
+      console.warn('Tokens marked encrypted but not valid base64; treating as plaintext and re-encrypting.')
+      tokensNeedReencrypt = true
+      // Keep accessToken/refreshToken as the stored plaintext values
     }
   } else {
     console.log('Using unencrypted tokens (tokens_encrypted:', conn.tokens_encrypted, ')')
 
-    // If tokens look encrypted but flag is false, attempt decrypt
+    // If a legacy row has encrypted tokens but tokens_encrypted is false, attempt decrypt (safe fallback if guess is wrong)
     const accessLooksEncrypted = isEncrypted(conn.access_token)
     const refreshLooksEncrypted = isEncrypted(conn.refresh_token)
 
     if (accessLooksEncrypted || refreshLooksEncrypted) {
+      console.log('Tokens look encrypted; attempting decrypt (self-heal).', {
+        accessLooksEncrypted,
+        refreshLooksEncrypted,
+      })
+
       try {
         if (accessLooksEncrypted) accessToken = await decryptToken(conn.access_token)
         if (refreshLooksEncrypted) refreshToken = await decryptToken(conn.refresh_token)
-      } catch {
+      } catch (guessDecryptError) {
+        console.warn('Token decrypt attempt failed; proceeding with plaintext tokens.', guessDecryptError)
         accessToken = conn.access_token
         refreshToken = conn.refresh_token
       }
+    }
+
+    tokensNeedReencrypt = true
+  }
+
+  // Persist encrypted tokens so uploads consistently work with tokens_encrypted=true
+  if (tokensNeedReencrypt) {
+    try {
+      const encryptedAccessToken = await encryptToken(accessToken)
+      const encryptedRefreshToken = await encryptToken(refreshToken)
+
+      await supabase
+        .from('google_drive_connections')
+        .update({
+          access_token: encryptedAccessToken,
+          refresh_token: encryptedRefreshToken,
+          tokens_encrypted: true,
+        })
+        .eq('company_id', companyId)
+
+      console.log('Re-saved Drive tokens in encrypted form (self-heal)')
+    } catch (encryptError) {
+      console.warn('Failed to re-encrypt tokens (continuing with plaintext tokens):', encryptError)
     }
   }
 
@@ -199,13 +241,14 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Verify the JWT token
-    const supabaseClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
-      global: { headers: { Authorization: authHeader } },
-    })
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
-    
+    const jwt = authHeader.replace(/^Bearer\s+/i, '')
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(jwt)
+
     if (authError || !user) {
+      console.error('Auth error:', authError)
       return new Response(
         JSON.stringify({ error: 'Invalid authorization' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
