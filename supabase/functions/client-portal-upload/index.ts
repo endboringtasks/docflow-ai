@@ -298,13 +298,14 @@ Deno.serve(async (req) => {
       console.log('File uploaded to Supabase storage:', filePath)
     }
 
-    // Update the document checklist
+    // Update the document checklist - track client upload source
     const { error: updateError } = await supabase
       .from('document_checklist')
       .update({ 
         file_path: filePath, 
         is_completed: true, 
-        uploaded_at: new Date().toISOString() 
+        uploaded_at: new Date().toISOString(),
+        uploaded_by_client: portalAccess.client_id
       })
       .eq('id', docId)
 
