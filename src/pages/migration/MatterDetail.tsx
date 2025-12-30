@@ -66,14 +66,14 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
-import { InviteClientDialog } from "@/components/matter/InviteClientDialog";
-import { DocumentPreviewDialog, ReviewStatus } from "@/components/matter/DocumentPreviewDialog";
+import { InviteClientDialog } from "@/components/visa-application/InviteClientDialog";
+import { DocumentPreviewDialog, ReviewStatus } from "@/components/visa-application/DocumentPreviewDialog";
 import { useAuth } from "@/hooks/useAuth";
 
-interface Matter {
+interface VisaApplication {
   id: string;
   client_id: string;
-  matter_name: string;
+  application_name: string;
   visa_subclass: string | null;
   status: "draft" | "active" | "done";
   visa_application_folder_id: string | null;
@@ -113,7 +113,7 @@ interface DocumentItem {
 
 interface DbDocumentItem {
   id: string;
-  matter_id: string;
+  visa_application_id: string;
   company_id: string;
   document_name: string;
   is_completed: boolean;
@@ -221,8 +221,9 @@ const formatDocumentForStorage = (doc: DefaultDocFields): string => {
   return `[${doc.category}:${doc.required ? "required" : "optional"}] ${doc.name}`;
 };
 
-const MatterDetail = () => {
+const VisaApplicationDetail = () => {
   const { matterId } = useParams<{ matterId: string }>();
+  const visaApplicationId = matterId; // Alias for clarity
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentCompany } = useCompany();
@@ -237,60 +238,60 @@ const MatterDetail = () => {
   const [reviewFilter, setReviewFilter] = useState<"all" | ReviewStatus>("all");
   
   const [editForm, setEditForm] = useState({
-    matterName: "",
+    applicationName: "",
     visaSubclass: "",
   });
 
-  // Fetch matter details
-  const { data: matter, isLoading: isLoadingMatter } = useQuery({
-    queryKey: ["matter", matterId],
+  // Fetch visa application details
+  const { data: visaApplication, isLoading: isLoadingApplication } = useQuery({
+    queryKey: ["visa-application", visaApplicationId],
     queryFn: async () => {
-      if (!matterId) return null;
+      if (!visaApplicationId) return null;
       
       const { data, error } = await supabase
-        .from("matters")
+        .from("visa_applications")
         .select("*")
-        .eq("id", matterId)
+        .eq("id", visaApplicationId)
         .maybeSingle();
       
       if (error) throw error;
-      return data as Matter | null;
+      return data as VisaApplication | null;
     },
-    enabled: !!matterId,
+    enabled: !!visaApplicationId,
   });
 
   // Fetch client details
   const { data: client, isLoading: isLoadingClient } = useQuery({
-    queryKey: ["matter-client", matter?.client_id],
+    queryKey: ["application-client", visaApplication?.client_id],
     queryFn: async () => {
-      if (!matter?.client_id) return null;
+      if (!visaApplication?.client_id) return null;
       
       // Use secure RPC function that masks PII for non-admins
       const { data, error } = await supabase
-        .rpc("get_client_by_id", { p_client_id: matter.client_id });
+        .rpc("get_client_by_id", { p_client_id: visaApplication.client_id });
       
       if (error) throw error;
       return data && data.length > 0 ? data[0] as Client : null;
     },
-    enabled: !!matter?.client_id,
+    enabled: !!visaApplication?.client_id,
   });
 
   // Fetch document checklist from database
   const { data: dbDocumentsRaw, isLoading: isLoadingDocuments } = useQuery({
-    queryKey: ["document-checklist", matterId],
+    queryKey: ["document-checklist", visaApplicationId],
     queryFn: async () => {
-      if (!matterId) return [];
+      if (!visaApplicationId) return [];
       
       const { data, error } = await supabase
         .from("document_checklist")
         .select("*")
-        .eq("matter_id", matterId)
+        .eq("visa_application_id", visaApplicationId)
         .order("created_at", { ascending: true });
       
       if (error) throw error;
       return data;
     },
-    enabled: !!matterId,
+    enabled: !!visaApplicationId,
   });
 
   // Fetch uploader and reviewer profiles for documents
@@ -353,11 +354,11 @@ const MatterDetail = () => {
   // Initialize documents in database if none exist
   const initializeDocumentsMutation = useMutation({
     mutationFn: async (docs: DefaultDocFields[]) => {
-      if (!matterId || !matter?.company_id) throw new Error("Missing IDs");
+      if (!visaApplicationId || !visaApplication?.company_id) throw new Error("Missing IDs");
       
       const documentsToInsert = docs.map(doc => ({
-        matter_id: matterId,
-        company_id: matter.company_id,
+        visa_application_id: visaApplicationId,
+        company_id: visaApplication.company_id,
         document_name: formatDocumentForStorage(doc),
         is_completed: false,
       }));
@@ -371,7 +372,7 @@ const MatterDetail = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
       setDocumentsInitialized(true);
     },
     onError: (error) => {
@@ -379,13 +380,13 @@ const MatterDetail = () => {
     },
   });
 
-  // Initialize documents when matter loads and no documents exist
+  // Initialize documents when visa application loads and no documents exist
   useEffect(() => {
-    if (matter && dbDocuments !== undefined && dbDocuments.length === 0 && !documentsInitialized && !initializeDocumentsMutation.isPending) {
-      const defaultDocs = getDefaultDocuments(matter.visa_subclass);
+    if (visaApplication && dbDocuments !== undefined && dbDocuments.length === 0 && !documentsInitialized && !initializeDocumentsMutation.isPending) {
+      const defaultDocs = getDefaultDocuments(visaApplication.visa_subclass);
       initializeDocumentsMutation.mutate(defaultDocs);
     }
-  }, [matter, dbDocuments, documentsInitialized]);
+  }, [visaApplication, dbDocuments, documentsInitialized]);
 
   // Transform DB documents to UI format
   const documents: DocumentItem[] = (dbDocuments || []).map(doc => {
@@ -431,7 +432,7 @@ const MatterDetail = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
     },
     onError: (error) => {
       toast.error("Failed to update document", { description: error.message });
@@ -441,13 +442,13 @@ const MatterDetail = () => {
   // Add custom document
   const addDocumentMutation = useMutation({
     mutationFn: async (docName: string) => {
-      if (!matterId || !matter?.company_id) throw new Error("Missing IDs");
+      if (!visaApplicationId || !visaApplication?.company_id) throw new Error("Missing IDs");
       
       const { data, error } = await supabase
         .from("document_checklist")
         .insert({
-          matter_id: matterId,
-          company_id: matter.company_id,
+          visa_application_id: visaApplicationId,
+          company_id: visaApplication.company_id,
           document_name: `[Custom] ${docName}`,
           is_completed: false,
         })
@@ -458,7 +459,7 @@ const MatterDetail = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
       setNewDocName("");
       toast.success("Document added to checklist");
     },
@@ -590,21 +591,21 @@ const MatterDetail = () => {
     // TODO: Could trigger notification to client here
   };
 
-  // Update matter mutation
-  const updateMatterMutation = useMutation({
-    mutationFn: async (matterData: {
-      matter_name: string;
+  // Update visa application mutation
+  const updateApplicationMutation = useMutation({
+    mutationFn: async (applicationData: {
+      application_name: string;
       visa_subclass: string | null;
     }) => {
-      if (!matterId) throw new Error("No matter ID");
+      if (!visaApplicationId) throw new Error("No application ID");
       
       const { data, error } = await supabase
-        .from("matters")
+        .from("visa_applications")
         .update({
-          matter_name: matterData.matter_name,
-          visa_subclass: matterData.visa_subclass,
+          application_name: applicationData.application_name,
+          visa_subclass: applicationData.visa_subclass,
         })
-        .eq("id", matterId)
+        .eq("id", visaApplicationId)
         .select()
         .single();
       
@@ -612,16 +613,16 @@ const MatterDetail = () => {
       return data;
     },
     onSuccess: async (data) => {
-      // Dispatch webhook for matter.updated event
+      // Dispatch webhook for visa_application.updated event
       try {
         const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
-            event_type: "matter.updated",
+            event_type: "visa_application.updated",
             data: {
-              matter_id: data.id,
+              visa_application_id: data.id,
               company_id: data.company_id,
               client_id: data.client_id,
-              matter_name: data.matter_name,
+              application_name: data.application_name,
               visa_subclass: data.visa_subclass,
               status: data.status,
               visa_application_folder_id: data.visa_application_folder_id,
@@ -634,8 +635,8 @@ const MatterDetail = () => {
         console.error("Failed to dispatch webhook:", webhookError);
       }
       
-      queryClient.invalidateQueries({ queryKey: ["matter", matterId] });
-      queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["visa-application", visaApplicationId] });
+      queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       setIsEditOpen(false);
       toast.success("Application updated successfully");
     },
@@ -649,12 +650,12 @@ const MatterDetail = () => {
   // Update status mutation
   const updateStatusMutation = useMutation({
     mutationFn: async (status: "draft" | "active" | "done") => {
-      if (!matterId) throw new Error("No matter ID");
+      if (!visaApplicationId) throw new Error("No application ID");
       
       const { data, error } = await supabase
-        .from("matters")
+        .from("visa_applications")
         .update({ status })
-        .eq("id", matterId)
+        .eq("id", visaApplicationId)
         .select()
         .single();
       
@@ -662,16 +663,16 @@ const MatterDetail = () => {
       return data;
     },
     onSuccess: async (data) => {
-      // Dispatch webhook for matter.updated event
+      // Dispatch webhook for visa_application.updated event
       try {
         const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
-            event_type: "matter.updated",
+            event_type: "visa_application.updated",
             data: {
-              matter_id: data.id,
+              visa_application_id: data.id,
               company_id: data.company_id,
               client_id: data.client_id,
-              matter_name: data.matter_name,
+              application_name: data.application_name,
               visa_subclass: data.visa_subclass,
               status: data.status,
               visa_application_folder_id: data.visa_application_folder_id,
@@ -684,8 +685,8 @@ const MatterDetail = () => {
         console.error("Failed to dispatch webhook:", webhookError);
       }
       
-      queryClient.invalidateQueries({ queryKey: ["matter", matterId] });
-      queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["visa-application", visaApplicationId] });
+      queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       toast.success("Status updated!");
     },
     onError: (error) => {
@@ -695,37 +696,37 @@ const MatterDetail = () => {
     },
   });
 
-  // Delete matter mutation
-  const deleteMatterMutation = useMutation({
+  // Delete visa application mutation
+  const deleteApplicationMutation = useMutation({
     mutationFn: async () => {
-      if (!matterId || !matter) throw new Error("No matter ID");
+      if (!visaApplicationId || !visaApplication) throw new Error("No application ID");
       
-      // Store matter data before deletion for webhook
-      const matterData = {
-        matter_id: matter.id,
-        company_id: matter.company_id,
-        client_id: matter.client_id,
-        matter_name: matter.matter_name,
-        visa_subclass: matter.visa_subclass,
-        status: matter.status,
-        visa_application_folder_id: matter.visa_application_folder_id,
+      // Store application data before deletion for webhook
+      const applicationData = {
+        visa_application_id: visaApplication.id,
+        company_id: visaApplication.company_id,
+        client_id: visaApplication.client_id,
+        application_name: visaApplication.application_name,
+        visa_subclass: visaApplication.visa_subclass,
+        status: visaApplication.status,
+        visa_application_folder_id: visaApplication.visa_application_folder_id,
       };
       
       const { error } = await supabase
-        .from("matters")
+        .from("visa_applications")
         .delete()
-        .eq("id", matterId);
+        .eq("id", visaApplicationId);
       
       if (error) throw error;
-      return matterData;
+      return applicationData;
     },
-    onSuccess: async (matterData) => {
-      // Dispatch webhook for matter.deleted event
+    onSuccess: async (applicationData) => {
+      // Dispatch webhook for visa_application.deleted event
       try {
         const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
-            event_type: "matter.deleted",
-            data: matterData,
+            event_type: "visa_application.deleted",
+            data: applicationData,
           },
         });
 
@@ -734,7 +735,7 @@ const MatterDetail = () => {
         console.error("Failed to dispatch webhook:", webhookError);
       }
       
-      queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       toast.success("Application deleted");
       navigate("/app/migration/visa-applications");
     },
@@ -745,20 +746,20 @@ const MatterDetail = () => {
     },
   });
 
-  const handleEditMatter = () => {
-    if (!matter) return;
+  const handleEditApplication = () => {
+    if (!visaApplication) return;
     setEditForm({
-      matterName: matter.matter_name,
-      visaSubclass: matter.visa_subclass || "",
+      applicationName: visaApplication.application_name,
+      visaSubclass: visaApplication.visa_subclass || "",
     });
     setIsEditOpen(true);
   };
 
-  const handleUpdateMatter = () => {
-    if (!editForm.matterName.trim()) return;
+  const handleUpdateApplication = () => {
+    if (!editForm.applicationName.trim()) return;
     
-    updateMatterMutation.mutate({
-      matter_name: editForm.matterName.trim(),
+    updateApplicationMutation.mutate({
+      application_name: editForm.applicationName.trim(),
       visa_subclass: editForm.visaSubclass || null,
     });
   };
@@ -811,7 +812,7 @@ const MatterDetail = () => {
     URL.revokeObjectURL(url);
   };
 
-  const getStatusColor = (status: Matter["status"]) => {
+  const getStatusColor = (status: VisaApplication["status"]) => {
     switch (status) {
       case "draft": return "secondary";
       case "active": return "default";
@@ -851,7 +852,7 @@ const MatterDetail = () => {
     }, {} as Record<string, DocumentItem[]>);
   }, [filteredDocuments]);
 
-  const isLoading = isLoadingMatter || isLoadingClient || isLoadingDocuments;
+  const isLoading = isLoadingApplication || isLoadingClient || isLoadingDocuments;
 
   if (isLoading) {
     return (
@@ -863,7 +864,7 @@ const MatterDetail = () => {
     );
   }
 
-  if (!matter) {
+  if (!visaApplication) {
     return (
       <AppLayout niche="migration">
         <div className="p-6 lg:p-8">
@@ -898,17 +899,17 @@ const MatterDetail = () => {
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-3 mb-1">
-                  <h1 className="text-2xl font-bold">{matter.matter_name}</h1>
-                  <Badge variant={getStatusColor(matter.status)}>
-                    {matter.status}
+                  <h1 className="text-2xl font-bold">{visaApplication.application_name}</h1>
+                  <Badge variant={getStatusColor(visaApplication.status)}>
+                    {visaApplication.status}
                   </Badge>
                 </div>
-                {matter.visa_subclass && (
+                {visaApplication.visa_subclass && (
                   <p className="text-primary font-medium mb-1">
-                    Subclass {matter.visa_subclass} - {visaSubclasses.find(v => v.value === matter.visa_subclass)?.label.split('(')[0].trim()}
+                    Subclass {visaApplication.visa_subclass} - {visaSubclasses.find(v => v.value === visaApplication.visa_subclass)?.label.split('(')[0].trim()}
                   </p>
                 )}
-                <p className="text-sm text-muted-foreground">Created {formatDate(matter.created_at)}</p>
+                <p className="text-sm text-muted-foreground">Created {formatDate(visaApplication.created_at)}</p>
               </div>
             </div>
             
@@ -917,7 +918,7 @@ const MatterDetail = () => {
                 <Mail className="w-4 h-4 mr-2" />
                 Invite Client
               </Button>
-              <Button variant="outline" onClick={handleEditMatter}>
+              <Button variant="outline" onClick={handleEditApplication}>
                 <Pencil className="w-4 h-4 mr-2" />
                 Edit
               </Button>
@@ -952,12 +953,12 @@ const MatterDetail = () => {
               <FolderOpen className="w-5 h-5 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground">Drive Folder</p>
-                {matter.folder_status === 'created' && matter.visa_application_folder_id ? (
+                {visaApplication.folder_status === 'created' && visaApplication.visa_application_folder_id ? (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <a 
-                          href={`https://drive.google.com/drive/folders/${matter.visa_application_folder_id}`}
+                          href={`https://drive.google.com/drive/folders/${visaApplication.visa_application_folder_id}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 hover:underline transition-all group"
@@ -975,16 +976,16 @@ const MatterDetail = () => {
                 ) : (
                   <Badge 
                     variant={
-                      matter.folder_status === 'creating' ? "default" : 
-                      matter.folder_status === 'failed' ? "destructive" : "secondary"
+                      visaApplication.folder_status === 'creating' ? "default" : 
+                      visaApplication.folder_status === 'failed' ? "destructive" : "secondary"
                     }
                     className="gap-1"
                   >
-                    {matter.folder_status === 'creating' && (
+                    {visaApplication.folder_status === 'creating' && (
                       <Loader2 className="w-3 h-3 animate-spin" />
                     )}
-                    {matter.folder_status === 'creating' ? "Creating" : 
-                     matter.folder_status === 'failed' ? "Failed" : "Pending"}
+                    {visaApplication.folder_status === 'creating' ? "Creating" : 
+                     visaApplication.folder_status === 'failed' ? "Failed" : "Pending"}
                   </Badge>
                 )}
               </div>
@@ -1397,7 +1398,7 @@ const MatterDetail = () => {
                 {statusOptions.map((option) => (
                   <Button
                     key={option.value}
-                    variant={matter.status === option.value ? "default" : "outline"}
+                    variant={visaApplication.status === option.value ? "default" : "outline"}
                     onClick={() => updateStatusMutation.mutate(option.value as "draft" | "active" | "done")}
                     disabled={updateStatusMutation.isPending}
                     className="gap-2"
@@ -1410,7 +1411,7 @@ const MatterDetail = () => {
                 ))}
               </div>
               <p className="text-sm text-muted-foreground mt-3">
-                {statusOptions.find(o => o.value === matter.status)?.description}
+                {statusOptions.find(o => o.value === visaApplication.status)?.description}
               </p>
             </div>
 
@@ -1422,10 +1423,10 @@ const MatterDetail = () => {
                   <div className="w-3 h-3 rounded-full bg-primary mt-1.5" />
                   <div>
                     <p className="font-medium">Application Created</p>
-                    <p className="text-sm text-muted-foreground">{formatDate(matter.created_at)}</p>
+                    <p className="text-sm text-muted-foreground">{formatDate(visaApplication.created_at)}</p>
                   </div>
                 </div>
-                {matter.status !== "draft" && (
+                {visaApplication.status !== "draft" && (
                   <div className="flex gap-4">
                     <div className="w-3 h-3 rounded-full bg-primary mt-1.5" />
                     <div>
@@ -1434,7 +1435,7 @@ const MatterDetail = () => {
                     </div>
                   </div>
                 )}
-                {matter.status === "done" && (
+                {visaApplication.status === "done" && (
                   <div className="flex gap-4">
                     <div className="w-3 h-3 rounded-full bg-green-500 mt-1.5" />
                     <div>
@@ -1474,8 +1475,8 @@ const MatterDetail = () => {
               <div className="space-y-2">
                 <Label>Application Name</Label>
                 <Input
-                  value={editForm.matterName}
-                  onChange={(e) => setEditForm({...editForm, matterName: e.target.value})}
+                  value={editForm.applicationName}
+                  onChange={(e) => setEditForm({...editForm, applicationName: e.target.value})}
                   placeholder="e.g., Skilled Worker Application"
                   className="bg-secondary border-border"
                 />
@@ -1508,10 +1509,10 @@ const MatterDetail = () => {
               <Button 
                 variant="gradient" 
                 className="flex-1" 
-                onClick={handleUpdateMatter} 
-                disabled={!editForm.matterName.trim() || updateMatterMutation.isPending}
+                onClick={handleUpdateApplication} 
+                disabled={!editForm.applicationName.trim() || updateApplicationMutation.isPending}
               >
-                {updateMatterMutation.isPending ? (
+                {updateApplicationMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
                     Saving...
@@ -1530,17 +1531,17 @@ const MatterDetail = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Application</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete "{matter.matter_name}"? This action cannot be undone.
+                Are you sure you want to delete "{visaApplication.application_name}"? This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => deleteMatterMutation.mutate()}
-                disabled={deleteMatterMutation.isPending}
+                onClick={() => deleteApplicationMutation.mutate()}
+                disabled={deleteApplicationMutation.isPending}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                {deleteMatterMutation.isPending ? (
+                {deleteApplicationMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
                     Deleting...
@@ -1557,11 +1558,11 @@ const MatterDetail = () => {
         <InviteClientDialog
           open={isInviteOpen}
           onOpenChange={setIsInviteOpen}
-          matterId={matterId!}
-          clientId={matter.client_id}
+          visaApplicationId={visaApplicationId!}
+          clientId={visaApplication.client_id}
           clientEmail={client?.email || null}
-          companyId={matter.company_id}
-          matterName={matter.matter_name}
+          companyId={visaApplication.company_id}
+          applicationName={visaApplication.application_name}
         />
 
         {/* Document Preview Dialog */}
@@ -1571,11 +1572,11 @@ const MatterDetail = () => {
           document={previewDoc}
           onReviewUpdate={handleReviewUpdate}
           onRequestNewDocument={handleRequestNewDocument}
-          companyId={matter?.company_id}
+          companyId={visaApplication?.company_id}
         />
       </div>
     </AppLayout>
   );
 };
 
-export default MatterDetail;
+export default VisaApplicationDetail;

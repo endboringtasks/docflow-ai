@@ -32,10 +32,10 @@ interface DashboardStats {
   totalApplications: number;
 }
 
-interface RecentMatter {
+interface RecentVisaApplication {
   id: string;
   client_name: string;
-  matter_name: string;
+  application_name: string;
   visa_subclass: string | null;
   status: "draft" | "active" | "done";
   created_at: string;
@@ -74,16 +74,16 @@ const MigrationDashboard = () => {
         (c: { created_at: string }) => new Date(c.created_at) >= startOfMonth
       ).length ?? 0;
 
-      // Get matters by status
-      const { data: mattersData } = await supabase
-        .from("matters")
+      // Get visa applications by status
+      const { data: applicationsData } = await supabase
+        .from("visa_applications")
         .select("status")
         .eq("company_id", currentCompany.id);
 
-      const matters = mattersData || [];
-      const activeApplications = matters.filter(m => m.status === "active").length;
-      const draftApplications = matters.filter(m => m.status === "draft").length;
-      const completedApplications = matters.filter(m => m.status === "done").length;
+      const applications = applicationsData || [];
+      const activeApplications = applications.filter(m => m.status === "active").length;
+      const draftApplications = applications.filter(m => m.status === "draft").length;
+      const completedApplications = applications.filter(m => m.status === "done").length;
 
       return {
         totalClients: totalClients || 0,
@@ -91,28 +91,31 @@ const MigrationDashboard = () => {
         activeApplications,
         draftApplications,
         completedApplications,
-        totalApplications: matters.length,
+        totalApplications: applications.length,
       };
     },
     enabled: !!currentCompany?.id,
   });
 
-  // Fetch recent matters
-  const { data: recentMatters = [], isLoading: mattersLoading } = useQuery({
-    queryKey: ["recent-matters", currentCompany?.id],
-    queryFn: async (): Promise<RecentMatter[]> => {
+  // Fetch recent visa applications
+  const { data: recentApplications = [], isLoading: applicationsLoading } = useQuery({
+    queryKey: ["recent-applications", currentCompany?.id],
+    queryFn: async (): Promise<RecentVisaApplication[]> => {
       if (!currentCompany?.id) return [];
 
       const { data, error } = await supabase
-        .from("matters")
+        .from("visa_applications")
         .select(`
           id,
-          matter_name,
+          application_name,
           visa_subclass,
           status,
           created_at,
           clients (
-            full_name
+            first_name,
+            last_name,
+            company_name,
+            client_type
           )
         `)
         .eq("company_id", currentCompany.id)
@@ -121,24 +124,37 @@ const MigrationDashboard = () => {
 
       if (error) throw error;
 
-      return (data || []).map(matter => ({
-        id: matter.id,
-        client_name: (matter.clients as any)?.full_name || "Unknown",
-        matter_name: matter.matter_name,
-        visa_subclass: matter.visa_subclass,
-        status: matter.status as "draft" | "active" | "done",
-        created_at: matter.created_at,
-      }));
+      return (data || []).map(app => {
+        const clientData = app.clients as any;
+        let clientName = "Unknown";
+        if (clientData) {
+          if (clientData.client_type === "corporate") {
+            clientName = clientData.company_name || "Unnamed Company";
+          } else {
+            clientName = clientData.last_name 
+              ? `${clientData.first_name} ${clientData.last_name}` 
+              : (clientData.first_name || "Unnamed Client");
+          }
+        }
+        return {
+          id: app.id,
+          client_name: clientName,
+          application_name: app.application_name,
+          visa_subclass: app.visa_subclass,
+          status: app.status as "draft" | "active" | "done",
+          created_at: app.created_at,
+        };
+      });
     },
     enabled: !!currentCompany?.id,
   });
 
-  const filteredMatters = recentMatters.filter(matter =>
-    matter.matter_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    matter.client_name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredApplications = recentApplications.filter(app =>
+    app.application_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    app.client_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const isLoading = statsLoading || mattersLoading;
+  const isLoading = statsLoading || applicationsLoading;
 
   const dashboardStats = [
     { 
@@ -255,27 +271,27 @@ const MigrationDashboard = () => {
             <div className="p-12 flex items-center justify-center">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
-          ) : filteredMatters.length > 0 ? (
+          ) : filteredApplications.length > 0 ? (
             <div className="divide-y divide-border/50">
-              {filteredMatters.map((matter) => (
-                <div key={matter.id} className="p-6 flex items-center gap-6 hover:bg-secondary/30 transition-colors">
+              {filteredApplications.map((app) => (
+                <div key={app.id} className="p-6 flex items-center gap-6 hover:bg-secondary/30 transition-colors">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium truncate">{matter.matter_name}</p>
+                      <p className="font-medium truncate">{app.application_name}</p>
                       <Badge 
-                        variant={matter.status === "done" ? "success" : matter.status === "active" ? "default" : "secondary"}
+                        variant={app.status === "done" ? "success" : app.status === "active" ? "default" : "secondary"}
                       >
-                        {matter.status}
+                        {app.status}
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Client: {matter.client_name}
-                      {matter.visa_subclass && ` • Subclass ${matter.visa_subclass}`}
+                      Client: {app.client_name}
+                      {app.visa_subclass && ` • Subclass ${app.visa_subclass}`}
                     </p>
                   </div>
                   
                   <div className="hidden sm:block text-sm text-muted-foreground">
-                    {formatDate(matter.created_at)}
+                    {formatDate(app.created_at)}
                   </div>
 
                   <Button variant="ghost" size="icon">
@@ -300,7 +316,7 @@ const MigrationDashboard = () => {
             </div>
           )}
           
-          {filteredMatters.length > 0 && (
+          {filteredApplications.length > 0 && (
             <div className="p-4 border-t border-border/50">
               <Button variant="ghost" className="w-full" asChild>
                 <Link to="/app/migration/visa-applications">
