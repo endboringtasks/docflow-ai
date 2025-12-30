@@ -1147,6 +1147,25 @@ const MatterDetail = () => {
                     </div>
                   </button>
                 </div>
+                
+                {/* Total count verification */}
+                <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span className="font-medium">Total Documents:</span>
+                    <span className="font-bold text-foreground">{documents.length}</span>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <span>
+                      Sum: {documents.filter(d => !d.filePath).length} + {documents.filter(d => d.filePath && d.reviewStatus === "in_review").length} + {documents.filter(d => d.filePath && d.reviewStatus === "approved").length} + {documents.filter(d => d.filePath && d.reviewStatus === "rejected").length} = {
+                        documents.filter(d => !d.filePath).length + 
+                        documents.filter(d => d.filePath && d.reviewStatus === "in_review").length + 
+                        documents.filter(d => d.filePath && d.reviewStatus === "approved").length + 
+                        documents.filter(d => d.filePath && d.reviewStatus === "rejected").length
+                      }
+                    </span>
+                  </div>
+                </div>
+                
                 {reviewFilter !== "all" && (
                   <p className="text-sm text-muted-foreground mt-4">
                     Showing {filteredDocuments.length} of {documents.length} documents
