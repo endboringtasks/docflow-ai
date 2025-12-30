@@ -46,9 +46,18 @@ import { Webhook, Plus, Trash2, Copy, ExternalLink, ChevronDown, ChevronRight, S
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import type { 
+  WebhookEventType, 
+  WebhookTopic, 
+  WebhookFieldDefinition, 
+  WebhookEntityCategory,
+  FieldCategory,
+  CLIENT_EVENTS,
+  VISA_APPLICATION_EVENTS,
+} from "@/types/webhook.types";
 
-// Topic-based event configuration
-const WEBHOOK_TOPICS = [
+// Topic-based event configuration with strict typing
+const WEBHOOK_TOPICS: WebhookTopic[] = [
   {
     id: "clients",
     label: "Client",
@@ -64,7 +73,7 @@ const WEBHOOK_TOPICS = [
 ];
 
 // All available fields for webhook payloads (organized by entity)
-const ALL_FIELDS = {
+const ALL_FIELDS: Record<WebhookEntityCategory, WebhookFieldDefinition[]> = {
   client: [
     { id: "client_id", label: "Client ID", description: "Unique client identifier", default: true },
     { id: "client_type", label: "Client Type", description: "Personal or corporate", default: true },
@@ -111,10 +120,18 @@ export default function AdminWebhooks() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingWebhook, setEditingWebhook] = useState<{ id: string } | null>(null);
-  const [newWebhook, setNewWebhook] = useState({
+  const [newWebhook, setNewWebhook] = useState<{
+    name: string;
+    url: string;
+    events: WebhookEventType[];
+    included_fields: string[];
+    timeout_seconds: number;
+    max_retries: number;
+    retry_backoff_seconds: number;
+  }>({
     name: "",
     url: "",
-    events: [] as string[],
+    events: [],
     included_fields: getDefaultFields(),
     timeout_seconds: 10,
     max_retries: 3,
@@ -141,7 +158,7 @@ export default function AdminWebhooks() {
     setNewWebhook({
       name: webhook.name,
       url: webhook.url,
-      events: webhook.events || [],
+      events: (webhook.events || []) as WebhookEventType[],
       included_fields: webhook.included_fields || getDefaultFields(),
       timeout_seconds: webhook.timeout_seconds ?? 10,
       max_retries: webhook.max_retries ?? 3,
@@ -155,7 +172,7 @@ export default function AdminWebhooks() {
     setNewWebhook({
       name: `${webhook.name} (Copy)`,
       url: webhook.url,
-      events: webhook.events || [],
+      events: (webhook.events || []) as WebhookEventType[],
       included_fields: webhook.included_fields || getDefaultFields(),
       timeout_seconds: webhook.timeout_seconds ?? 10,
       max_retries: webhook.max_retries ?? 3,
@@ -294,7 +311,7 @@ export default function AdminWebhooks() {
     toast.success("Secret copied to clipboard");
   };
 
-  const handleEventToggle = (eventName: string) => {
+  const handleEventToggle = (eventName: WebhookEventType) => {
     setNewWebhook((prev) => ({
       ...prev,
       events: prev.events.includes(eventName)
