@@ -63,6 +63,7 @@ interface VisaApplication {
   client_name: string;
   application_name: string;
   visa_subclass: string | null;
+  country_id: string | null;
   status: "draft" | "active" | "done";
   visa_application_folder_id: string | null;
   folder_status: string;
@@ -119,6 +120,7 @@ const MigrationVisaApplications = () => {
   const [applicationToDelete, setApplicationToDelete] = useState<VisaApplication | null>(null);
   const [applicationToEdit, setApplicationToEdit] = useState<VisaApplication | null>(null);
   const [editForm, setEditForm] = useState({
+    countryId: "",
     applicationName: "",
     visaSubclass: "",
   });
@@ -181,7 +183,9 @@ const MigrationVisaApplications = () => {
     : [];
 
   // Filter visa types for edit form
-  const editFilteredVisaTypes = visaTypes;
+  const editFilteredVisaTypes = editForm.countryId
+    ? visaTypes.filter(type => type.country_id === editForm.countryId)
+    : visaTypes;
 
   // Fetch visa applications with client names
   const { data: visaApplications = [], isLoading } = useQuery({
@@ -196,6 +200,7 @@ const MigrationVisaApplications = () => {
           client_id,
           application_name,
           visa_subclass,
+          country_id,
           status,
           visa_application_folder_id,
           folder_status,
@@ -230,6 +235,7 @@ const MigrationVisaApplications = () => {
           client_name: clientName,
           application_name: application.application_name,
           visa_subclass: application.visa_subclass,
+          country_id: application.country_id,
           status: application.status as "draft" | "active" | "done",
           visa_application_folder_id: application.visa_application_folder_id,
           folder_status: application.folder_status,
@@ -254,6 +260,7 @@ const MigrationVisaApplications = () => {
       client_id: string;
       application_name: string;
       visa_subclass: string;
+      country_id: string;
     }) => {
       if (!currentCompany?.id) throw new Error("No company selected");
       
@@ -264,6 +271,7 @@ const MigrationVisaApplications = () => {
           client_id: applicationData.client_id,
           application_name: applicationData.application_name,
           visa_subclass: applicationData.visa_subclass,
+          country_id: applicationData.country_id,
           status: "draft",
         })
         .select()
@@ -468,12 +476,14 @@ const MigrationVisaApplications = () => {
       id: string;
       application_name: string;
       visa_subclass: string | null;
+      country_id: string | null;
     }) => {
       const { data, error } = await supabase
         .from("visa_applications")
         .update({
           application_name: applicationData.application_name,
           visa_subclass: applicationData.visa_subclass,
+          country_id: applicationData.country_id,
         })
         .eq("id", applicationData.id)
         .select()
@@ -595,11 +605,13 @@ const MigrationVisaApplications = () => {
       client_id: newApplication.clientId,
       application_name: newApplication.applicationName.trim(),
       visa_subclass: newApplication.visaSubclass,
+      country_id: newApplication.countryId,
     });
   };
 
   const handleEditApplication = (application: VisaApplication) => {
     setEditForm({
+      countryId: application.country_id || "",
       applicationName: application.application_name,
       visaSubclass: application.visa_subclass || "",
     });
@@ -613,6 +625,7 @@ const MigrationVisaApplications = () => {
       id: applicationToEdit.id,
       application_name: editForm.applicationName.trim(),
       visa_subclass: editForm.visaSubclass || null,
+      country_id: editForm.countryId || null,
     });
   };
 
@@ -927,16 +940,40 @@ const MigrationVisaApplications = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
+              <Label htmlFor="editCountry">Country</Label>
+              <Select
+                value={editForm.countryId}
+                onValueChange={(value) => setEditForm(prev => ({ 
+                  ...prev, 
+                  countryId: value,
+                  applicationName: "",
+                  visaSubclass: ""
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent>
+                  {countries.map((country) => (
+                    <SelectItem key={country.id} value={country.id}>
+                      {country.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="editApplicationName">Application Name</Label>
               <Select
                 value={editForm.applicationName}
                 onValueChange={(value) => setEditForm(prev => ({ ...prev, applicationName: value }))}
+                disabled={!editForm.countryId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select application type" />
+                  <SelectValue placeholder={editForm.countryId ? "Select application type" : "Select a country first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {visaTypes.map((type) => (
+                  {editFilteredVisaTypes.map((type) => (
                     <SelectItem key={type.id} value={type.name}>
                       {type.name}
                     </SelectItem>
@@ -949,14 +986,15 @@ const MigrationVisaApplications = () => {
               <Select
                 value={editForm.visaSubclass}
                 onValueChange={(value) => setEditForm(prev => ({ ...prev, visaSubclass: value }))}
+                disabled={!editForm.countryId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select visa subclass" />
+                  <SelectValue placeholder={editForm.countryId ? "Select visa subclass" : "Select a country first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {visaSubclasses.map((visa) => (
-                    <SelectItem key={visa.value} value={visa.value}>
-                      {visa.label}
+                  {editFilteredVisaTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.code}>
+                      {type.code} - {type.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
