@@ -449,7 +449,7 @@ export function GoogleDriveConnection() {
               <p className="font-medium">What this enables:</p>
               <ul className="list-disc list-inside space-y-1 text-xs">
                 <li>Automatic folder creation for each client</li>
-                <li>Matter-specific subfolders for document organization</li>
+                <li>Visa application-specific subfolders for document organization</li>
                 <li>Secure document storage in your own Google Drive</li>
               </ul>
             </div>
