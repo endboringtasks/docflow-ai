@@ -1245,6 +1245,12 @@ const MatterDetail = () => {
                             {doc.name}
                           </span>
                           {/* Review Status Badge */}
+                          {!doc.filePath && (
+                            <Badge variant="outline" className="text-xs text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30">
+                              <Clock className="w-3 h-3 mr-1" />
+                              Pending Client
+                            </Badge>
+                          )}
                           {doc.filePath && doc.reviewStatus === "approved" && (
                             <Badge variant="default" className="text-xs bg-green-600">
                               <CheckCircle2 className="w-3 h-3 mr-1" />
@@ -1257,8 +1263,8 @@ const MatterDetail = () => {
                               Rejected
                             </Badge>
                           )}
-                          {doc.filePath && doc.reviewStatus === "in_review" && (
-                            <Badge variant="outline" className="text-xs text-blue-600 border-blue-500">
+                          {doc.filePath && doc.reviewStatus !== "approved" && doc.reviewStatus !== "rejected" && (
+                            <Badge variant="outline" className="text-xs text-blue-600 border-blue-400 bg-blue-50 dark:bg-blue-950/30">
                               <AlertCircle className="w-3 h-3 mr-1" />
                               Ready to Review
                             </Badge>
