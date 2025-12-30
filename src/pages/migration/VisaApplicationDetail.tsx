@@ -132,6 +132,13 @@ interface DbDocumentItem {
   updated_at: string;
 }
 
+interface VisaType {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+}
+
 const visaSubclasses = [
   { value: "482", label: "Temporary Skill Shortage (482)" },
   { value: "186", label: "Employer Nomination Scheme (186)" },
@@ -257,6 +264,21 @@ const VisaApplicationDetail = () => {
       return data as VisaApplication | null;
     },
     enabled: !!visaApplicationId,
+  });
+
+  // Fetch visa types for the dropdown
+  const { data: visaTypes = [] } = useQuery({
+    queryKey: ["visa-types"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("visa_types")
+        .select("id, name, code, description")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      
+      if (error) throw error;
+      return data as VisaType[];
+    },
   });
 
   // Fetch client details
@@ -1473,12 +1495,21 @@ const VisaApplicationDetail = () => {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label>Application Name</Label>
-                <Input
+                <Select
                   value={editForm.applicationName}
-                  onChange={(e) => setEditForm({...editForm, applicationName: e.target.value})}
-                  placeholder="e.g., Skilled Worker Application"
-                  className="bg-secondary border-border"
-                />
+                  onValueChange={(value) => setEditForm({...editForm, applicationName: value})}
+                >
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue placeholder="Select application type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {visaTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.name}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
