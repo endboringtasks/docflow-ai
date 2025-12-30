@@ -180,6 +180,31 @@ const ClientDetail = () => {
       return data;
     },
     onSuccess: async (data) => {
+      // Copy document templates to document_checklist
+      try {
+        if (data.visa_subclass && currentCompany?.id) {
+          const { data: templates } = await supabase
+            .from("visa_document_templates")
+            .select("document_name, category, is_required, sort_order")
+            .eq("company_id", currentCompany.id)
+            .eq("visa_subclass", data.visa_subclass)
+            .order("sort_order");
+
+          if (templates && templates.length > 0) {
+            const documentsToInsert = templates.map((template) => ({
+              matter_id: data.id,
+              company_id: currentCompany.id,
+              document_name: `[${template.category}:${template.is_required ? 'required' : 'optional'}] ${template.document_name}`,
+              is_completed: false,
+            }));
+
+            await supabase.from("document_checklist").insert(documentsToInsert);
+          }
+        }
+      } catch (templateError) {
+        console.error("Failed to copy document templates:", templateError);
+      }
+
       // Dispatch webhook for matter.created event
       try {
         // Get drive connection info
