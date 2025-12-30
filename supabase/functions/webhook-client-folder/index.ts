@@ -17,7 +17,7 @@ const RATE_LIMIT_CONFIG = {
 
 interface WebhookPayload {
   client_id: string;
-  drive_folder_id: string;
+  client_folder_id: string;
   documents_received_folder_id?: string;
   // Accept both for flexibility - organization_id is the preferred external name
   company_id?: string;
@@ -65,18 +65,18 @@ Deno.serve(async (req) => {
 
     const payload: WebhookPayload = await req.json();
 
-    if (!payload.client_id || !payload.drive_folder_id) {
+    if (!payload.client_id || !payload.client_folder_id) {
       logRequestEnd(ctx, 400, { reason: "missing_fields" });
       EdgeRuntime.waitUntil(saveRequestLog(supabase, { ctx, statusCode: 400, errorMessage: "Missing required fields" }));
       return new Response(
-        JSON.stringify({ error: "Missing required fields: client_id and drive_folder_id", request_id: ctx.requestId }),
+        JSON.stringify({ error: "Missing required fields: client_id and client_folder_id", request_id: ctx.requestId }),
         { status: 400, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
 
-    // Build update object with optional documents_received_folder_id
+    // Build update object - map client_folder_id to drive_folder_id column
     const updateData: { drive_folder_id: string; documents_received_folder_id?: string } = {
-      drive_folder_id: payload.drive_folder_id,
+      drive_folder_id: payload.client_folder_id,
     };
     if (payload.documents_received_folder_id) {
       updateData.documents_received_folder_id = payload.documents_received_folder_id;
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
         client_id: client.id,
         event_type: "client_folder_created",
         payload: {
-          drive_folder_id: payload.drive_folder_id,
+          client_folder_id: payload.client_folder_id,
           client_name: clientName,
           request_id: ctx.requestId,
           timestamp: new Date().toISOString(),
