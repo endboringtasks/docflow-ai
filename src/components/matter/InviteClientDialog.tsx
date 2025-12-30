@@ -17,21 +17,21 @@ import { Loader2, Mail, Copy, CheckCircle2 } from "lucide-react";
 interface InviteClientDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  matterId: string;
+  visaApplicationId: string;
   clientId: string;
   clientEmail: string | null;
   companyId: string;
-  matterName: string;
+  applicationName: string;
 }
 
 export function InviteClientDialog({
   open,
   onOpenChange,
-  matterId,
+  visaApplicationId,
   clientId,
   clientEmail,
   companyId,
-  matterName,
+  applicationName,
 }: InviteClientDialogProps) {
   const [email, setEmail] = useState(clientEmail || "");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -53,11 +53,11 @@ export function InviteClientDialog({
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
 
-      // Check if there's an existing access record for this matter
+      // Check if there's an existing access record for this visa application
       const { data: existing } = await supabase
         .from("client_portal_access")
         .select("id")
-        .eq("matter_id", matterId)
+        .eq("visa_application_id", visaApplicationId)
         .eq("client_id", clientId)
         .single();
 
@@ -80,7 +80,7 @@ export function InviteClientDialog({
         const { error } = await supabase
           .from("client_portal_access")
           .insert({
-            matter_id: matterId,
+            visa_application_id: visaApplicationId,
             client_id: clientId,
             company_id: companyId,
             email,
@@ -129,7 +129,7 @@ export function InviteClientDialog({
         <DialogHeader>
           <DialogTitle>Invite Client to Portal</DialogTitle>
           <DialogDescription>
-            Generate an access link for the client to view and upload documents for "{matterName}".
+            Generate an access link for the client to view and upload documents for "{applicationName}".
           </DialogDescription>
         </DialogHeader>
 

@@ -13,7 +13,7 @@ interface FolderStatusItem {
  * This saves database resources by not maintaining unnecessary connections.
  */
 export function useFolderStatusRealtime<T extends FolderStatusItem>(
-  tableName: "clients" | "matters",
+  tableName: "clients" | "visa_applications",
   companyId: string | undefined,
   items: T[],
   queryKey: string[]

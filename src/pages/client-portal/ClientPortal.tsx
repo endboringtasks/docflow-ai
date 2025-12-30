@@ -48,7 +48,7 @@ import {
 
 interface PortalAccess {
   id: string;
-  matter_id: string;
+  visa_application_id: string;
   client_id: string;
   company_id: string;
   email: string;
@@ -57,9 +57,9 @@ interface PortalAccess {
   token_expires_at: string;
 }
 
-interface Matter {
+interface VisaApplication {
   id: string;
-  matter_name: string;
+  application_name: string;
   visa_subclass: string | null;
   status: string;
 }
@@ -118,7 +118,7 @@ export default function ClientPortal() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [portalAccess, setPortalAccess] = useState<PortalAccess | null>(null);
-  const [matter, setMatter] = useState<Matter | null>(null);
+  const [visaApplication, setVisaApplication] = useState<VisaApplication | null>(null);
   const [client, setClient] = useState<Client | null>(null);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [formData, setFormData] = useState<FormData>(defaultFormData);
@@ -173,16 +173,16 @@ export default function ClientPortal() {
       // Update last accessed using secure RPC
       await supabase.rpc("update_portal_access_timestamp", { p_token: token });
 
-      // Load matter details using secure RPC
-      const { data: matterData } = await supabase
-        .rpc("get_portal_matter_details", { p_token: token });
+      // Load visa application details using secure RPC
+      const { data: visaAppData } = await supabase
+        .rpc("get_portal_visa_application_details", { p_token: token });
 
-      if (matterData && matterData.length > 0) {
-        setMatter({
-          id: matterData[0].matter_id,
-          matter_name: matterData[0].matter_name,
-          visa_subclass: matterData[0].visa_subclass,
-          status: matterData[0].status,
+      if (visaAppData && visaAppData.length > 0) {
+        setVisaApplication({
+          id: visaAppData[0].visa_application_id,
+          application_name: visaAppData[0].application_name,
+          visa_subclass: visaAppData[0].visa_subclass,
+          status: visaAppData[0].status,
         });
       }
 
@@ -204,7 +204,7 @@ export default function ClientPortal() {
       const { data: formDataResult } = await supabase
         .from("client_form_data")
         .select("form_data")
-        .eq("matter_id", portalData.matter_id)
+        .eq("visa_application_id", portalData.visa_application_id)
         .eq("client_id", portalData.client_id)
         .maybeSingle();
 
@@ -233,7 +233,7 @@ export default function ClientPortal() {
       const { data: existing } = await supabase
         .from("client_form_data")
         .select("id")
-        .eq("matter_id", portalAccess.matter_id)
+        .eq("visa_application_id", portalAccess.visa_application_id)
         .eq("client_id", portalAccess.client_id)
         .maybeSingle();
 
@@ -248,7 +248,7 @@ export default function ClientPortal() {
         const result = await supabase
           .from("client_form_data")
           .insert([{
-            matter_id: portalAccess.matter_id,
+            visa_application_id: portalAccess.visa_application_id,
             client_id: portalAccess.client_id,
             company_id: portalAccess.company_id,
             form_data: JSON.parse(JSON.stringify(data)),
