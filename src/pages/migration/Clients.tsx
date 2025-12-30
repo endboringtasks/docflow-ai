@@ -66,7 +66,7 @@ interface Client {
   company_name: string | null;
   email: string | null;
   phone: string | null;
-  drive_folder_id: string | null;
+  client_folder_id: string | null;
   folder_status: string;
   created_at: string;
   matters_count: number;
@@ -233,7 +233,7 @@ const MigrationClients = () => {
               first_name: client.first_name,
               last_name: client.last_name,
               company_name: client.company_name,
-              drive_folder_id: client.drive_folder_id,
+              client_folder_id: client.client_folder_id,
             },
           },
         });
@@ -292,7 +292,7 @@ const MigrationClients = () => {
               first_name: data.first_name,
               last_name: data.last_name,
               company_name: data.company_name,
-              drive_folder_id: data.drive_folder_id,
+              client_folder_id: data.client_folder_id,
             },
           },
         });
@@ -642,12 +642,12 @@ const MigrationClients = () => {
                         </div>
                       </td>
                       <td className="p-4 hidden lg:table-cell">
-                        {client.folder_status === "created" && client.drive_folder_id ? (
+                        {client.folder_status === "created" && client.client_folder_id ? (
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <a
-                                  href={`https://drive.google.com/drive/folders/${client.drive_folder_id}`}
+                                  href={`https://drive.google.com/drive/folders/${client.client_folder_id}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()}

@@ -237,7 +237,7 @@ const MigrationMatters = () => {
             .single(),
           supabase
             .from("clients")
-            .select("drive_folder_id, first_name, last_name, company_name, client_type")
+            .select("client_folder_id, first_name, last_name, company_name, client_type")
             .eq("id", data.client_id)
             .single(),
         ]);
@@ -254,7 +254,7 @@ const MigrationMatters = () => {
               matter_id: data.id,
               matter_name: data.matter_name,
               visa_subclass: data.visa_subclass,
-              client_folder_id: clientResult.data?.drive_folder_id || null,
+              client_folder_id: clientResult.data?.client_folder_id || null,
               // Optional fields (filtered by edge function based on webhook config)
               company_id: currentCompany?.id,
               client_id: data.client_id,
@@ -496,7 +496,7 @@ const MigrationMatters = () => {
             matter_id: matter.id,
             matter_name: matter.matter_name,
             visa_subclass: matter.visa_subclass,
-            client_folder_id: client?.drive_folder_id || null,
+            client_folder_id: client?.client_folder_id || null,
             // Optional fields (filtered by edge function based on webhook config)
             company_id: currentCompany.id,
             client_id: matter.client_id,

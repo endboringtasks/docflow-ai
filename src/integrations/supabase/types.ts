@@ -868,11 +868,11 @@ export type Database = {
       get_client_by_id: {
         Args: { p_client_id: string }
         Returns: {
+          client_folder_id: string
           client_type: string
           company_id: string
           company_name: string
           created_at: string
-          drive_folder_id: string
           email: string
           first_name: string
           id: string
@@ -883,11 +883,11 @@ export type Database = {
       get_clients_secure: {
         Args: { p_company_id: string }
         Returns: {
+          client_folder_id: string
           client_type: string
           company_id: string
           company_name: string
           created_at: string
-          drive_folder_id: string
           email: string
           first_name: string
           folder_status: string

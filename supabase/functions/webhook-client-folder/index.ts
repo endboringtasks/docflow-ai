@@ -74,9 +74,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Build update object - map client_folder_id to drive_folder_id column
-    const updateData: { drive_folder_id: string; documents_received_folder_id?: string } = {
-      drive_folder_id: payload.client_folder_id,
+    // Build update object with optional documents_received_folder_id
+    const updateData: { client_folder_id: string; documents_received_folder_id?: string } = {
+      client_folder_id: payload.client_folder_id,
     };
     if (payload.documents_received_folder_id) {
       updateData.documents_received_folder_id = payload.documents_received_folder_id;
