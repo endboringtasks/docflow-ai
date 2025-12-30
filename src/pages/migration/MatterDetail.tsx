@@ -1020,10 +1020,18 @@ const MatterDetail = () => {
             {documents.some(d => d.filePath) && (
               <div className="card-gradient rounded-xl border border-border/50 p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">
-                      {completedCount} of {documents.length} complete
-                    </span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-2 bg-secondary rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-primary rounded-full transition-all duration-500"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium">
+                        {completedCount}/{documents.length}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Filter className="w-4 h-4 text-muted-foreground" />
