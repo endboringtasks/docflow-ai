@@ -109,22 +109,22 @@ const MigrationClients = () => {
       
       if (clientsError) throw clientsError;
 
-      // Get matters count for each client
-      const { data: mattersData, error: mattersError } = await supabase
-        .from("matters")
+      // Get visa applications count for each client
+      const { data: applicationsData, error: applicationsError } = await supabase
+        .from("visa_applications")
         .select("client_id")
         .eq("company_id", currentCompany.id);
       
-      if (mattersError) throw mattersError;
+      if (applicationsError) throw applicationsError;
 
-      const mattersCounts = (mattersData || []).reduce((acc, matter) => {
-        acc[matter.client_id] = (acc[matter.client_id] || 0) + 1;
+      const applicationsCounts = (applicationsData || []).reduce((acc, app) => {
+        acc[app.client_id] = (acc[app.client_id] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
       return (clientsData || []).map(client => ({
         ...client,
-        matters_count: mattersCounts[client.id] || 0,
+        matters_count: applicationsCounts[client.id] || 0,
       })) as Client[];
     },
     enabled: !!currentCompany?.id,

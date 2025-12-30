@@ -218,7 +218,7 @@ const DocumentTemplates = () => {
       if (!currentCompany?.id) return [];
       
       const { data, error } = await supabase
-        .from("visa_document_templates")
+        .from("document_checklist_templates")
         .select("*")
         .eq("company_id", currentCompany.id)
         .eq("visa_subclass", selectedVisa)
@@ -256,7 +256,7 @@ const DocumentTemplates = () => {
         .reduce((max, t) => Math.max(max, t.sort_order), -1);
       
       const { data, error } = await supabase
-        .from("visa_document_templates")
+        .from("document_checklist_templates")
         .insert({
           company_id: currentCompany.id,
           visa_subclass: selectedVisa,
@@ -286,7 +286,7 @@ const DocumentTemplates = () => {
   const updateDocMutation = useMutation({
     mutationFn: async (doc: { id: string; document_name: string; is_required: boolean; category: string }) => {
       const { data, error } = await supabase
-        .from("visa_document_templates")
+        .from("document_checklist_templates")
         .update({
           document_name: doc.document_name,
           is_required: doc.is_required,
@@ -313,7 +313,7 @@ const DocumentTemplates = () => {
   const deleteDocMutation = useMutation({
     mutationFn: async (docId: string) => {
       const { error } = await supabase
-        .from("visa_document_templates")
+        .from("document_checklist_templates")
         .delete()
         .eq("id", docId);
       
