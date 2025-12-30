@@ -68,9 +68,9 @@ interface Client {
   created_at: string;
 }
 
-interface Matter {
+interface VisaApplication {
   id: string;
-  matter_name: string;
+  application_name: string;
   visa_subclass: string | null;
   status: "draft" | "active" | "done";
   visa_application_folder_id: string | null;
@@ -94,12 +94,12 @@ const ClientDetail = () => {
   const queryClient = useQueryClient();
   const { currentCompany } = useCompany();
   
-  const [isCreateMatterOpen, setIsCreateMatterOpen] = useState(false);
+  const [isCreateApplicationOpen, setIsCreateApplicationOpen] = useState(false);
   const [isEditClientOpen, setIsEditClientOpen] = useState(false);
-  const [matterToDelete, setMatterToDelete] = useState<Matter | null>(null);
+  const [applicationToDelete, setApplicationToDelete] = useState<VisaApplication | null>(null);
   
-  const [newMatter, setNewMatter] = useState({
-    matterName: "",
+  const [newApplication, setNewApplication] = useState({
+    applicationName: "",
     visaSubclass: "",
   });
   
@@ -138,39 +138,39 @@ const ClientDetail = () => {
     enabled: !!clientId,
   });
 
-  // Fetch matters for this client
-  const { data: matters = [], isLoading: isLoadingMatters } = useQuery({
-    queryKey: ["client-matters", clientId],
+  // Fetch visa applications for this client
+  const { data: visaApplications = [], isLoading: isLoadingApplications } = useQuery({
+    queryKey: ["client-visa-applications", clientId],
     queryFn: async () => {
       if (!clientId) return [];
       
       const { data, error } = await supabase
-        .from("matters")
+        .from("visa_applications")
         .select("*")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false });
       
       if (error) throw error;
-      return data as Matter[];
+      return data as VisaApplication[];
     },
     enabled: !!clientId,
   });
 
-  // Create matter mutation
-  const createMatterMutation = useMutation({
-    mutationFn: async (matterData: {
-      matter_name: string;
+  // Create visa application mutation
+  const createApplicationMutation = useMutation({
+    mutationFn: async (applicationData: {
+      application_name: string;
       visa_subclass: string;
     }) => {
       if (!currentCompany?.id || !clientId) throw new Error("Missing required data");
       
       const { data, error } = await supabase
-        .from("matters")
+        .from("visa_applications")
         .insert({
           company_id: currentCompany.id,
           client_id: clientId,
-          matter_name: matterData.matter_name,
-          visa_subclass: matterData.visa_subclass,
+          application_name: applicationData.application_name,
+          visa_subclass: applicationData.visa_subclass,
           status: "draft",
         })
         .select()
@@ -184,7 +184,7 @@ const ClientDetail = () => {
       try {
         if (data.visa_subclass && currentCompany?.id) {
           const { data: templates } = await supabase
-            .from("visa_document_templates")
+            .from("document_checklist_templates")
             .select("document_name, category, is_required, sort_order")
             .eq("company_id", currentCompany.id)
             .eq("visa_subclass", data.visa_subclass)
@@ -192,7 +192,7 @@ const ClientDetail = () => {
 
           if (templates && templates.length > 0) {
             const documentsToInsert = templates.map((template) => ({
-              matter_id: data.id,
+              visa_application_id: data.id,
               company_id: currentCompany.id,
               document_name: `[${template.category}:${template.is_required ? 'required' : 'optional'}] ${template.document_name}`,
               is_completed: false,
@@ -205,7 +205,7 @@ const ClientDetail = () => {
         console.error("Failed to copy document templates:", templateError);
       }
 
-      // Dispatch webhook for matter.created event
+      // Dispatch webhook for visa_application.created event
       try {
         // Get drive connection info
         const { data: driveConnection } = await supabase
@@ -221,11 +221,11 @@ const ClientDetail = () => {
 
         await supabase.functions.invoke("dispatch-webhook", {
           body: {
-            event_type: "matter.created",
+            event_type: "visa_application.created",
             data: {
               // Essential fields (always sent)
-              matter_id: data.id,
-              matter_name: data.matter_name,
+              visa_application_id: data.id,
+              application_name: data.application_name,
               visa_subclass: data.visa_subclass,
               client_folder_id: client?.client_folder_id || null,
               // Optional fields (filtered by edge function based on webhook config)
@@ -241,12 +241,12 @@ const ClientDetail = () => {
         console.error("Failed to dispatch webhook:", webhookError);
       }
 
-      queryClient.invalidateQueries({ queryKey: ["client-matters", clientId] });
-      queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["client-visa-applications", clientId] });
+      queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
-      setIsCreateMatterOpen(false);
-      setNewMatter({ matterName: "", visaSubclass: "" });
-      toast.success("Application created!");
+      setIsCreateApplicationOpen(false);
+      setNewApplication({ applicationName: "", visaSubclass: "" });
+      toast.success("Visa application created!");
     },
     onError: (error) => {
       toast.error("Failed to create application", {
@@ -297,39 +297,39 @@ const ClientDetail = () => {
     },
   });
 
-  // Delete matter mutation
-  const deleteMatterMutation = useMutation({
-    mutationFn: async (matterId: string) => {
-      // Get matter data before deletion for webhook
-      const { data: matterData } = await supabase
-        .from("matters")
-        .select("id, company_id, client_id, matter_name, visa_subclass, status, visa_application_folder_id")
-        .eq("id", matterId)
+  // Delete visa application mutation
+  const deleteApplicationMutation = useMutation({
+    mutationFn: async (applicationId: string) => {
+      // Get application data before deletion for webhook
+      const { data: applicationData } = await supabase
+        .from("visa_applications")
+        .select("id, company_id, client_id, application_name, visa_subclass, status, visa_application_folder_id")
+        .eq("id", applicationId)
         .single();
       
       const { error } = await supabase
-        .from("matters")
+        .from("visa_applications")
         .delete()
-        .eq("id", matterId);
+        .eq("id", applicationId);
       
       if (error) throw error;
-      return matterData;
+      return applicationData;
     },
-    onSuccess: async (matterData) => {
-      // Dispatch webhook for matter.deleted event
-      if (matterData) {
+    onSuccess: async (applicationData) => {
+      // Dispatch webhook for visa_application.deleted event
+      if (applicationData) {
         try {
           const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
             body: {
-              event_type: "matter.deleted",
+              event_type: "visa_application.deleted",
               data: {
-                matter_id: matterData.id,
-                company_id: matterData.company_id,
-                client_id: matterData.client_id,
-                matter_name: matterData.matter_name,
-                visa_subclass: matterData.visa_subclass,
-                status: matterData.status,
-                visa_application_folder_id: matterData.visa_application_folder_id,
+                visa_application_id: applicationData.id,
+                company_id: applicationData.company_id,
+                client_id: applicationData.client_id,
+                application_name: applicationData.application_name,
+                visa_subclass: applicationData.visa_subclass,
+                status: applicationData.status,
+                visa_application_folder_id: applicationData.visa_application_folder_id,
               },
             },
           });
@@ -340,11 +340,11 @@ const ClientDetail = () => {
         }
       }
       
-      queryClient.invalidateQueries({ queryKey: ["client-matters", clientId] });
-      queryClient.invalidateQueries({ queryKey: ["matters", currentCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["client-visa-applications", clientId] });
+      queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
-      setMatterToDelete(null);
-      toast.success("Application deleted successfully");
+      setApplicationToDelete(null);
+      toast.success("Visa application deleted successfully");
     },
     onError: (error) => {
       toast.error("Failed to delete application", {
@@ -353,12 +353,12 @@ const ClientDetail = () => {
     },
   });
 
-  const handleCreateMatter = () => {
-    if (!newMatter.matterName.trim() || !newMatter.visaSubclass) return;
+  const handleCreateApplication = () => {
+    if (!newApplication.applicationName.trim() || !newApplication.visaSubclass) return;
     
-    createMatterMutation.mutate({
-      matter_name: newMatter.matterName.trim(),
-      visa_subclass: newMatter.visaSubclass,
+    createApplicationMutation.mutate({
+      application_name: newApplication.applicationName.trim(),
+      visa_subclass: newApplication.visaSubclass,
     });
   };
 
@@ -390,7 +390,7 @@ const ClientDetail = () => {
     });
   };
 
-  const getStatusColor = (status: Matter["status"]) => {
+  const getStatusColor = (status: VisaApplication["status"]) => {
     switch (status) {
       case "draft": return "secondary";
       case "active": return "default";
@@ -406,7 +406,7 @@ const ClientDetail = () => {
     });
   };
 
-  const isLoading = isLoadingClient || isLoadingMatters;
+  const isLoading = isLoadingClient || isLoadingApplications;
 
   if (isLoading) {
     return (
@@ -501,313 +501,300 @@ const ClientDetail = () => {
                           href={`https://drive.google.com/drive/folders/${client.client_folder_id}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 hover:underline transition-all group"
+                          className="font-medium text-primary hover:underline flex items-center gap-1"
                         >
-                          <FolderOpen className="w-3.5 h-3.5" />
                           Open Folder
-                          <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                          <ExternalLink className="w-3 h-3" />
                         </a>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Opens in Google Drive</p>
+                        <p>Open client folder in Google Drive</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
+                ) : client.folder_status === 'creating' ? (
+                  <span className="text-sm text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Creating...
+                  </span>
+                ) : client.folder_status === 'failed' ? (
+                  <span className="text-sm text-destructive">Failed to create</span>
                 ) : (
-                  <Badge 
-                    variant={
-                      client.folder_status === 'creating' ? "default" : 
-                      client.folder_status === 'failed' ? "destructive" : "secondary"
-                    }
-                    className="gap-1"
-                  >
-                    {client.folder_status === 'creating' && (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    )}
-                    {client.folder_status === 'creating' ? "Creating" : 
-                     client.folder_status === 'failed' ? "Failed" : "Pending"}
-                  </Badge>
+                  <span className="text-sm text-muted-foreground">Pending</span>
                 )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Matters Section */}
-        <div className="flex items-center justify-between">
-          <div>
+        {/* Visa Applications Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Visa Applications</h2>
-            <p className="text-sm text-muted-foreground">{matters.length} application(s)</p>
-          </div>
-          <Button variant="gradient" onClick={() => setIsCreateMatterOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            New Application
-          </Button>
-        </div>
-
-        {/* Matters Grid */}
-        {matters.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {matters.map((matter, index) => (
-              <motion.div
-                key={matter.id}
-                className="card-gradient rounded-xl border border-border/50 p-6 hover:border-primary/50 transition-all"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-10 h-10 rounded-lg gradient-bg flex items-center justify-center">
-                    <FileText className="w-5 h-5 text-primary-foreground" />
-                  </div>
-                  <Badge variant={getStatusColor(matter.status)}>
-                    {matter.status}
-                  </Badge>
-                </div>
-                
-                <h3 className="font-semibold mb-1 line-clamp-1">{matter.matter_name}</h3>
-                {matter.visa_subclass && (
-                  <p className="text-sm text-primary mb-2">Subclass {matter.visa_subclass}</p>
-                )}
-
-                <p className="text-xs text-muted-foreground mb-4">
-                  Created {formatDate(matter.created_at)}
-                </p>
-
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1"
-                    onClick={() => navigate(`/app/migration/matters/${matter.id}`)}
-                  >
-                    View Details
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => setMatterToDelete(matter)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        ) : (
-          <div className="card-gradient rounded-xl border border-border/50 p-12 text-center">
-            <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="font-semibold mb-2">No applications yet</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Create a visa application for this client
-            </p>
-            <Button variant="gradient" onClick={() => setIsCreateMatterOpen(true)}>
+            <Button onClick={() => setIsCreateApplicationOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
               New Application
             </Button>
           </div>
-        )}
 
-        {/* Create Matter Dialog */}
-        <Dialog open={isCreateMatterOpen} onOpenChange={setIsCreateMatterOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Create New Application</DialogTitle>
-              <DialogDescription>
-                Start a new visa application for {getFullName(client)}.
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Application Name</Label>
-                <Input
-                  value={newMatter.matterName}
-                  onChange={(e) => setNewMatter({...newMatter, matterName: e.target.value})}
-                  placeholder="e.g., Skilled Worker Application"
-                  className="bg-secondary border-border"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Visa Subclass</Label>
-                <Select 
-                  value={newMatter.visaSubclass} 
-                  onValueChange={(value) => setNewMatter({...newMatter, visaSubclass: value})}
-                >
-                  <SelectTrigger className="bg-secondary border-border">
-                    <SelectValue placeholder="Select visa type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {visaSubclasses.map(visa => (
-                      <SelectItem key={visa.value} value={visa.value}>
-                        {visa.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setIsCreateMatterOpen(false)}>
-                Cancel
+          {visaApplications.length === 0 ? (
+            <div className="card-gradient rounded-xl border border-border/50 p-8 text-center">
+              <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">No Visa Applications</h3>
+              <p className="text-muted-foreground mb-4">
+                Create the first visa application for this client.
+              </p>
+              <Button onClick={() => setIsCreateApplicationOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Create Application
               </Button>
-              <Button 
-                variant="gradient" 
-                className="flex-1" 
-                onClick={handleCreateMatter} 
-                disabled={!newMatter.matterName.trim() || !newMatter.visaSubclass || createMatterMutation.isPending}
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {visaApplications.map((application, index) => (
+                <motion.div
+                  key={application.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="card-gradient rounded-xl border border-border/50 p-4 hover:border-primary/30 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div 
+                      className="flex-1 cursor-pointer"
+                      onClick={() => navigate(`/app/migration/applications/${application.id}`)}
+                    >
+                      <div className="flex items-center gap-3 mb-1">
+                        <h3 className="font-semibold">{application.application_name}</h3>
+                        <Badge variant={getStatusColor(application.status)}>
+                          {application.status}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {application.visa_subclass ? `Subclass ${application.visa_subclass}` : "No visa subclass"} • 
+                        Created {formatDate(application.created_at)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {application.visa_application_folder_id && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <a
+                                href={`https://drive.google.com/drive/folders/${application.visa_application_folder_id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 hover:bg-muted rounded-lg transition-colors"
+                              >
+                                <FolderOpen className="w-4 h-4 text-muted-foreground" />
+                              </a>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Open folder in Google Drive</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setApplicationToDelete(application)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Create Application Dialog */}
+      <Dialog open={isCreateApplicationOpen} onOpenChange={setIsCreateApplicationOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Visa Application</DialogTitle>
+            <DialogDescription>
+              Create a new visa application for {getFullName(client)}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="applicationName">Application Name</Label>
+              <Input
+                id="applicationName"
+                placeholder="e.g., 482 Visa Application 2024"
+                value={newApplication.applicationName}
+                onChange={(e) => setNewApplication(prev => ({ ...prev, applicationName: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="visaSubclass">Visa Subclass</Label>
+              <Select
+                value={newApplication.visaSubclass}
+                onValueChange={(value) => setNewApplication(prev => ({ ...prev, visaSubclass: value }))}
               >
-                {createMatterMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Creating...
-                  </>
-                ) : (
-                  "Create Application"
-                )}
-              </Button>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select visa subclass" />
+                </SelectTrigger>
+                <SelectContent>
+                  {visaSubclasses.map((visa) => (
+                    <SelectItem key={visa.value} value={visa.value}>
+                      {visa.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsCreateApplicationOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleCreateApplication}
+              disabled={!newApplication.applicationName.trim() || !newApplication.visaSubclass || createApplicationMutation.isPending}
+            >
+              {createApplicationMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Application"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-        {/* Edit Client Dialog */}
-        <Dialog open={isEditClientOpen} onOpenChange={setIsEditClientOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Edit Client</DialogTitle>
-              <DialogDescription>
-                Update client information.
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Client Type</Label>
-                <Select 
-                  value={editForm.clientType} 
-                  onValueChange={(value: "personal" | "corporate") => setEditForm({...editForm, clientType: value})}
-                >
-                  <SelectTrigger className="bg-secondary border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="personal">Personal</SelectItem>
-                    <SelectItem value="corporate">Corporate</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+      {/* Edit Client Dialog */}
+      <Dialog open={isEditClientOpen} onOpenChange={setIsEditClientOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Client</DialogTitle>
+            <DialogDescription>
+              Update the client's information.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Client Type</Label>
+              <Select
+                value={editForm.clientType}
+                onValueChange={(value: "personal" | "corporate") => 
+                  setEditForm(prev => ({ ...prev, clientType: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="personal">Personal</SelectItem>
+                  <SelectItem value="corporate">Corporate</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-              {editForm.clientType === "corporate" ? (
+            {editForm.clientType === "personal" ? (
+              <>
                 <div className="space-y-2">
-                  <Label>Company Name</Label>
+                  <Label htmlFor="editFirstName">First Name</Label>
                   <Input
-                    value={editForm.companyName}
-                    onChange={(e) => setEditForm({...editForm, companyName: e.target.value})}
-                    placeholder="Acme Corp Pty Ltd"
-                    className="bg-secondary border-border"
+                    id="editFirstName"
+                    value={editForm.firstName}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, firstName: e.target.value }))}
                   />
                 </div>
-              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="editLastName">Last Name</Label>
+                  <Input
+                    id="editLastName"
+                    value={editForm.lastName}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, lastName: e.target.value }))}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="editCompanyName">Company Name</Label>
+                <Input
+                  id="editCompanyName"
+                  value={editForm.companyName}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, companyName: e.target.value }))}
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="editEmail">Email</Label>
+              <Input
+                id="editEmail"
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editPhone">Phone</Label>
+              <Input
+                id="editPhone"
+                value={editForm.phone}
+                onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsEditClientOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleUpdateClient}
+              disabled={updateClientMutation.isPending}
+            >
+              {updateClientMutation.isPending ? (
                 <>
-                  <div className="space-y-2">
-                    <Label>First Name</Label>
-                    <Input
-                      value={editForm.firstName}
-                      onChange={(e) => setEditForm({...editForm, firstName: e.target.value})}
-                      placeholder="John"
-                      className="bg-secondary border-border"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Last Name</Label>
-                    <Input
-                      value={editForm.lastName}
-                      onChange={(e) => setEditForm({...editForm, lastName: e.target.value})}
-                      placeholder="Smith"
-                      className="bg-secondary border-border"
-                    />
-                  </div>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
                 </>
+              ) : (
+                "Save Changes"
               )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  value={editForm.email}
-                  onChange={(e) => setEditForm({...editForm, email: e.target.value})}
-                  placeholder="email@example.com"
-                  className="bg-secondary border-border"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Phone</Label>
-                <Input
-                  type="tel"
-                  value={editForm.phone}
-                  onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
-                  placeholder="+61 400 123 456"
-                  className="bg-secondary border-border"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setIsEditClientOpen(false)}>
-                Cancel
-              </Button>
-              <Button 
-                variant="gradient" 
-                className="flex-1" 
-                onClick={handleUpdateClient} 
-                disabled={(editForm.clientType === "corporate" ? !editForm.companyName.trim() : !editForm.firstName.trim()) || updateClientMutation.isPending}
-              >
-                {updateClientMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Changes"
-                )}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Delete Matter Confirmation */}
-        <AlertDialog open={!!matterToDelete} onOpenChange={() => setMatterToDelete(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Application</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete "{matterToDelete?.matter_name}"? This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => matterToDelete && deleteMatterMutation.mutate(matterToDelete.id)}
-                disabled={deleteMatterMutation.isPending}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                {deleteMatterMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Deleting...
-                  </>
-                ) : (
-                  "Delete"
-                )}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
+      {/* Delete Application Confirmation */}
+      <AlertDialog open={!!applicationToDelete} onOpenChange={() => setApplicationToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Visa Application</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{applicationToDelete?.application_name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => applicationToDelete && deleteApplicationMutation.mutate(applicationToDelete.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteApplicationMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 };
