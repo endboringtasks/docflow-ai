@@ -1176,9 +1176,9 @@ export type Database = {
           id: string
           is_submitted: boolean
           last_accessed_at: string
-          matter_id: string
           submitted_at: string
           token_expires_at: string
+          visa_application_id: string
         }[]
       }
     }
