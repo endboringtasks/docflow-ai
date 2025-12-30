@@ -1021,15 +1021,37 @@ const MatterDetail = () => {
               <div className="card-gradient rounded-xl border border-border/50 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 h-2 bg-secondary rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-primary rounded-full transition-all duration-500"
-                          style={{ width: `${progress}%` }}
+                    <div className="relative w-10 h-10">
+                      <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
+                        <circle
+                          className="text-secondary"
+                          strokeWidth="3"
+                          stroke="currentColor"
+                          fill="transparent"
+                          r="16"
+                          cx="18"
+                          cy="18"
                         />
-                      </div>
-                      <span className="text-sm font-medium">
-                        {completedCount}/{documents.length}
+                        <circle
+                          className="text-primary transition-all duration-500"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          stroke="currentColor"
+                          fill="transparent"
+                          r="16"
+                          cx="18"
+                          cy="18"
+                          strokeDasharray={`${progress} 100`}
+                        />
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold">
+                        {progress}%
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">Review Status</h3>
+                      <span className="text-sm text-muted-foreground">
+                        {completedCount} of {documents.length} collected
                       </span>
                     </div>
                   </div>
