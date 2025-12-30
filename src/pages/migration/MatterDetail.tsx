@@ -1571,6 +1571,7 @@ const MatterDetail = () => {
           document={previewDoc}
           onReviewUpdate={handleReviewUpdate}
           onRequestNewDocument={handleRequestNewDocument}
+          companyId={matter?.company_id}
         />
       </div>
     </AppLayout>
