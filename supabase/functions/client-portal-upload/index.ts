@@ -292,15 +292,30 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Get the matter's Google Drive folder ID
+    // Get the matter's Google Drive folder ID and client's documents_received_folder_id
     const { data: matterData, error: matterError } = await supabase
       .from('matters')
-      .select('visa_application_folder_id, company_id')
+      .select('visa_application_folder_id, company_id, client_id')
       .eq('id', portalAccess.matter_id)
       .single()
 
     if (matterError) {
       console.error('Error fetching matter:', matterError)
+    }
+
+    // Get the client's documents_received_folder_id for storing original files
+    let documentsReceivedFolderId: string | null = null
+    if (matterData?.client_id) {
+      const { data: clientData } = await supabase
+        .from('clients')
+        .select('documents_received_folder_id')
+        .eq('id', matterData.client_id)
+        .single()
+      
+      if (clientData?.documents_received_folder_id) {
+        documentsReceivedFolderId = clientData.documents_received_folder_id
+        console.log('Found documents_received_folder_id:', documentsReceivedFolderId)
+      }
     }
 
     const arrayBuffer = await file.arrayBuffer()
@@ -318,6 +333,7 @@ Deno.serve(async (req) => {
         const cleanDocName = docData.document_name.replace(/[^a-zA-Z0-9]/g, '_')
         const driveFileName = `${cleanDocName}_${file.name}`
         
+        // Upload to visa_application_folder with renamed file
         const driveResult = await uploadToGoogleDrive(
           accessToken,
           matterData.visa_application_folder_id,
@@ -330,6 +346,24 @@ Deno.serve(async (req) => {
           driveFileId = driveResult.id
           filePath = `drive://${driveResult.id}` // Store Drive file reference
           console.log('Successfully uploaded to Google Drive:', driveFileId)
+          
+          // Also upload original file (without name change) to documents_received_folder_id
+          if (documentsReceivedFolderId) {
+            console.log('Uploading original file to documents_received_folder...')
+            const originalResult = await uploadToGoogleDrive(
+              accessToken,
+              documentsReceivedFolderId,
+              file.name, // Original filename
+              arrayBuffer,
+              file.type || 'application/octet-stream'
+            )
+            
+            if (originalResult) {
+              console.log('Original file uploaded to documents_received_folder:', originalResult.id)
+            } else {
+              console.warn('Failed to upload original file to documents_received_folder')
+            }
+          }
         } else {
           console.log('Google Drive upload failed, falling back to Supabase storage')
         }

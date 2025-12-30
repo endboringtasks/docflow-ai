@@ -18,6 +18,7 @@ const RATE_LIMIT_CONFIG = {
 interface WebhookPayload {
   client_id: string;
   drive_folder_id: string;
+  documents_received_folder_id?: string;
   // Accept both for flexibility - organization_id is the preferred external name
   company_id?: string;
   organization_id?: string;
@@ -73,9 +74,17 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Build update object with optional documents_received_folder_id
+    const updateData: { drive_folder_id: string; documents_received_folder_id?: string } = {
+      drive_folder_id: payload.drive_folder_id,
+    };
+    if (payload.documents_received_folder_id) {
+      updateData.documents_received_folder_id = payload.documents_received_folder_id;
+    }
+
     const { data: client, error: updateError } = await supabase
       .from("clients")
-      .update({ drive_folder_id: payload.drive_folder_id })
+      .update(updateData)
       .eq("id", payload.client_id)
       .select("id, company_id, client_type, first_name, last_name, company_name")
       .single();
