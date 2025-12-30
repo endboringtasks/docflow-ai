@@ -171,7 +171,7 @@ export default function ClientPortal() {
       // Map the RPC response to our PortalAccess interface
       setPortalAccess({
         id: portalData.id,
-        visa_application_id: portalData.matter_id, // RPC still returns matter_id
+        visa_application_id: portalData.visa_application_id,
         client_id: portalData.client_id,
         company_id: portalData.company_id,
         email: portalData.email,
@@ -210,8 +210,8 @@ export default function ClientPortal() {
 
       if (docsData) setDocuments(docsData);
 
-      // Load saved form data - use the mapped visa_application_id
-      const visaAppId = portalData.matter_id; // RPC returns matter_id
+      // Load saved form data - use the visa_application_id from RPC
+      const visaAppId = portalData.visa_application_id;
       const { data: formDataResult } = await supabase
         .from("client_form_data")
         .select("form_data")

@@ -508,7 +508,7 @@ const VisaApplicationDetail = () => {
       documentName: string;
     }) => {
       const formData = new FormData();
-      formData.append("matter_id", matterId!);
+      formData.append("visa_application_id", matterId!);
       formData.append("doc_id", docId);
       formData.append("file", file);
       formData.append("document_name", documentName);
