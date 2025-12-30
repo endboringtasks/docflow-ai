@@ -124,7 +124,7 @@ export function DocumentPreviewDialog({
           : status === "rejected"
           ? "Document rejected"
           : status === "in_review"
-          ? "Marked as in review"
+          ? "Marked as ready to review"
           : "Marked as pending client"
       );
       if (status !== "pending_client") {
@@ -158,7 +158,7 @@ export function DocumentPreviewDialog({
   const getStatusBadge = (status: ReviewStatus) => {
     const config = {
       pending_client: { variant: "secondary" as const, label: "Pending Client", icon: AlertCircle },
-      in_review: { variant: "outline" as const, label: "In Review", icon: AlertCircle },
+      in_review: { variant: "outline" as const, label: "Ready to Review", icon: AlertCircle },
       approved: { variant: "default" as const, label: "Approved", icon: CheckCircle2 },
       rejected: { variant: "destructive" as const, label: "Rejected", icon: XCircle },
     };
@@ -340,7 +340,7 @@ export function DocumentPreviewDialog({
                 ) : (
                   <AlertCircle className="w-4 h-4 mr-2" />
                 )}
-                In Review
+                Ready to Review
               </Button>
               <Button
                 variant="outline"
