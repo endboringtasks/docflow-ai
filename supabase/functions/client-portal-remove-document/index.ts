@@ -49,9 +49,9 @@ Deno.serve(async (req) => {
     // Get the document to find the file path
     const { data: docData, error: docError } = await supabase
       .from('document_checklist')
-      .select('id, matter_id, file_path')
+      .select('id, visa_application_id, file_path')
       .eq('id', doc_id)
-      .eq('matter_id', portalAccess.matter_id)
+      .eq('visa_application_id', portalAccess.visa_application_id)
       .single()
 
     if (docError || !docData) {

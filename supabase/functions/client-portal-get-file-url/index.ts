@@ -37,13 +37,13 @@ Deno.serve(async (req) => {
 
     const portalAccess = accessData[0]
 
-    // Verify the file belongs to a document in this matter
+    // Verify the file belongs to a document in this visa application
     const docId = file_path.split('/')[0]
     const { data: docData, error: docError } = await supabase
       .from('document_checklist')
       .select('id')
       .eq('id', docId)
-      .eq('matter_id', portalAccess.matter_id)
+      .eq('visa_application_id', portalAccess.visa_application_id)
       .single()
 
     if (docError || !docData) {
