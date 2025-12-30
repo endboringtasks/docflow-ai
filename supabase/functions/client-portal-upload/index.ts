@@ -228,11 +228,13 @@ async function findDriveFolderId(
   parentFolderId: string,
   folderName: string
 ): Promise<string | null> {
-  const safeName = folderName.replaceAll("'", "\\'")
-  const query = `'${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and name='${safeName}' and trashed=false`
+  const normalize = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase()
+
+  // List child folders and match in a tolerant way (case/whitespace)
+  const query = `'${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
 
   const driveResponse = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)&pageSize=10`,
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)&pageSize=100`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -246,8 +248,17 @@ async function findDriveFolderId(
     return null
   }
 
-  const first = data?.files?.[0]
-  return first?.id ?? null
+  const files: Array<{ id: string; name: string }> = Array.isArray(data?.files) ? data.files : []
+  const target = normalize(folderName)
+  const match = files.find((f) => normalize(f.name) === target)
+
+  if (!match) return null
+
+  if (match.name !== folderName) {
+    console.log('Matched folder with normalized name', { requested: folderName, actual: match.name, id: match.id })
+  }
+
+  return match.id
 }
 
 async function createDriveFolder(
