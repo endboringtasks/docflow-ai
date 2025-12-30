@@ -1003,24 +1003,6 @@ const MatterDetail = () => {
           </TabsList>
 
           <TabsContent value="documents" className="space-y-6">
-            {/* Progress Bar */}
-            <div className="card-gradient rounded-xl border border-border/50 p-6">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">Overall Progress</h3>
-                <span className="text-sm font-medium">{progress}%</span>
-              </div>
-              <div className="h-3 bg-secondary rounded-full overflow-hidden">
-                <motion.div 
-                  className="h-full gradient-bg"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
-                  transition={{ duration: 0.5 }}
-                />
-              </div>
-              <p className="text-sm text-muted-foreground mt-2">
-                {completedCount} of {documents.length} documents collected
-              </p>
-            </div>
 
             {/* Review Status Summary */}
             {documents.some(d => d.filePath) && (
