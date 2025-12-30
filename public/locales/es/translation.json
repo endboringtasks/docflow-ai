@@ -1,0 +1,151 @@
+{
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "add": "Agregar",
+    "search": "Buscar",
+    "loading": "Cargando...",
+    "required": "Requerido",
+    "optional": "Opcional",
+    "back": "Volver",
+    "create": "Crear",
+    "update": "Actualizar",
+    "close": "Cerrar",
+    "confirm": "Confirmar",
+    "actions": "Acciones",
+    "status": "Estado",
+    "name": "Nombre",
+    "email": "Correo electrónico",
+    "phone": "Teléfono",
+    "date": "Fecha",
+    "type": "Tipo",
+    "view": "Ver",
+    "download": "Descargar",
+    "upload": "Subir",
+    "submitted": "Enviado",
+    "pending": "Pendiente",
+    "created": "Creado",
+    "updated": "Actualizado"
+  },
+  "nav": {
+    "dashboard": "Panel",
+    "clients": "Clientes",
+    "visaApplications": "Solicitudes de Visa",
+    "documentChecklist": "Lista de Documentos",
+    "settings": "Configuración",
+    "billing": "Facturación",
+    "signOut": "Cerrar Sesión"
+  },
+  "visaApplication": {
+    "title": "Solicitudes de Visa",
+    "singular": "Solicitud de Visa",
+    "new": "Nueva Solicitud de Visa",
+    "selectCountry": "Seleccionar País",
+    "selectVisaType": "Seleccionar Tipo de Visa",
+    "applicationName": "Nombre de la Solicitud",
+    "visaSubclass": "Subclase de Visa",
+    "folder": "Carpeta de Solicitud",
+    "status": {
+      "draft": "Borrador",
+      "active": "Activo",
+      "done": "Completado",
+      "pending": "Pendiente",
+      "approved": "Aprobado",
+      "rejected": "Rechazado"
+    },
+    "create": {
+      "title": "Crear Solicitud de Visa",
+      "description": "Iniciar una nueva solicitud de visa para su cliente",
+      "success": "Solicitud de visa creada exitosamente",
+      "error": "Error al crear la solicitud de visa"
+    },
+    "update": {
+      "success": "Solicitud de visa actualizada exitosamente",
+      "error": "Error al actualizar la solicitud de visa"
+    },
+    "delete": {
+      "title": "Eliminar Solicitud de Visa",
+      "description": "¿Está seguro de que desea eliminar esta solicitud de visa? Esta acción no se puede deshacer.",
+      "success": "Solicitud de visa eliminada exitosamente",
+      "error": "Error al eliminar la solicitud de visa"
+    }
+  },
+  "client": {
+    "title": "Clientes",
+    "singular": "Cliente",
+    "new": "Nuevo Cliente",
+    "personal": "Personal",
+    "corporate": "Corporativo",
+    "firstName": "Nombre",
+    "lastName": "Apellido",
+    "companyName": "Nombre de la Empresa",
+    "folder": "Carpeta del Cliente",
+    "noClients": "No se encontraron clientes",
+    "addFirst": "Agregue su primer cliente para comenzar"
+  },
+  "documentChecklist": {
+    "title": "Lista de Documentos",
+    "addDocument": "Agregar Documento",
+    "documentName": "Nombre del Documento",
+    "category": "Categoría",
+    "required": "Requerido",
+    "uploaded": "Subido",
+    "pending": "Pendiente",
+    "review": {
+      "pending": "Revisión Pendiente",
+      "approved": "Aprobado",
+      "rejected": "Rechazado",
+      "needsRevision": "Necesita Revisión"
+    }
+  },
+  "clientPortal": {
+    "welcome": "Bienvenido a su Portal de Documentos",
+    "description": "Suba sus documentos y complete la información requerida",
+    "submitDocuments": "Enviar Documentos",
+    "submitted": "¡Solicitud Enviada!",
+    "thankYou": "Gracias por enviar sus documentos. Su agente los revisará y se comunicará con usted si necesita algo más.",
+    "expired": "Este enlace ha expirado. Por favor contacte a su agente para obtener un nuevo enlace.",
+    "invalid": "Enlace de acceso inválido. Por favor use el enlace enviado a su correo electrónico."
+  },
+  "settings": {
+    "title": "Configuración",
+    "profile": "Perfil",
+    "team": "Equipo",
+    "integrations": "Integraciones",
+    "language": "Idioma",
+    "theme": "Tema"
+  },
+  "dashboard": {
+    "title": "Panel",
+    "welcome": "Bienvenido de nuevo",
+    "totalClients": "Clientes Totales",
+    "activeApplications": "Solicitudes Activas",
+    "pendingDocuments": "Documentos Pendientes",
+    "recentActivity": "Actividad Reciente",
+    "quickActions": "Acciones Rápidas"
+  },
+  "countries": {
+    "AU": "Australia",
+    "US": "Estados Unidos",
+    "GB": "Reino Unido",
+    "CA": "Canadá",
+    "NZ": "Nueva Zelanda",
+    "DE": "Alemania",
+    "FR": "Francia",
+    "ES": "España",
+    "IT": "Italia",
+    "JP": "Japón",
+    "KR": "Corea del Sur",
+    "CN": "China",
+    "IN": "India",
+    "BR": "Brasil",
+    "AE": "Emiratos Árabes Unidos",
+    "SG": "Singapur",
+    "IE": "Irlanda",
+    "NL": "Países Bajos",
+    "CH": "Suiza",
+    "SE": "Suecia"
+  }
+}

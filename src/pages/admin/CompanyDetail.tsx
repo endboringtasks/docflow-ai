@@ -178,11 +178,11 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
     queryKey: ["admin-company-stats", companyId],
     queryFn: async () => {
       if (!companyId) return null;
-      const [{ count: clientsCount }, { count: mattersCount }] = await Promise.all([
+      const [{ count: clientsCount }, { count: visaApplicationsCount }] = await Promise.all([
         supabase.from("clients").select("*", { count: "exact", head: true }).eq("company_id", companyId),
-        supabase.from("matters").select("*", { count: "exact", head: true }).eq("company_id", companyId),
+        supabase.from("visa_applications").select("*", { count: "exact", head: true }).eq("company_id", companyId),
       ]);
-      return { clients: clientsCount ?? 0, matters: mattersCount ?? 0 };
+      return { clients: clientsCount ?? 0, visaApplications: visaApplicationsCount ?? 0 };
     },
     enabled: !!companyId && open,
   });
@@ -278,7 +278,7 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
             </div>
             <div className="flex flex-col items-center p-3 rounded-lg bg-muted/50">
               <FileText className="w-5 h-5 text-muted-foreground mb-1" />
-              <span className="text-xl font-semibold">{stats?.matters ?? 0}</span>
+              <span className="text-xl font-semibold">{stats?.visaApplications ?? 0}</span>
               <span className="text-xs text-muted-foreground">Visa Applications</span>
             </div>
           </div>
@@ -447,7 +447,7 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
               href={`/admin/audit-logs?company=${companyId}`}
               className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
             >
-              <span className="text-sm">View activity logs for this company</span>
+              <span className="text-sm">View audit logs for this company</span>
               <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
             </a>
           </div>

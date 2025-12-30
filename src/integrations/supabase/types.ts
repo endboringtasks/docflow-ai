@@ -21,8 +21,8 @@ export type Database = {
           created_at: string
           event_type: string
           id: string
-          matter_id: string | null
           payload: Json | null
+          visa_application_id: string | null
         }
         Insert: {
           client_id?: string | null
@@ -30,8 +30,8 @@ export type Database = {
           created_at?: string
           event_type: string
           id?: string
-          matter_id?: string | null
           payload?: Json | null
+          visa_application_id?: string | null
         }
         Update: {
           client_id?: string | null
@@ -39,8 +39,8 @@ export type Database = {
           created_at?: string
           event_type?: string
           id?: string
-          matter_id?: string | null
           payload?: Json | null
+          visa_application_id?: string | null
         }
         Relationships: [
           {
@@ -59,9 +59,9 @@ export type Database = {
           },
           {
             foreignKeyName: "automation_events_matter_id_fkey"
-            columns: ["matter_id"]
+            columns: ["visa_application_id"]
             isOneToOne: false
-            referencedRelation: "matters"
+            referencedRelation: "visa_applications"
             referencedColumns: ["id"]
           },
         ]
@@ -73,8 +73,8 @@ export type Database = {
           created_at: string
           form_data: Json
           id: string
-          matter_id: string
           updated_at: string
+          visa_application_id: string
         }
         Insert: {
           client_id: string
@@ -82,8 +82,8 @@ export type Database = {
           created_at?: string
           form_data?: Json
           id?: string
-          matter_id: string
           updated_at?: string
+          visa_application_id: string
         }
         Update: {
           client_id?: string
@@ -91,8 +91,8 @@ export type Database = {
           created_at?: string
           form_data?: Json
           id?: string
-          matter_id?: string
           updated_at?: string
+          visa_application_id?: string
         }
         Relationships: [
           {
@@ -111,9 +111,9 @@ export type Database = {
           },
           {
             foreignKeyName: "client_form_data_matter_id_fkey"
-            columns: ["matter_id"]
+            columns: ["visa_application_id"]
             isOneToOne: false
-            referencedRelation: "matters"
+            referencedRelation: "visa_applications"
             referencedColumns: ["id"]
           },
         ]
@@ -128,10 +128,10 @@ export type Database = {
           id: string
           is_submitted: boolean
           last_accessed_at: string | null
-          matter_id: string
           submitted_at: string | null
           token_expires_at: string
           updated_at: string
+          visa_application_id: string
         }
         Insert: {
           access_token: string
@@ -142,10 +142,10 @@ export type Database = {
           id?: string
           is_submitted?: boolean
           last_accessed_at?: string | null
-          matter_id: string
           submitted_at?: string | null
           token_expires_at: string
           updated_at?: string
+          visa_application_id: string
         }
         Update: {
           access_token?: string
@@ -156,10 +156,10 @@ export type Database = {
           id?: string
           is_submitted?: boolean
           last_accessed_at?: string | null
-          matter_id?: string
           submitted_at?: string | null
           token_expires_at?: string
           updated_at?: string
+          visa_application_id?: string
         }
         Relationships: [
           {
@@ -178,9 +178,9 @@ export type Database = {
           },
           {
             foreignKeyName: "client_portal_access_matter_id_fkey"
-            columns: ["matter_id"]
+            columns: ["visa_application_id"]
             isOneToOne: false
-            referencedRelation: "matters"
+            referencedRelation: "visa_applications"
             referencedColumns: ["id"]
           },
         ]
@@ -248,6 +248,7 @@ export type Database = {
           id: string
           name: string
           niche: Database["public"]["Enums"]["niche_type"]
+          preferred_language: string | null
           save_original_to_documents_received: boolean
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
@@ -260,6 +261,7 @@ export type Database = {
           id?: string
           name: string
           niche: Database["public"]["Enums"]["niche_type"]
+          preferred_language?: string | null
           save_original_to_documents_received?: boolean
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
@@ -272,6 +274,7 @@ export type Database = {
           id?: string
           name?: string
           niche?: Database["public"]["Enums"]["niche_type"]
+          preferred_language?: string | null
           save_original_to_documents_received?: boolean
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
@@ -312,6 +315,44 @@ export type Database = {
           },
         ]
       }
+      countries: {
+        Row: {
+          code: string
+          created_at: string | null
+          default_language_code: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          sort_order: number | null
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          default_language_code?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          sort_order?: number | null
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          default_language_code?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "countries_default_language_code_fkey"
+            columns: ["default_language_code"]
+            isOneToOne: false
+            referencedRelation: "languages"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       document_checklist: {
         Row: {
           company_id: string
@@ -320,7 +361,6 @@ export type Database = {
           file_path: string | null
           id: string
           is_completed: boolean
-          matter_id: string
           review_comment: string | null
           review_status: string | null
           reviewed_at: string | null
@@ -329,6 +369,7 @@ export type Database = {
           uploaded_at: string | null
           uploaded_by: string | null
           uploaded_by_client: string | null
+          visa_application_id: string
         }
         Insert: {
           company_id: string
@@ -337,7 +378,6 @@ export type Database = {
           file_path?: string | null
           id?: string
           is_completed?: boolean
-          matter_id: string
           review_comment?: string | null
           review_status?: string | null
           reviewed_at?: string | null
@@ -346,6 +386,7 @@ export type Database = {
           uploaded_at?: string | null
           uploaded_by?: string | null
           uploaded_by_client?: string | null
+          visa_application_id: string
         }
         Update: {
           company_id?: string
@@ -354,7 +395,6 @@ export type Database = {
           file_path?: string | null
           id?: string
           is_completed?: boolean
-          matter_id?: string
           review_comment?: string | null
           review_status?: string | null
           reviewed_at?: string | null
@@ -363,6 +403,7 @@ export type Database = {
           uploaded_at?: string | null
           uploaded_by?: string | null
           uploaded_by_client?: string | null
+          visa_application_id?: string
         }
         Relationships: [
           {
@@ -374,9 +415,9 @@ export type Database = {
           },
           {
             foreignKeyName: "document_checklist_matter_id_fkey"
-            columns: ["matter_id"]
+            columns: ["visa_application_id"]
             isOneToOne: false
-            referencedRelation: "matters"
+            referencedRelation: "visa_applications"
             referencedColumns: ["id"]
           },
           {
@@ -384,6 +425,67 @@ export type Database = {
             columns: ["uploaded_by_client"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_checklist_templates: {
+        Row: {
+          category: string | null
+          company_id: string | null
+          country_id: string | null
+          created_at: string | null
+          document_name: string
+          id: string
+          is_required: boolean | null
+          sort_order: number | null
+          visa_subclass: string | null
+          visa_type_id: string | null
+        }
+        Insert: {
+          category?: string | null
+          company_id?: string | null
+          country_id?: string | null
+          created_at?: string | null
+          document_name: string
+          id?: string
+          is_required?: boolean | null
+          sort_order?: number | null
+          visa_subclass?: string | null
+          visa_type_id?: string | null
+        }
+        Update: {
+          category?: string | null
+          company_id?: string | null
+          country_id?: string | null
+          created_at?: string | null
+          document_name?: string
+          id?: string
+          is_required?: boolean | null
+          sort_order?: number | null
+          visa_subclass?: string | null
+          visa_type_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_checklist_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_checklist_templates_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_checklist_templates_visa_type_id_fkey"
+            columns: ["visa_type_id"]
+            isOneToOne: false
+            referencedRelation: "visa_types"
             referencedColumns: ["id"]
           },
         ]
@@ -441,59 +543,38 @@ export type Database = {
           },
         ]
       }
-      matters: {
+      languages: {
         Row: {
-          client_id: string
-          company_id: string
-          created_at: string
-          folder_status: string
-          folder_status_updated_at: string | null
+          code: string
+          created_at: string | null
           id: string
-          matter_name: string
-          status: Database["public"]["Enums"]["matter_status"]
-          visa_application_folder_id: string | null
-          visa_subclass: string | null
+          is_active: boolean | null
+          is_default: boolean | null
+          name: string
+          native_name: string
+          sort_order: number | null
         }
         Insert: {
-          client_id: string
-          company_id: string
-          created_at?: string
-          folder_status?: string
-          folder_status_updated_at?: string | null
+          code: string
+          created_at?: string | null
           id?: string
-          matter_name: string
-          status?: Database["public"]["Enums"]["matter_status"]
-          visa_application_folder_id?: string | null
-          visa_subclass?: string | null
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name: string
+          native_name: string
+          sort_order?: number | null
         }
         Update: {
-          client_id?: string
-          company_id?: string
-          created_at?: string
-          folder_status?: string
-          folder_status_updated_at?: string | null
+          code?: string
+          created_at?: string | null
           id?: string
-          matter_name?: string
-          status?: Database["public"]["Enums"]["matter_status"]
-          visa_application_folder_id?: string | null
-          visa_subclass?: string | null
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name?: string
+          native_name?: string
+          sort_order?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "matters_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "matters_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -736,46 +817,148 @@ export type Database = {
           },
         ]
       }
-      visa_document_templates: {
+      translations: {
         Row: {
-          category: string
-          company_id: string
-          created_at: string
-          document_name: string
+          created_at: string | null
+          entity_id: string
+          entity_type: string
+          field_name: string
           id: string
-          is_required: boolean
-          sort_order: number
-          updated_at: string
-          visa_subclass: string
+          language_code: string | null
+          translated_text: string
+          updated_at: string | null
         }
         Insert: {
-          category: string
-          company_id: string
-          created_at?: string
-          document_name: string
+          created_at?: string | null
+          entity_id: string
+          entity_type: string
+          field_name: string
           id?: string
-          is_required?: boolean
-          sort_order?: number
-          updated_at?: string
-          visa_subclass: string
+          language_code?: string | null
+          translated_text: string
+          updated_at?: string | null
         }
         Update: {
-          category?: string
-          company_id?: string
-          created_at?: string
-          document_name?: string
+          created_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          field_name?: string
           id?: string
-          is_required?: boolean
-          sort_order?: number
-          updated_at?: string
-          visa_subclass?: string
+          language_code?: string | null
+          translated_text?: string
+          updated_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "visa_document_templates_company_id_fkey"
+            foreignKeyName: "translations_language_code_fkey"
+            columns: ["language_code"]
+            isOneToOne: false
+            referencedRelation: "languages"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
+      visa_applications: {
+        Row: {
+          application_name: string
+          client_id: string
+          company_id: string
+          country_id: string | null
+          created_at: string
+          folder_status: string
+          folder_status_updated_at: string | null
+          id: string
+          status: Database["public"]["Enums"]["matter_status"]
+          visa_application_folder_id: string | null
+          visa_subclass: string | null
+        }
+        Insert: {
+          application_name: string
+          client_id: string
+          company_id: string
+          country_id?: string | null
+          created_at?: string
+          folder_status?: string
+          folder_status_updated_at?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["matter_status"]
+          visa_application_folder_id?: string | null
+          visa_subclass?: string | null
+        }
+        Update: {
+          application_name?: string
+          client_id?: string
+          company_id?: string
+          country_id?: string | null
+          created_at?: string
+          folder_status?: string
+          folder_status_updated_at?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["matter_status"]
+          visa_application_folder_id?: string | null
+          visa_subclass?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matters_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matters_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visa_applications_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visa_types: {
+        Row: {
+          code: string
+          country_id: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          sort_order: number | null
+        }
+        Insert: {
+          code: string
+          country_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          sort_order?: number | null
+        }
+        Update: {
+          code?: string
+          country_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visa_types_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
             referencedColumns: ["id"]
           },
         ]
@@ -931,12 +1114,12 @@ export type Database = {
           is_completed: boolean
         }[]
       }
-      get_portal_matter_details: {
+      get_portal_visa_application_details: {
         Args: { p_token: string }
         Returns: {
-          matter_id: string
-          matter_name: string
+          application_name: string
           status: string
+          visa_application_id: string
           visa_subclass: string
         }[]
       }

@@ -1,0 +1,151 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "search": "Search",
+    "loading": "Loading...",
+    "required": "Required",
+    "optional": "Optional",
+    "back": "Back",
+    "create": "Create",
+    "update": "Update",
+    "close": "Close",
+    "confirm": "Confirm",
+    "actions": "Actions",
+    "status": "Status",
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "date": "Date",
+    "type": "Type",
+    "view": "View",
+    "download": "Download",
+    "upload": "Upload",
+    "submitted": "Submitted",
+    "pending": "Pending",
+    "created": "Created",
+    "updated": "Updated"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "clients": "Clients",
+    "visaApplications": "Visa Applications",
+    "documentChecklist": "Document Checklist",
+    "settings": "Settings",
+    "billing": "Billing",
+    "signOut": "Sign Out"
+  },
+  "visaApplication": {
+    "title": "Visa Applications",
+    "singular": "Visa Application",
+    "new": "New Visa Application",
+    "selectCountry": "Select Country",
+    "selectVisaType": "Select Visa Type",
+    "applicationName": "Application Name",
+    "visaSubclass": "Visa Subclass",
+    "folder": "Application Folder",
+    "status": {
+      "draft": "Draft",
+      "active": "Active",
+      "done": "Done",
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "create": {
+      "title": "Create Visa Application",
+      "description": "Start a new visa application for your client",
+      "success": "Visa application created successfully",
+      "error": "Failed to create visa application"
+    },
+    "update": {
+      "success": "Visa application updated successfully",
+      "error": "Failed to update visa application"
+    },
+    "delete": {
+      "title": "Delete Visa Application",
+      "description": "Are you sure you want to delete this visa application? This action cannot be undone.",
+      "success": "Visa application deleted successfully",
+      "error": "Failed to delete visa application"
+    }
+  },
+  "client": {
+    "title": "Clients",
+    "singular": "Client",
+    "new": "New Client",
+    "personal": "Personal",
+    "corporate": "Corporate",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "companyName": "Company Name",
+    "folder": "Client Folder",
+    "noClients": "No clients found",
+    "addFirst": "Add your first client to get started"
+  },
+  "documentChecklist": {
+    "title": "Document Checklist",
+    "addDocument": "Add Document",
+    "documentName": "Document Name",
+    "category": "Category",
+    "required": "Required",
+    "uploaded": "Uploaded",
+    "pending": "Pending",
+    "review": {
+      "pending": "Pending Review",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "needsRevision": "Needs Revision"
+    }
+  },
+  "clientPortal": {
+    "welcome": "Welcome to your Document Portal",
+    "description": "Upload your documents and fill out the required information",
+    "submitDocuments": "Submit Documents",
+    "submitted": "Application Submitted!",
+    "thankYou": "Thank you for submitting your documents. Your agent will review them and contact you if anything else is needed.",
+    "expired": "This link has expired. Please contact your agent for a new link.",
+    "invalid": "Invalid access link. Please use the link sent to your email."
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile",
+    "team": "Team",
+    "integrations": "Integrations",
+    "language": "Language",
+    "theme": "Theme"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome back",
+    "totalClients": "Total Clients",
+    "activeApplications": "Active Applications",
+    "pendingDocuments": "Pending Documents",
+    "recentActivity": "Recent Activity",
+    "quickActions": "Quick Actions"
+  },
+  "countries": {
+    "AU": "Australia",
+    "US": "United States",
+    "GB": "United Kingdom",
+    "CA": "Canada",
+    "NZ": "New Zealand",
+    "DE": "Germany",
+    "FR": "France",
+    "ES": "Spain",
+    "IT": "Italy",
+    "JP": "Japan",
+    "KR": "South Korea",
+    "CN": "China",
+    "IN": "India",
+    "BR": "Brazil",
+    "AE": "United Arab Emirates",
+    "SG": "Singapore",
+    "IE": "Ireland",
+    "NL": "Netherlands",
+    "CH": "Switzerland",
+    "SE": "Sweden"
+  }
+}

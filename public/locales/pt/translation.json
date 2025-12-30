@@ -1,0 +1,100 @@
+{
+  "common": {
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "add": "Adicionar",
+    "search": "Buscar",
+    "loading": "Carregando...",
+    "required": "Obrigatório",
+    "optional": "Opcional",
+    "back": "Voltar",
+    "create": "Criar",
+    "update": "Atualizar",
+    "close": "Fechar",
+    "confirm": "Confirmar",
+    "actions": "Ações",
+    "status": "Status",
+    "name": "Nome",
+    "email": "E-mail",
+    "phone": "Telefone",
+    "date": "Data",
+    "type": "Tipo",
+    "view": "Ver",
+    "download": "Baixar",
+    "upload": "Enviar",
+    "submitted": "Enviado",
+    "pending": "Pendente",
+    "created": "Criado",
+    "updated": "Atualizado"
+  },
+  "nav": {
+    "dashboard": "Painel",
+    "clients": "Clientes",
+    "visaApplications": "Solicitações de Visto",
+    "documentChecklist": "Lista de Documentos",
+    "settings": "Configurações",
+    "billing": "Faturamento",
+    "signOut": "Sair"
+  },
+  "visaApplication": {
+    "title": "Solicitações de Visto",
+    "singular": "Solicitação de Visto",
+    "new": "Nova Solicitação de Visto",
+    "selectCountry": "Selecionar País",
+    "selectVisaType": "Selecionar Tipo de Visto",
+    "applicationName": "Nome da Solicitação",
+    "visaSubclass": "Subclasse do Visto",
+    "folder": "Pasta da Solicitação",
+    "status": {
+      "draft": "Rascunho",
+      "active": "Ativo",
+      "done": "Concluído",
+      "pending": "Pendente",
+      "approved": "Aprovado",
+      "rejected": "Rejeitado"
+    }
+  },
+  "client": {
+    "title": "Clientes",
+    "singular": "Cliente",
+    "new": "Novo Cliente",
+    "personal": "Pessoal",
+    "corporate": "Corporativo",
+    "firstName": "Nome",
+    "lastName": "Sobrenome",
+    "companyName": "Nome da Empresa",
+    "folder": "Pasta do Cliente"
+  },
+  "documentChecklist": {
+    "title": "Lista de Documentos",
+    "addDocument": "Adicionar Documento",
+    "documentName": "Nome do Documento",
+    "category": "Categoria",
+    "required": "Obrigatório",
+    "uploaded": "Enviado",
+    "pending": "Pendente"
+  },
+  "clientPortal": {
+    "welcome": "Bem-vindo ao seu Portal de Documentos",
+    "submitDocuments": "Enviar Documentos",
+    "submitted": "Solicitação Enviada!",
+    "thankYou": "Obrigado por enviar seus documentos. Seu agente irá revisá-los e entrará em contato se precisar de mais informações."
+  },
+  "settings": {
+    "title": "Configurações",
+    "profile": "Perfil",
+    "team": "Equipe",
+    "integrations": "Integrações",
+    "language": "Idioma",
+    "theme": "Tema"
+  },
+  "dashboard": {
+    "title": "Painel",
+    "welcome": "Bem-vindo de volta",
+    "totalClients": "Total de Clientes",
+    "activeApplications": "Solicitações Ativas",
+    "pendingDocuments": "Documentos Pendentes"
+  }
+}

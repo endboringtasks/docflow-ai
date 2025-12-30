@@ -29,7 +29,7 @@ interface PlatformStats {
   totalCompanies: number;
   totalUsers: number;
   totalClients: number;
-  totalMatters: number;
+  totalVisaApplications: number;
   newCompaniesThisMonth: number;
   newUsersThisMonth: number;
 }
@@ -46,13 +46,13 @@ export default function AdminDashboard() {
       const [
         { count: totalCompanies },
         { count: totalUsers },
-        { count: totalMatters },
+        { count: totalVisaApplications },
         { count: newCompaniesThisMonth },
         { count: newUsersThisMonth },
       ] = await Promise.all([
         supabase.from("companies").select("*", { count: "exact", head: true }),
         supabase.from("profiles").select("*", { count: "exact", head: true }),
-        supabase.from("matters").select("*", { count: "exact", head: true }),
+        supabase.from("visa_applications").select("*", { count: "exact", head: true }),
         supabase.from("companies").select("*", { count: "exact", head: true }).gte("created_at", startOfMonth),
         supabase.from("profiles").select("*", { count: "exact", head: true }).gte("created_at", startOfMonth),
       ]);
@@ -66,7 +66,7 @@ export default function AdminDashboard() {
         totalCompanies: totalCompanies ?? 0,
         totalUsers: totalUsers ?? 0,
         totalClients: totalClients ?? 0,
-        totalMatters: totalMatters ?? 0,
+        totalVisaApplications: totalVisaApplications ?? 0,
         newCompaniesThisMonth: newCompaniesThisMonth ?? 0,
         newUsersThisMonth: newUsersThisMonth ?? 0,
       };
@@ -142,7 +142,7 @@ export default function AdminDashboard() {
     },
     {
       title: "Total Visa Applications",
-      value: stats?.totalMatters ?? 0,
+      value: stats?.totalVisaApplications ?? 0,
       icon: FileText,
     },
   ];
