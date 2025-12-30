@@ -77,6 +77,13 @@ interface VisaApplication {
   created_at: string;
 }
 
+interface VisaType {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+}
+
 const visaSubclasses = [
   { value: "482", label: "Temporary Skill Shortage (482)" },
   { value: "186", label: "Employer Nomination Scheme (186)" },
@@ -138,6 +145,21 @@ const ClientDetail = () => {
     enabled: !!clientId,
   });
 
+  // Fetch visa types for the dropdown
+  const { data: visaTypes = [] } = useQuery({
+    queryKey: ["visa-types"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("visa_types")
+        .select("id, name, code, description")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      
+      if (error) throw error;
+      return data as VisaType[];
+    },
+  });
+
   // Fetch visa applications for this client
   const { data: visaApplications = [], isLoading: isLoadingApplications } = useQuery({
     queryKey: ["client-visa-applications", clientId],
@@ -155,7 +177,6 @@ const ClientDetail = () => {
     },
     enabled: !!clientId,
   });
-
   // Create visa application mutation
   const createApplicationMutation = useMutation({
     mutationFn: async (applicationData: {
@@ -624,12 +645,21 @@ const ClientDetail = () => {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="applicationName">Application Name</Label>
-              <Input
-                id="applicationName"
-                placeholder="e.g., 482 Visa Application 2024"
+              <Select
                 value={newApplication.applicationName}
-                onChange={(e) => setNewApplication(prev => ({ ...prev, applicationName: e.target.value }))}
-              />
+                onValueChange={(value) => setNewApplication(prev => ({ ...prev, applicationName: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select application type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {visaTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.name}>
+                      {type.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="visaSubclass">Visa Subclass</Label>
