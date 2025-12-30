@@ -445,13 +445,28 @@ Deno.serve(async (req) => {
           if (responseData && entityType && entityId) {
             // Handle nested data structure from Make
             const dataObj = responseData.data || responseData;
-            const folderId =
-              dataObj.folder_id ||
-              dataObj.client_folder_id ||
-              dataObj.folderId ||
-              responseData.folder_id ||
-              responseData.client_folder_id ||
-              responseData.folderId;
+            
+            // For clients, look for client_folder_id or folder_id
+            // For matters, look for visa_application_folder_id or folder_id
+            let folderId: string | undefined;
+            if (entityType === "client") {
+              folderId =
+                (dataObj as any).client_folder_id ||
+                (dataObj as any).folder_id ||
+                (dataObj as any).folderId ||
+                responseData.client_folder_id ||
+                responseData.folder_id ||
+                responseData.folderId;
+            } else {
+              // Matter - look for visa_application_folder_id specifically
+              folderId =
+                (dataObj as any).visa_application_folder_id ||
+                (dataObj as any).folder_id ||
+                (dataObj as any).folderId ||
+                (responseData as any).visa_application_folder_id ||
+                responseData.folder_id ||
+                responseData.folderId;
+            }
 
             if (folderId) {
               const table = entityType === "client" ? "clients" : "matters";
