@@ -220,6 +220,85 @@ async function uploadToGoogleDrive(
   return { id: uploadResult.id, webViewLink: uploadResult.webViewLink }
 }
 
+function normalizeDriveName(s: string) {
+  return s.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+async function listDriveFolders(accessToken: string, parentFolderId: string) {
+  const query = `'${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+
+  const driveResponse = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)&pageSize=100`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  )
+
+  const data = await driveResponse.json()
+  if (data?.error) {
+    console.error('Google Drive list folders error:', data.error)
+    return [] as Array<{ id: string; name: string }>
+  }
+
+  return Array.isArray(data?.files) ? (data.files as Array<{ id: string; name: string }>) : []
+}
+
+async function findDriveFolderId(accessToken: string, parentFolderId: string, folderName: string) {
+  const folders = await listDriveFolders(accessToken, parentFolderId)
+  const target = normalizeDriveName(folderName)
+  const match = folders.find((f) => normalizeDriveName(f.name) === target)
+
+  if (!match) return null
+
+  if (match.name !== folderName) {
+    console.log('Matched folder with normalized name', { requested: folderName, actual: match.name, id: match.id })
+  }
+
+  return match.id
+}
+
+async function createDriveFolder(accessToken: string, parentFolderId: string, folderName: string) {
+  const createResponse = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: folderName,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentFolderId],
+    }),
+  })
+
+  const data = await createResponse.json()
+  if (data?.error) {
+    console.error('Google Drive create folder error:', data.error)
+    return null
+  }
+
+  return data?.id ?? null
+}
+
+async function ensureDocumentsReceivedFolderId(accessToken: string, clientFolderId: string) {
+  const folderName = 'Documents Received'
+
+  const existingId = await findDriveFolderId(accessToken, clientFolderId, folderName)
+  if (existingId) {
+    console.log('Documents Received folder exists:', existingId)
+    return existingId
+  }
+
+  console.log('Documents Received folder not found; creating under client folder...')
+  const createdId = await createDriveFolder(accessToken, clientFolderId, folderName)
+  if (createdId) {
+    console.log('Created Documents Received folder:', createdId)
+  }
+  return createdId
+}
+
 Deno.serve(async (req) => {
   console.log('Internal upload request received')
 
@@ -276,19 +355,19 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Get the matter's details including Google Drive folder
+    // Get the matter's details including Google Drive folder + client
     const { data: matterData, error: matterError } = await supabase
       .from('matters')
-      .select('visa_application_folder_id, company_id')
+      .select('visa_application_folder_id, company_id, client_id')
       .eq('id', matterId)
       .single()
 
     if (matterError || !matterData) {
       console.error('Error fetching matter:', matterError)
-      return new Response(
-        JSON.stringify({ error: 'Matter not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return new Response(JSON.stringify({ error: 'Matter not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
     // Verify user has access to this company
@@ -300,47 +379,125 @@ Deno.serve(async (req) => {
       .single()
 
     if (memberError || !memberData) {
-      return new Response(
-        JSON.stringify({ error: 'Access denied' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return new Response(JSON.stringify({ error: 'Access denied' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
+
+    // Resolve client folder IDs
+    let documentsReceivedFolderId: string | null = null
+    let clientFolderId: string | null = null
+
+    if (matterData.client_id) {
+      const { data: clientData, error: clientError } = await supabase
+        .from('clients')
+        .select('documents_received_folder_id, client_folder_id')
+        .eq('id', matterData.client_id)
+        .single()
+
+      if (clientError) {
+        console.warn('Failed to fetch client folder ids:', clientError)
+      } else {
+        documentsReceivedFolderId = clientData?.documents_received_folder_id ?? null
+        clientFolderId = clientData?.client_folder_id ?? null
+      }
+    }
+
+    console.log('Drive folder IDs:', {
+      documentsReceivedFolderId,
+      clientFolderId,
+      visaApplicationFolderId: matterData.visa_application_folder_id,
+    })
 
     const arrayBuffer = await file.arrayBuffer()
     let filePath: string | null = null
     let driveFileId: string | null = null
 
-    // Try to upload to Google Drive if folder exists
-    if (matterData.visa_application_folder_id) {
-      console.log('Matter has Drive folder, attempting Google Drive upload...')
+    const hasGoogleDriveFolderHint = !!(
+      documentsReceivedFolderId ||
+      clientFolderId ||
+      matterData.visa_application_folder_id
+    )
+
+    if (hasGoogleDriveFolderHint) {
+      console.log('Attempting Google Drive upload...')
 
       const accessToken = await getValidAccessToken(supabase, matterData.company_id)
 
       if (accessToken) {
-        // Create a descriptive filename
-        const cleanDocName = (documentName || 'Document').replace(/[^a-zA-Z0-9]/g, '_')
-        const driveFileName = `${cleanDocName}_${file.name}`
+        // If documents_received_folder_id is missing, try to find/create it under client folder
+        if (!documentsReceivedFolderId && clientFolderId && matterData.client_id) {
+          const ensuredId = await ensureDocumentsReceivedFolderId(accessToken, clientFolderId)
+          if (ensuredId) {
+            documentsReceivedFolderId = ensuredId
 
-        const driveResult = await uploadToGoogleDrive(
-          accessToken,
-          matterData.visa_application_folder_id,
-          driveFileName,
-          arrayBuffer,
-          file.type || 'application/octet-stream'
-        )
+            const { error: persistError } = await supabase
+              .from('clients')
+              .update({ documents_received_folder_id: ensuredId })
+              .eq('id', matterData.client_id)
 
-        if (driveResult) {
-          driveFileId = driveResult.id
-          filePath = `drive://${driveResult.id}`
-          console.log('Successfully uploaded to Google Drive:', driveFileId)
-        } else {
-          console.log('Google Drive upload failed, falling back to Supabase storage')
+            if (persistError) {
+              console.warn('Failed to persist documents_received_folder_id on client:', persistError)
+            } else {
+              console.log('Persisted documents_received_folder_id on client:', ensuredId)
+            }
+          }
+        }
+
+        // 1) Upload original file to Documents Received folder (if available)
+        if (documentsReceivedFolderId) {
+          console.log('Uploading original file to documents_received_folder:', documentsReceivedFolderId)
+          const originalResult = await uploadToGoogleDrive(
+            accessToken,
+            documentsReceivedFolderId,
+            file.name,
+            arrayBuffer,
+            file.type || 'application/octet-stream'
+          )
+
+          if (originalResult) {
+            driveFileId = originalResult.id
+            filePath = `drive://${originalResult.id}`
+            console.log('Successfully uploaded to documents_received_folder:', originalResult.id)
+          } else {
+            console.warn('Failed to upload to documents_received_folder')
+          }
+        }
+
+        // 2) Upload renamed file to Visa Application folder (if available)
+        if (matterData.visa_application_folder_id) {
+          const cleanDocName = (documentName || 'Document').replace(/[^a-zA-Z0-9]/g, '_')
+          const driveFileName = `${cleanDocName}_${file.name}`
+
+          console.log('Uploading renamed file to visa_application_folder:', matterData.visa_application_folder_id)
+          const renamedResult = await uploadToGoogleDrive(
+            accessToken,
+            matterData.visa_application_folder_id,
+            driveFileName,
+            arrayBuffer,
+            file.type || 'application/octet-stream'
+          )
+
+          if (renamedResult) {
+            if (!driveFileId) {
+              driveFileId = renamedResult.id
+              filePath = `drive://${renamedResult.id}`
+            }
+            console.log('Successfully uploaded to visa_application_folder:', renamedResult.id)
+          } else {
+            console.warn('Failed to upload to visa_application_folder')
+          }
+        }
+
+        if (!driveFileId) {
+          console.log('All Google Drive uploads failed, falling back to Supabase storage')
         }
       } else {
         console.log('No valid Google Drive access token, falling back to Supabase storage')
       }
     } else {
-      console.log('Matter has no Drive folder, using Supabase storage')
+      console.log('No Google Drive folders configured, using Supabase storage')
     }
 
     // Fallback to Supabase storage if Google Drive upload failed or not available
