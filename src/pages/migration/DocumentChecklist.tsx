@@ -477,9 +477,7 @@ const DocumentTemplates = () => {
                                     <div className="flex items-center gap-3">
                                       <GripVertical className="w-4 h-4 text-muted-foreground/50" />
                                       <span className="font-medium">{doc.document_name}</span>
-                                      {doc.is_required ? (
-                                        <Badge variant="default" className="text-xs">Required</Badge>
-                                      ) : (
+                                      {!doc.is_required && (
                                         <Badge variant="secondary" className="text-xs">Optional</Badge>
                                       )}
                                     </div>
