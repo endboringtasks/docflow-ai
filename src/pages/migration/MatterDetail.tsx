@@ -86,6 +86,7 @@ interface Client {
   id: string;
   first_name: string;
   last_name: string | null;
+  company_name: string | null;
   email: string | null;
   phone: string | null;
   client_type: "personal" | "corporate";
@@ -938,9 +939,11 @@ const MatterDetail = () => {
                 <p className="text-sm text-muted-foreground">Client</p>
                 <p className="font-medium hover:text-primary transition-colors">
                   {client ? (
-                    client.first_name || client.last_name 
-                      ? `${client.first_name || ''} ${client.last_name || ''}`.trim()
-                      : client.email || "Unknown"
+                    client.client_type === "corporate"
+                      ? client.company_name || "Unnamed Company"
+                      : client.first_name || client.last_name 
+                        ? `${client.first_name || ''} ${client.last_name || ''}`.trim()
+                        : client.email || "Unknown"
                   ) : "Unknown"}
                 </p>
               </div>
