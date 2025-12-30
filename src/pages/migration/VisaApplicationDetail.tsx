@@ -222,8 +222,7 @@ const formatDocumentForStorage = (doc: DefaultDocFields): string => {
 };
 
 const VisaApplicationDetail = () => {
-  const { matterId } = useParams<{ matterId: string }>();
-  const visaApplicationId = matterId; // Alias for clarity
+  const { visaApplicationId } = useParams<{ visaApplicationId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentCompany } = useCompany();
@@ -488,7 +487,7 @@ const VisaApplicationDetail = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
       toast.success("Document removed");
     },
     onError: (error) => {
@@ -508,7 +507,7 @@ const VisaApplicationDetail = () => {
       documentName: string;
     }) => {
       const formData = new FormData();
-      formData.append("visa_application_id", matterId!);
+      formData.append("visa_application_id", visaApplicationId!);
       formData.append("doc_id", docId);
       formData.append("file", file);
       formData.append("document_name", documentName);
@@ -523,7 +522,7 @@ const VisaApplicationDetail = () => {
       return data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
       const location = data.uploaded_to === "google_drive" ? "Google Drive" : "storage";
       toast.success(`File uploaded to ${location}`);
     },
@@ -549,7 +548,7 @@ const VisaApplicationDetail = () => {
       if (updateError) throw updateError;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
       toast.success("File removed");
     },
     onError: (error) => {
@@ -573,7 +572,7 @@ const VisaApplicationDetail = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-checklist", matterId] });
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
     },
     onError: (error) => {
       toast.error("Failed to update review", { description: error.message });

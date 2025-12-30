@@ -740,7 +740,7 @@ const MigrationVisaApplications = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
                 className="card-gradient rounded-xl border border-border/50 p-4 hover:border-primary/30 transition-colors cursor-pointer"
-                onClick={() => navigate(`/app/migration/applications/${application.id}`)}
+                onClick={() => navigate(`/app/migration/visa-applications/${application.id}`)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">

@@ -26,7 +26,7 @@ import MigrationDashboard from "./pages/migration/Dashboard";
 import MigrationClients from "./pages/migration/Clients";
 import MigrationClientDetail from "./pages/migration/ClientDetail";
 import MigrationMatters from "./pages/migration/Matters";
-import MigrationMatterDetail from "./pages/migration/MatterDetail";
+import VisaApplicationDetail from "./pages/migration/VisaApplicationDetail";
 import MigrationDocumentChecklist from "./pages/migration/DocumentChecklist";
 import AuditDashboard from "./pages/audit/Dashboard";
 import HRDashboard from "./pages/hr/Dashboard";
@@ -85,9 +85,9 @@ const App = () => (
                   <MigrationMatters />
                 </ProtectedRoute>
               } />
-              <Route path="/app/migration/visa-applications/:matterId" element={
+              <Route path="/app/migration/visa-applications/:visaApplicationId" element={
                 <ProtectedRoute>
-                  <MigrationMatterDetail />
+                  <VisaApplicationDetail />
                 </ProtectedRoute>
               } />
               <Route path="/app/migration/document-checklist" element={
