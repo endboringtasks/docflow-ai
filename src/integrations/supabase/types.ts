@@ -187,12 +187,12 @@ export type Database = {
       }
       clients: {
         Row: {
+          client_folder_id: string | null
           client_type: Database["public"]["Enums"]["client_type"]
           company_id: string
           company_name: string | null
           created_at: string
           documents_received_folder_id: string | null
-          drive_folder_id: string | null
           email: string | null
           first_name: string | null
           folder_status: string
@@ -202,12 +202,12 @@ export type Database = {
           phone: string | null
         }
         Insert: {
+          client_folder_id?: string | null
           client_type?: Database["public"]["Enums"]["client_type"]
           company_id: string
           company_name?: string | null
           created_at?: string
           documents_received_folder_id?: string | null
-          drive_folder_id?: string | null
           email?: string | null
           first_name?: string | null
           folder_status?: string
@@ -217,12 +217,12 @@ export type Database = {
           phone?: string | null
         }
         Update: {
+          client_folder_id?: string | null
           client_type?: Database["public"]["Enums"]["client_type"]
           company_id?: string
           company_name?: string | null
           created_at?: string
           documents_received_folder_id?: string | null
-          drive_folder_id?: string | null
           email?: string | null
           first_name?: string | null
           folder_status?: string
