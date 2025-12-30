@@ -15,9 +15,14 @@ const RATE_LIMIT_CONFIG = {
   windowSeconds: 60,
 };
 
+interface WebhookData {
+  visa_application_folder_id: string;
+}
+
 interface WebhookPayload {
   matter_id: string;
-  visa_application_folder_id: string;
+  visa_application_folder_id?: string;
+  data?: WebhookData;
   // Accept both for flexibility - organization_id is the preferred external name
   company_id?: string;
   organization_id?: string;
@@ -64,7 +69,10 @@ Deno.serve(async (req) => {
 
     const payload: WebhookPayload = await req.json();
 
-    if (!payload.matter_id || !payload.visa_application_folder_id) {
+    // Extract visa_application_folder_id from nested data structure or top level
+    const visaApplicationFolderId = payload.data?.visa_application_folder_id || payload.visa_application_folder_id;
+
+    if (!payload.matter_id || !visaApplicationFolderId) {
       logRequestEnd(ctx, 400, { reason: "missing_fields" });
       EdgeRuntime.waitUntil(saveRequestLog(supabase, { ctx, statusCode: 400, errorMessage: "Missing required fields" }));
       return new Response(
@@ -76,7 +84,7 @@ Deno.serve(async (req) => {
     const { data: matter, error: updateError } = await supabase
       .from("matters")
       .update({ 
-        visa_application_folder_id: payload.visa_application_folder_id,
+        visa_application_folder_id: visaApplicationFolderId,
         folder_status: "created"
       })
       .eq("id", payload.matter_id)
@@ -110,7 +118,7 @@ Deno.serve(async (req) => {
         matter_id: matter.id,
         event_type: "visa_application_folder_created",
         payload: {
-          visa_application_folder_id: payload.visa_application_folder_id,
+          visa_application_folder_id: visaApplicationFolderId,
           matter_name: matter.matter_name,
           request_id: ctx.requestId,
           timestamp: new Date().toISOString(),
