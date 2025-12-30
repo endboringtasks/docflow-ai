@@ -1241,35 +1241,7 @@ const MatterDetail = () => {
                                 <X className="w-4 h-4" />
                               </Button>
                             </>
-                          ) : (
-                            <label className="cursor-pointer">
-                              <input
-                                type="file"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) handleFileUpload(doc.id, file, doc.name);
-                                  e.target.value = "";
-                                }}
-                                disabled={uploadFileMutation.isPending}
-                              />
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-primary"
-                                asChild
-                                disabled={uploadFileMutation.isPending}
-                              >
-                                <span title="Upload file">
-                                  {uploadFileMutation.isPending ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <Upload className="w-4 h-4" />
-                                  )}
-                                </span>
-                              </Button>
-                            </label>
-                          )}
+                          ) : null}
                           {doc.category === "Custom" && (
                             <Button
                               variant="ghost"
