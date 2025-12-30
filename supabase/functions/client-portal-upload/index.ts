@@ -174,11 +174,11 @@ async function uploadToGoogleDrive(
   // Create multipart body
   const multipartBody = new TextEncoder().encode(
     delimiter +
-    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-    JSON.stringify(metadata) +
-    delimiter +
-    `Content-Type: ${mimeType}\r\n` +
-    'Content-Transfer-Encoding: base64\r\n\r\n'
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      delimiter +
+      `Content-Type: ${mimeType}\r\n` +
+      'Content-Transfer-Encoding: base64\r\n\r\n'
   )
 
   // Convert file content to base64 in chunks to avoid stack overflow
@@ -190,7 +190,7 @@ async function uploadToGoogleDrive(
     base64Content += String.fromCharCode.apply(null, Array.from(chunk))
   }
   base64Content = btoa(base64Content)
-  
+
   const base64Bytes = new TextEncoder().encode(base64Content)
   const closeBytes = new TextEncoder().encode(closeDelimiter)
 
@@ -223,9 +223,83 @@ async function uploadToGoogleDrive(
   return { id: uploadResult.id, webViewLink: uploadResult.webViewLink }
 }
 
+async function findDriveFolderId(
+  accessToken: string,
+  parentFolderId: string,
+  folderName: string
+): Promise<string | null> {
+  const safeName = folderName.replaceAll("'", "\\'")
+  const query = `'${parentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and name='${safeName}' and trashed=false`
+
+  const driveResponse = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)&pageSize=10`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  )
+
+  const data = await driveResponse.json()
+  if (data?.error) {
+    console.error('Google Drive list folders error:', data.error)
+    return null
+  }
+
+  const first = data?.files?.[0]
+  return first?.id ?? null
+}
+
+async function createDriveFolder(
+  accessToken: string,
+  parentFolderId: string,
+  folderName: string
+): Promise<string | null> {
+  const createResponse = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: folderName,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentFolderId],
+    }),
+  })
+
+  const data = await createResponse.json()
+  if (data?.error) {
+    console.error('Google Drive create folder error:', data.error)
+    return null
+  }
+
+  return data?.id ?? null
+}
+
+async function ensureDocumentsReceivedFolderId(
+  accessToken: string,
+  clientFolderId: string
+): Promise<string | null> {
+  const folderName = 'Documents Received'
+
+  const existingId = await findDriveFolderId(accessToken, clientFolderId, folderName)
+  if (existingId) {
+    console.log('Documents Received folder exists:', existingId)
+    return existingId
+  }
+
+  console.log('Documents Received folder not found; creating under client folder...')
+  const createdId = await createDriveFolder(accessToken, clientFolderId, folderName)
+  if (createdId) {
+    console.log('Created Documents Received folder:', createdId)
+  }
+  return createdId
+}
+
 Deno.serve(async (req) => {
   console.log('Client portal upload request received')
-  
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -236,20 +310,20 @@ Deno.serve(async (req) => {
     const docId = formData.get('doc_id') as string
     const file = formData.get('file') as File
 
-    console.log('Upload request:', { 
-      hasToken: !!token, 
-      docId, 
-      fileName: file?.name, 
+    console.log('Upload request:', {
+      hasToken: !!token,
+      docId,
+      fileName: file?.name,
       fileSize: file?.size,
-      fileType: file?.type 
+      fileType: file?.type,
     })
 
     if (!token || !docId || !file) {
       console.error('Missing required fields:', { hasToken: !!token, hasDocId: !!docId, hasFile: !!file })
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields: token, doc_id, or file' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return new Response(JSON.stringify({ error: 'Missing required fields: token, doc_id, or file' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -257,24 +331,25 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Validate the portal access token
-    const { data: accessData, error: accessError } = await supabase
-      .rpc('validate_portal_access_token', { p_token: token })
+    const { data: accessData, error: accessError } = await supabase.rpc('validate_portal_access_token', {
+      p_token: token,
+    })
 
     if (accessError || !accessData || accessData.length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired access token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return new Response(JSON.stringify({ error: 'Invalid or expired access token' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
     const portalAccess = accessData[0]
 
     // Check if already submitted
     if (portalAccess.is_submitted) {
-      return new Response(
-        JSON.stringify({ error: 'Application already submitted, cannot upload new documents' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return new Response(JSON.stringify({ error: 'Application already submitted, cannot upload new documents' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
     // Verify the document belongs to this matter and get matter details
@@ -286,10 +361,10 @@ Deno.serve(async (req) => {
       .single()
 
     if (docError || !docData) {
-      return new Response(
-        JSON.stringify({ error: 'Document not found or does not belong to this application' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return new Response(JSON.stringify({ error: 'Document not found or does not belong to this application' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
     // Get the matter's Google Drive folder ID and client's documents_received_folder_id
@@ -305,32 +380,65 @@ Deno.serve(async (req) => {
 
     // Get the client's documents_received_folder_id for storing original files
     let documentsReceivedFolderId: string | null = null
+    let clientFolderId: string | null = null
+
     if (matterData?.client_id) {
       const { data: clientData } = await supabase
         .from('clients')
-        .select('documents_received_folder_id')
+        .select('documents_received_folder_id, client_folder_id')
         .eq('id', matterData.client_id)
         .single()
-      
+
+      if (clientData?.client_folder_id) {
+        clientFolderId = clientData.client_folder_id
+      }
+
       if (clientData?.documents_received_folder_id) {
         documentsReceivedFolderId = clientData.documents_received_folder_id
         console.log('Found documents_received_folder_id:', documentsReceivedFolderId)
       }
+
+      console.log('Client folder IDs:', {
+        clientFolderId,
+        documentsReceivedFolderId,
+      })
     }
 
     const arrayBuffer = await file.arrayBuffer()
     let filePath: string | null = null
     let driveFileId: string | null = null
 
-    // Try to upload to Google Drive if we have a documents_received_folder_id
-    const hasGoogleDriveFolder = documentsReceivedFolderId || matterData?.visa_application_folder_id
-    
-    if (hasGoogleDriveFolder && matterData?.company_id) {
+    // Try to upload to Google Drive if we have *any* usable folder hint
+    const hasGoogleDriveFolder =
+      !!matterData?.company_id && !!(documentsReceivedFolderId || clientFolderId || matterData?.visa_application_folder_id)
+
+    if (hasGoogleDriveFolder) {
       console.log('Attempting Google Drive upload...')
-      
-      const accessToken = await getValidAccessToken(supabase, matterData.company_id)
-      
+
+      const accessToken = await getValidAccessToken(supabase, matterData!.company_id)
+
       if (accessToken) {
+        // If the webhook didn't give us documents_received_folder_id, try to locate/create it under the client folder
+        if (!documentsReceivedFolderId && clientFolderId && matterData?.client_id) {
+          const ensuredId = await ensureDocumentsReceivedFolderId(accessToken, clientFolderId)
+          if (ensuredId) {
+            documentsReceivedFolderId = ensuredId
+
+            const { error: persistError } = await supabase
+              .from('clients')
+              .update({ documents_received_folder_id: ensuredId })
+              .eq('id', matterData.client_id)
+
+            if (persistError) {
+              console.warn('Failed to persist documents_received_folder_id on client:', persistError)
+            } else {
+              console.log('Persisted documents_received_folder_id on client:', ensuredId)
+            }
+          } else {
+            console.warn('Could not determine documents_received_folder_id (will skip Documents Received upload)')
+          }
+        }
+
         // Primary upload: Documents Received folder (original filename)
         if (documentsReceivedFolderId) {
           console.log('Uploading original file to documents_received_folder:', documentsReceivedFolderId)
@@ -341,7 +449,7 @@ Deno.serve(async (req) => {
             arrayBuffer,
             file.type || 'application/octet-stream'
           )
-          
+
           if (originalResult) {
             driveFileId = originalResult.id
             filePath = `drive://${originalResult.id}` // Store Drive file reference
@@ -350,13 +458,13 @@ Deno.serve(async (req) => {
             console.warn('Failed to upload to documents_received_folder')
           }
         }
-        
+
         // Secondary upload: Visa Application folder (renamed file)
-        if (matterData.visa_application_folder_id) {
+        if (matterData?.visa_application_folder_id) {
           // Create a descriptive filename: DocumentName_OriginalFilename
           const cleanDocName = docData.document_name.replace(/[^a-zA-Z0-9]/g, '_')
           const driveFileName = `${cleanDocName}_${file.name}`
-          
+
           console.log('Uploading renamed file to visa_application_folder:', matterData.visa_application_folder_id)
           const renamedResult = await uploadToGoogleDrive(
             accessToken,
@@ -365,7 +473,7 @@ Deno.serve(async (req) => {
             arrayBuffer,
             file.type || 'application/octet-stream'
           )
-          
+
           if (renamedResult) {
             // If we didn't upload to documents_received, use this as primary
             if (!driveFileId) {
@@ -377,7 +485,7 @@ Deno.serve(async (req) => {
             console.warn('Failed to upload to visa_application_folder')
           }
         }
-        
+
         if (!driveFileId) {
           console.log('All Google Drive uploads failed, falling back to Supabase storage')
         }
@@ -387,7 +495,6 @@ Deno.serve(async (req) => {
     } else {
       console.log('No Google Drive folders configured, using Supabase storage')
     }
-
     // Fallback to Supabase storage if Google Drive upload failed or not available
     if (!filePath) {
       const fileExt = file.name.split('.').pop()
