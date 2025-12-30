@@ -23,6 +23,7 @@ import {
   X,
   Maximize2,
   Minimize2,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,6 +43,7 @@ interface DocumentPreviewDialogProps {
   } | null;
   onReviewUpdate: (docId: string, status: ReviewStatus, comment: string) => Promise<void>;
   onRequestNewDocument: (docId: string, comment: string) => Promise<void>;
+  companyId?: string;
 }
 
 const isImageFile = (filePath: string): boolean => {
@@ -54,12 +56,21 @@ const isPdfFile = (filePath: string): boolean => {
   return filePath.toLowerCase().endsWith(".pdf");
 };
 
+const isDriveFile = (filePath: string): boolean => {
+  return filePath.startsWith("drive://");
+};
+
+const getDriveFileId = (filePath: string): string => {
+  return filePath.replace("drive://", "");
+};
+
 export function DocumentPreviewDialog({
   open,
   onOpenChange,
   document,
   onReviewUpdate,
   onRequestNewDocument,
+  companyId,
 }: DocumentPreviewDialogProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -69,6 +80,11 @@ export function DocumentPreviewDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [driveFileInfo, setDriveFileInfo] = useState<{
+    name: string;
+    mimeType: string;
+    webViewLink?: string;
+  } | null>(null);
 
   // Load the preview URL when dialog opens
   useEffect(() => {
@@ -77,8 +93,10 @@ export function DocumentPreviewDialog({
       setComment(document.reviewComment || "");
       setZoom(1);
       setRotation(0);
+      setDriveFileInfo(null);
     } else {
       setPreviewUrl(null);
+      setDriveFileInfo(null);
     }
   }, [open, document?.filePath]);
 
@@ -87,12 +105,41 @@ export function DocumentPreviewDialog({
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.storage
-        .from("document-attachments")
-        .createSignedUrl(document.filePath, 3600);
+      // Check if this is a Google Drive file
+      if (isDriveFile(document.filePath)) {
+        if (!companyId) {
+          throw new Error("Company ID required for Drive files");
+        }
+        
+        const fileId = getDriveFileId(document.filePath);
+        const { data, error } = await supabase.functions.invoke("get-drive-file-url", {
+          body: { file_id: fileId, company_id: companyId },
+        });
 
-      if (error) throw error;
-      setPreviewUrl(data.signedUrl);
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || "Failed to get file URL");
+
+        setDriveFileInfo({
+          name: data.file.name,
+          mimeType: data.file.mimeType,
+          webViewLink: data.file.webViewLink,
+        });
+
+        if (data.file.previewUrl) {
+          setPreviewUrl(data.file.previewUrl);
+        } else if (data.file.webViewLink) {
+          // For non-previewable files, we'll show a link
+          setPreviewUrl(null);
+        }
+      } else {
+        // Supabase storage file
+        const { data, error } = await supabase.storage
+          .from("document-attachments")
+          .createSignedUrl(document.filePath, 3600);
+
+        if (error) throw error;
+        setPreviewUrl(data.signedUrl);
+      }
     } catch (error) {
       console.error("Error loading preview:", error);
       toast.error("Failed to load document preview");
@@ -173,7 +220,19 @@ export function DocumentPreviewDialog({
 
   if (!document) return null;
 
-  const canPreview = document.filePath && (isImageFile(document.filePath) || isPdfFile(document.filePath));
+  const filePath = document.filePath;
+  const isDrive = filePath && isDriveFile(filePath);
+  const canPreview = filePath && (
+    isDrive 
+      ? (driveFileInfo?.mimeType?.startsWith("image/") || driveFileInfo?.mimeType === "application/pdf" || previewUrl)
+      : (isImageFile(filePath) || isPdfFile(filePath))
+  );
+  const isImage = isDrive 
+    ? driveFileInfo?.mimeType?.startsWith("image/")
+    : (filePath && isImageFile(filePath));
+  const isPdf = isDrive 
+    ? driveFileInfo?.mimeType === "application/pdf"
+    : (filePath && isPdfFile(filePath));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -209,13 +268,27 @@ export function DocumentPreviewDialog({
               <FileText className="w-16 h-16 text-muted-foreground mb-4" />
               <p className="text-muted-foreground">No file uploaded yet</p>
             </div>
-          ) : !canPreview ? (
+          ) : !canPreview && !isDrive ? (
             <div className="flex-1 flex flex-col items-center justify-center bg-secondary/30 rounded-lg p-8">
               <FileText className="w-16 h-16 text-muted-foreground mb-4" />
               <p className="text-muted-foreground mb-4">Preview not available for this file type</p>
               <Button onClick={handleDownload} variant="outline">
                 <Download className="w-4 h-4 mr-2" />
                 Download to View
+              </Button>
+            </div>
+          ) : isDrive && !previewUrl && driveFileInfo?.webViewLink ? (
+            <div className="flex-1 flex flex-col items-center justify-center bg-secondary/30 rounded-lg p-8">
+              <FileText className="w-16 h-16 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground mb-4">
+                {driveFileInfo.name || document.name}
+              </p>
+              <Button 
+                onClick={() => window.open(driveFileInfo.webViewLink, '_blank')} 
+                variant="outline"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open in Google Drive
               </Button>
             </div>
           ) : (
@@ -240,7 +313,7 @@ export function DocumentPreviewDialog({
                   >
                     <ZoomIn className="w-4 h-4" />
                   </Button>
-                  {isImageFile(document.filePath!) && (
+                  {isImage && (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -250,15 +323,29 @@ export function DocumentPreviewDialog({
                     </Button>
                   )}
                 </div>
-                <Button variant="ghost" size="sm" onClick={handleDownload}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Download
-                </Button>
+                <div className="flex items-center gap-2">
+                  {isDrive && driveFileInfo?.webViewLink && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => window.open(driveFileInfo.webViewLink, '_blank')}
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Open in Drive
+                    </Button>
+                  )}
+                  {!isDrive && (
+                    <Button variant="ghost" size="sm" onClick={handleDownload}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Download
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Preview Content */}
               <div className="flex-1 min-h-0 overflow-auto bg-secondary/30 rounded-lg flex items-center justify-center p-4">
-                {isImageFile(document.filePath!) ? (
+                {isImage ? (
                   <img
                     src={previewUrl || ""}
                     alt={document.name}
@@ -267,7 +354,7 @@ export function DocumentPreviewDialog({
                       transform: `scale(${zoom}) rotate(${rotation}deg)`,
                     }}
                   />
-                ) : isPdfFile(document.filePath!) ? (
+                ) : isPdf ? (
                   <iframe
                     src={previewUrl || ""}
                     className="w-full h-full min-h-[500px] rounded"
