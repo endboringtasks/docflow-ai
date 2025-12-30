@@ -322,56 +322,70 @@ Deno.serve(async (req) => {
     let filePath: string | null = null
     let driveFileId: string | null = null
 
-    // Try to upload to Google Drive if folder exists
-    if (matterData?.visa_application_folder_id) {
-      console.log('Matter has Drive folder, attempting Google Drive upload...')
+    // Try to upload to Google Drive if we have a documents_received_folder_id
+    const hasGoogleDriveFolder = documentsReceivedFolderId || matterData?.visa_application_folder_id
+    
+    if (hasGoogleDriveFolder && matterData?.company_id) {
+      console.log('Attempting Google Drive upload...')
       
       const accessToken = await getValidAccessToken(supabase, matterData.company_id)
       
       if (accessToken) {
-        // Create a descriptive filename: DocumentName_OriginalFilename
-        const cleanDocName = docData.document_name.replace(/[^a-zA-Z0-9]/g, '_')
-        const driveFileName = `${cleanDocName}_${file.name}`
-        
-        // Upload to visa_application_folder with renamed file
-        const driveResult = await uploadToGoogleDrive(
-          accessToken,
-          matterData.visa_application_folder_id,
-          driveFileName,
-          arrayBuffer,
-          file.type || 'application/octet-stream'
-        )
-        
-        if (driveResult) {
-          driveFileId = driveResult.id
-          filePath = `drive://${driveResult.id}` // Store Drive file reference
-          console.log('Successfully uploaded to Google Drive:', driveFileId)
+        // Primary upload: Documents Received folder (original filename)
+        if (documentsReceivedFolderId) {
+          console.log('Uploading original file to documents_received_folder:', documentsReceivedFolderId)
+          const originalResult = await uploadToGoogleDrive(
+            accessToken,
+            documentsReceivedFolderId,
+            file.name, // Original filename
+            arrayBuffer,
+            file.type || 'application/octet-stream'
+          )
           
-          // Also upload original file (without name change) to documents_received_folder_id
-          if (documentsReceivedFolderId) {
-            console.log('Uploading original file to documents_received_folder...')
-            const originalResult = await uploadToGoogleDrive(
-              accessToken,
-              documentsReceivedFolderId,
-              file.name, // Original filename
-              arrayBuffer,
-              file.type || 'application/octet-stream'
-            )
-            
-            if (originalResult) {
-              console.log('Original file uploaded to documents_received_folder:', originalResult.id)
-            } else {
-              console.warn('Failed to upload original file to documents_received_folder')
-            }
+          if (originalResult) {
+            driveFileId = originalResult.id
+            filePath = `drive://${originalResult.id}` // Store Drive file reference
+            console.log('Successfully uploaded to documents_received_folder:', originalResult.id)
+          } else {
+            console.warn('Failed to upload to documents_received_folder')
           }
-        } else {
-          console.log('Google Drive upload failed, falling back to Supabase storage')
+        }
+        
+        // Secondary upload: Visa Application folder (renamed file)
+        if (matterData.visa_application_folder_id) {
+          // Create a descriptive filename: DocumentName_OriginalFilename
+          const cleanDocName = docData.document_name.replace(/[^a-zA-Z0-9]/g, '_')
+          const driveFileName = `${cleanDocName}_${file.name}`
+          
+          console.log('Uploading renamed file to visa_application_folder:', matterData.visa_application_folder_id)
+          const renamedResult = await uploadToGoogleDrive(
+            accessToken,
+            matterData.visa_application_folder_id,
+            driveFileName,
+            arrayBuffer,
+            file.type || 'application/octet-stream'
+          )
+          
+          if (renamedResult) {
+            // If we didn't upload to documents_received, use this as primary
+            if (!driveFileId) {
+              driveFileId = renamedResult.id
+              filePath = `drive://${renamedResult.id}`
+            }
+            console.log('Successfully uploaded to visa_application_folder:', renamedResult.id)
+          } else {
+            console.warn('Failed to upload to visa_application_folder')
+          }
+        }
+        
+        if (!driveFileId) {
+          console.log('All Google Drive uploads failed, falling back to Supabase storage')
         }
       } else {
         console.log('No valid Google Drive access token, falling back to Supabase storage')
       }
     } else {
-      console.log('Matter has no Drive folder, using Supabase storage')
+      console.log('No Google Drive folders configured, using Supabase storage')
     }
 
     // Fallback to Supabase storage if Google Drive upload failed or not available
