@@ -834,7 +834,10 @@ const MatterDetail = () => {
   // Apply review status filter - MUST be before any conditional returns (hooks rule)
   const filteredDocuments = useMemo(() => {
     if (reviewFilter === "all") return documents;
-    return documents.filter(d => d.reviewStatus === reviewFilter);
+    // "pending_client" means documents awaiting client upload (no file yet)
+    if (reviewFilter === "pending_client") return documents.filter(d => !d.filePath);
+    // Other filters apply to documents with files
+    return documents.filter(d => d.filePath && d.reviewStatus === reviewFilter);
   }, [documents, reviewFilter]);
 
   const groupedDocuments = useMemo(() => {
@@ -933,7 +936,13 @@ const MatterDetail = () => {
               <User className="w-5 h-5 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground">Client</p>
-                <p className="font-medium hover:text-primary transition-colors">{client ? (client.last_name ? `${client.first_name} ${client.last_name}` : client.first_name) : "Unknown"}</p>
+                <p className="font-medium hover:text-primary transition-colors">
+                  {client ? (
+                    client.first_name || client.last_name 
+                      ? `${client.first_name || ''} ${client.last_name || ''}`.trim()
+                      : client.email || "Unknown"
+                  ) : "Unknown"}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -1078,7 +1087,7 @@ const MatterDetail = () => {
                     </div>
                     <div>
                       <p className="text-2xl font-bold">
-                        {documents.filter(d => d.filePath && d.reviewStatus === "pending_client").length}
+                        {documents.filter(d => !d.filePath).length}
                       </p>
                       <p className="text-xs text-muted-foreground">Pending Client</p>
                     </div>
