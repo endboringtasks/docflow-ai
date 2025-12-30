@@ -239,7 +239,7 @@ const Index = () => {
                 subtitle: "Docflow AI – Migration",
                 description: "Automate visa application workflows, document collection, and compliance tracking.",
                 icon: FileCheck,
-                status: "Available",
+                status: "Beta",
                 features: ["Client Management", "Visa Applications", "Document Validation", "Status Tracking"]
               },
               {
