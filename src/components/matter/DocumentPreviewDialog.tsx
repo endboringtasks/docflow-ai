@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
-export type ReviewStatus = "pending" | "approved" | "rejected" | "needs_revision";
+export type ReviewStatus = "pending_client" | "in_review" | "approved" | "rejected";
 
 interface DocumentPreviewDialogProps {
   open: boolean;
@@ -123,9 +123,11 @@ export function DocumentPreviewDialog({
           ? "Document approved"
           : status === "rejected"
           ? "Document rejected"
-          : "Revision requested"
+          : status === "in_review"
+          ? "Marked as in review"
+          : "Marked as pending client"
       );
-      if (status !== "pending") {
+      if (status !== "pending_client") {
         onOpenChange(false);
       }
     } catch (error) {
@@ -155,10 +157,10 @@ export function DocumentPreviewDialog({
 
   const getStatusBadge = (status: ReviewStatus) => {
     const config = {
-      pending: { variant: "secondary" as const, label: "Pending Review", icon: AlertCircle },
+      pending_client: { variant: "secondary" as const, label: "Pending Client", icon: AlertCircle },
+      in_review: { variant: "outline" as const, label: "In Review", icon: AlertCircle },
       approved: { variant: "default" as const, label: "Approved", icon: CheckCircle2 },
       rejected: { variant: "destructive" as const, label: "Rejected", icon: XCircle },
-      needs_revision: { variant: "outline" as const, label: "Needs Revision", icon: AlertCircle },
     };
     const { variant, label, icon: Icon } = config[status];
     return (
@@ -329,16 +331,16 @@ export function DocumentPreviewDialog({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleReview("needs_revision")}
+                onClick={() => handleReview("in_review")}
                 disabled={isSubmitting}
-                className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
               >
                 {isSubmitting ? (
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />
                 ) : (
                   <AlertCircle className="w-4 h-4 mr-2" />
                 )}
-                Request Revision
+                In Review
               </Button>
               <Button
                 variant="outline"

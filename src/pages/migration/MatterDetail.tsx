@@ -406,7 +406,7 @@ const MatterDetail = () => {
       required: parsed.required,
       completed: doc.is_completed,
       filePath: doc.file_path,
-      reviewStatus: (doc.review_status as ReviewStatus) || "pending",
+      reviewStatus: (doc.review_status as ReviewStatus) || "pending_client",
       reviewComment: doc.review_comment,
       uploadedAt: doc.uploaded_at,
       uploadedBy: doc.uploaded_by,
@@ -585,7 +585,7 @@ const MatterDetail = () => {
 
   // Handle request for new/different document
   const handleRequestNewDocument = async (docId: string, comment: string) => {
-    await updateReviewMutation.mutateAsync({ docId, status: "needs_revision", comment });
+    await updateReviewMutation.mutateAsync({ docId, status: "pending_client", comment });
     // TODO: Could trigger notification to client here
   };
 
@@ -1035,9 +1035,9 @@ const MatterDetail = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Documents</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="pending_client">Pending Client</SelectItem>
+                        <SelectItem value="in_review">In Review</SelectItem>
                         <SelectItem value="approved">Approved</SelectItem>
-                        <SelectItem value="needs_revision">Needs Revision</SelectItem>
                         <SelectItem value="rejected">Rejected</SelectItem>
                       </SelectContent>
                     </Select>
@@ -1050,9 +1050,9 @@ const MatterDetail = () => {
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <button
-                    onClick={() => setReviewFilter(reviewFilter === "pending" ? "all" : "pending")}
+                    onClick={() => setReviewFilter(reviewFilter === "pending_client" ? "all" : "pending_client")}
                     className={`flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
-                      reviewFilter === "pending" 
+                      reviewFilter === "pending_client" 
                         ? "bg-secondary ring-2 ring-primary" 
                         : "bg-secondary/50 hover:bg-secondary/80"
                     }`}
@@ -1062,9 +1062,27 @@ const MatterDetail = () => {
                     </div>
                     <div>
                       <p className="text-2xl font-bold">
-                        {documents.filter(d => d.filePath && d.reviewStatus === "pending").length}
+                        {documents.filter(d => d.filePath && d.reviewStatus === "pending_client").length}
                       </p>
-                      <p className="text-xs text-muted-foreground">Pending</p>
+                      <p className="text-xs text-muted-foreground">Pending Client</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setReviewFilter(reviewFilter === "in_review" ? "all" : "in_review")}
+                    className={`flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
+                      reviewFilter === "in_review" 
+                        ? "bg-blue-500/20 ring-2 ring-blue-500" 
+                        : "bg-blue-500/10 hover:bg-blue-500/20"
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                      <AlertCircle className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-blue-600">
+                        {documents.filter(d => d.reviewStatus === "in_review").length}
+                      </p>
+                      <p className="text-xs text-muted-foreground">In Review</p>
                     </div>
                   </button>
                   <button
@@ -1083,24 +1101,6 @@ const MatterDetail = () => {
                         {documents.filter(d => d.reviewStatus === "approved").length}
                       </p>
                       <p className="text-xs text-muted-foreground">Approved</p>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => setReviewFilter(reviewFilter === "needs_revision" ? "all" : "needs_revision")}
-                    className={`flex items-center gap-3 p-3 rounded-lg transition-all text-left ${
-                      reviewFilter === "needs_revision" 
-                        ? "bg-amber-500/20 ring-2 ring-amber-500" 
-                        : "bg-amber-500/10 hover:bg-amber-500/20"
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                      <AlertCircle className="w-5 h-5 text-amber-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-amber-600">
-                        {documents.filter(d => d.reviewStatus === "needs_revision").length}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Needs Revision</p>
                     </div>
                   </button>
                   <button
@@ -1149,8 +1149,8 @@ const MatterDetail = () => {
                           ? "bg-green-500/5 border-green-500/20"
                           : doc.reviewStatus === "rejected"
                           ? "bg-destructive/5 border-destructive/20"
-                          : doc.reviewStatus === "needs_revision"
-                          ? "bg-amber-500/5 border-amber-500/20"
+                          : doc.reviewStatus === "in_review"
+                          ? "bg-blue-500/5 border-blue-500/20"
                           : doc.completed 
                           ? "bg-primary/5 border-primary/20" 
                           : "bg-secondary/50 border-border/50"
@@ -1181,10 +1181,10 @@ const MatterDetail = () => {
                               Rejected
                             </Badge>
                           )}
-                          {doc.filePath && doc.reviewStatus === "needs_revision" && (
-                            <Badge variant="outline" className="text-xs text-amber-600 border-amber-500">
+                          {doc.filePath && doc.reviewStatus === "in_review" && (
+                            <Badge variant="outline" className="text-xs text-blue-600 border-blue-500">
                               <AlertCircle className="w-3 h-3 mr-1" />
-                              Needs Revision
+                              In Review
                             </Badge>
                           )}
                         </div>
