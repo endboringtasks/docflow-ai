@@ -1008,7 +1008,12 @@ const MatterDetail = () => {
             {documents.some(d => d.filePath) && (
               <div className="card-gradient rounded-xl border border-border/50 p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold">Review Status</h3>
+                  <div className="flex items-center gap-3">
+                    <h3 className="font-semibold">Review Status</h3>
+                    <span className="text-sm text-muted-foreground">
+                      {completedCount} of {documents.length} collected
+                    </span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <Filter className="w-4 h-4 text-muted-foreground" />
                     <Select value={reviewFilter} onValueChange={(value) => setReviewFilter(value as "all" | ReviewStatus)}>
