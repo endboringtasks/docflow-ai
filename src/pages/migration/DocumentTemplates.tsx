@@ -369,7 +369,7 @@ const DocumentTemplates = () => {
           <div className="text-center py-12">
             <FileCheck className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Access Restricted</h2>
-            <p className="text-muted-foreground">Only admins and owners can manage document templates.</p>
+            <p className="text-muted-foreground">Only admins and owners can manage the document checklist.</p>
           </div>
         </div>
       </AppLayout>
@@ -382,7 +382,7 @@ const DocumentTemplates = () => {
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Document Templates</h1>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Document Checklist</h1>
             <p className="text-muted-foreground mt-1">
               Configure required documents for each visa type
             </p>
