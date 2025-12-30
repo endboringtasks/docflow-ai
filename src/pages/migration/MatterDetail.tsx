@@ -1052,7 +1052,7 @@ const MatterDetail = () => {
                       <SelectContent>
                         <SelectItem value="all">All Documents</SelectItem>
                         <SelectItem value="pending_client">Pending Client</SelectItem>
-                        <SelectItem value="in_review">In Review</SelectItem>
+                        <SelectItem value="in_review">Ready to Review</SelectItem>
                         <SelectItem value="approved">Approved</SelectItem>
                         <SelectItem value="rejected">Rejected</SelectItem>
                       </SelectContent>
@@ -1098,7 +1098,7 @@ const MatterDetail = () => {
                       <p className="text-2xl font-bold text-blue-600">
                         {documents.filter(d => d.reviewStatus === "in_review").length}
                       </p>
-                      <p className="text-xs text-muted-foreground">In Review</p>
+                      <p className="text-xs text-muted-foreground">Ready to Review</p>
                     </div>
                   </button>
                   <button
@@ -1200,7 +1200,7 @@ const MatterDetail = () => {
                           {doc.filePath && doc.reviewStatus === "in_review" && (
                             <Badge variant="outline" className="text-xs text-blue-600 border-blue-500">
                               <AlertCircle className="w-3 h-3 mr-1" />
-                              In Review
+                              Ready to Review
                             </Badge>
                           )}
                         </div>
