@@ -82,6 +82,13 @@ interface VisaType {
   name: string;
   code: string;
   description: string | null;
+  country_id: string | null;
+}
+
+interface Country {
+  id: string;
+  name: string;
+  code: string;
 }
 
 const visaSubclasses = [
@@ -117,6 +124,7 @@ const MigrationVisaApplications = () => {
   });
   const [newApplication, setNewApplication] = useState({
     clientId: "",
+    countryId: "",
     applicationName: "",
     visaSubclass: "",
   });
@@ -137,13 +145,28 @@ const MigrationVisaApplications = () => {
     enabled: !!currentCompany?.id,
   });
 
+  // Fetch countries for the dropdown
+  const { data: countries = [] } = useQuery({
+    queryKey: ["countries"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("countries")
+        .select("id, name, code")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      
+      if (error) throw error;
+      return data as Country[];
+    },
+  });
+
   // Fetch visa types for the dropdown
   const { data: visaTypes = [] } = useQuery({
     queryKey: ["visa-types"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("visa_types")
-        .select("id, name, code, description")
+        .select("id, name, code, description, country_id")
         .eq("is_active", true)
         .order("sort_order", { ascending: true });
       
@@ -151,6 +174,14 @@ const MigrationVisaApplications = () => {
       return data as VisaType[];
     },
   });
+
+  // Filter visa types by selected country
+  const filteredVisaTypes = newApplication.countryId
+    ? visaTypes.filter(type => type.country_id === newApplication.countryId)
+    : [];
+
+  // Filter visa types for edit form
+  const editFilteredVisaTypes = visaTypes;
 
   // Fetch visa applications with client names
   const { data: visaApplications = [], isLoading } = useQuery({
@@ -313,7 +344,7 @@ const MigrationVisaApplications = () => {
       queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
       setIsCreateOpen(false);
-      setNewApplication({ clientId: "", applicationName: "", visaSubclass: "" });
+      setNewApplication({ clientId: "", countryId: "", applicationName: "", visaSubclass: "" });
       toast.success("Visa application created!", {
         description: "A webhook can be configured to create the application folder.",
       });
@@ -558,7 +589,7 @@ const MigrationVisaApplications = () => {
   });
 
   const handleCreateApplication = () => {
-    if (!newApplication.clientId || !newApplication.applicationName.trim() || !newApplication.visaSubclass) return;
+    if (!newApplication.clientId || !newApplication.countryId || !newApplication.applicationName.trim() || !newApplication.visaSubclass) return;
     
     createApplicationMutation.mutate({
       client_id: newApplication.clientId,
@@ -654,16 +685,40 @@ const MigrationVisaApplications = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="country">Country</Label>
+                  <Select
+                    value={newApplication.countryId}
+                    onValueChange={(value) => setNewApplication(prev => ({ 
+                      ...prev, 
+                      countryId: value, 
+                      applicationName: "", 
+                      visaSubclass: "" 
+                    }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {countries.map((country) => (
+                        <SelectItem key={country.id} value={country.id}>
+                          {country.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="applicationName">Application Name</Label>
                   <Select
                     value={newApplication.applicationName}
                     onValueChange={(value) => setNewApplication(prev => ({ ...prev, applicationName: value }))}
+                    disabled={!newApplication.countryId}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select application type" />
+                      <SelectValue placeholder={newApplication.countryId ? "Select application type" : "Select a country first"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {visaTypes.map((type) => (
+                      {filteredVisaTypes.map((type) => (
                         <SelectItem key={type.id} value={type.name}>
                           {type.name}
                         </SelectItem>
@@ -676,14 +731,15 @@ const MigrationVisaApplications = () => {
                   <Select
                     value={newApplication.visaSubclass}
                     onValueChange={(value) => setNewApplication(prev => ({ ...prev, visaSubclass: value }))}
+                    disabled={!newApplication.countryId}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select visa subclass" />
+                      <SelectValue placeholder={newApplication.countryId ? "Select visa subclass" : "Select a country first"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {visaSubclasses.map((visa) => (
-                        <SelectItem key={visa.value} value={visa.value}>
-                          {visa.label}
+                      {filteredVisaTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.code}>
+                          {type.code} - {type.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -696,7 +752,7 @@ const MigrationVisaApplications = () => {
                 </Button>
                 <Button 
                   onClick={handleCreateApplication}
-                  disabled={!newApplication.clientId || !newApplication.applicationName.trim() || !newApplication.visaSubclass || createApplicationMutation.isPending}
+                  disabled={!newApplication.clientId || !newApplication.countryId || !newApplication.applicationName.trim() || !newApplication.visaSubclass || createApplicationMutation.isPending}
                 >
                   {createApplicationMutation.isPending ? (
                     <>

@@ -82,6 +82,13 @@ interface VisaType {
   name: string;
   code: string;
   description: string | null;
+  country_id: string | null;
+}
+
+interface Country {
+  id: string;
+  name: string;
+  code: string;
 }
 
 const visaSubclasses = [
@@ -106,6 +113,7 @@ const ClientDetail = () => {
   const [applicationToDelete, setApplicationToDelete] = useState<VisaApplication | null>(null);
   
   const [newApplication, setNewApplication] = useState({
+    countryId: "",
     applicationName: "",
     visaSubclass: "",
   });
@@ -145,13 +153,28 @@ const ClientDetail = () => {
     enabled: !!clientId,
   });
 
+  // Fetch countries for the dropdown
+  const { data: countries = [] } = useQuery({
+    queryKey: ["countries"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("countries")
+        .select("id, name, code")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      
+      if (error) throw error;
+      return data as Country[];
+    },
+  });
+
   // Fetch visa types for the dropdown
   const { data: visaTypes = [] } = useQuery({
     queryKey: ["visa-types"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("visa_types")
-        .select("id, name, code, description")
+        .select("id, name, code, description, country_id")
         .eq("is_active", true)
         .order("sort_order", { ascending: true });
       
@@ -159,6 +182,11 @@ const ClientDetail = () => {
       return data as VisaType[];
     },
   });
+
+  // Filter visa types by selected country
+  const filteredVisaTypes = newApplication.countryId
+    ? visaTypes.filter(type => type.country_id === newApplication.countryId)
+    : [];
 
   // Fetch visa applications for this client
   const { data: visaApplications = [], isLoading: isLoadingApplications } = useQuery({
@@ -266,7 +294,7 @@ const ClientDetail = () => {
       queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
       setIsCreateApplicationOpen(false);
-      setNewApplication({ applicationName: "", visaSubclass: "" });
+      setNewApplication({ countryId: "", applicationName: "", visaSubclass: "" });
       toast.success("Visa application created!");
     },
     onError: (error) => {
@@ -375,7 +403,7 @@ const ClientDetail = () => {
   });
 
   const handleCreateApplication = () => {
-    if (!newApplication.applicationName.trim() || !newApplication.visaSubclass) return;
+    if (!newApplication.countryId || !newApplication.applicationName.trim() || !newApplication.visaSubclass) return;
     
     createApplicationMutation.mutate({
       application_name: newApplication.applicationName.trim(),
@@ -644,16 +672,40 @@ const ClientDetail = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
+              <Label htmlFor="country">Country</Label>
+              <Select
+                value={newApplication.countryId}
+                onValueChange={(value) => setNewApplication(prev => ({ 
+                  ...prev, 
+                  countryId: value, 
+                  applicationName: "", // Reset when country changes
+                  visaSubclass: "" 
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent>
+                  {countries.map((country) => (
+                    <SelectItem key={country.id} value={country.id}>
+                      {country.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="applicationName">Application Name</Label>
               <Select
                 value={newApplication.applicationName}
                 onValueChange={(value) => setNewApplication(prev => ({ ...prev, applicationName: value }))}
+                disabled={!newApplication.countryId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select application type" />
+                  <SelectValue placeholder={newApplication.countryId ? "Select application type" : "Select a country first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {visaTypes.map((type) => (
+                  {filteredVisaTypes.map((type) => (
                     <SelectItem key={type.id} value={type.name}>
                       {type.name}
                     </SelectItem>
@@ -666,14 +718,15 @@ const ClientDetail = () => {
               <Select
                 value={newApplication.visaSubclass}
                 onValueChange={(value) => setNewApplication(prev => ({ ...prev, visaSubclass: value }))}
+                disabled={!newApplication.countryId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select visa subclass" />
+                  <SelectValue placeholder={newApplication.countryId ? "Select visa subclass" : "Select a country first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {visaSubclasses.map((visa) => (
-                    <SelectItem key={visa.value} value={visa.value}>
-                      {visa.label}
+                  {filteredVisaTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.code}>
+                      {type.code} - {type.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -686,7 +739,7 @@ const ClientDetail = () => {
             </Button>
             <Button 
               onClick={handleCreateApplication}
-              disabled={!newApplication.applicationName.trim() || !newApplication.visaSubclass || createApplicationMutation.isPending}
+              disabled={!newApplication.countryId || !newApplication.applicationName.trim() || !newApplication.visaSubclass || createApplicationMutation.isPending}
             >
               {createApplicationMutation.isPending ? (
                 <>
