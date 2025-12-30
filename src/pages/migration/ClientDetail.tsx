@@ -63,7 +63,7 @@ interface Client {
   company_name: string | null;
   email: string | null;
   phone: string | null;
-  drive_folder_id: string | null;
+  client_folder_id: string | null;
   folder_status: "pending" | "creating" | "created" | "failed";
   created_at: string;
 }
@@ -202,7 +202,7 @@ const ClientDetail = () => {
               matter_id: data.id,
               matter_name: data.matter_name,
               visa_subclass: data.visa_subclass,
-              client_folder_id: client?.drive_folder_id || null,
+              client_folder_id: client?.client_folder_id || null,
               // Optional fields (filtered by edge function based on webhook config)
               company_id: currentCompany?.id,
               client_id: data.client_id,
@@ -468,12 +468,12 @@ const ClientDetail = () => {
               <FolderOpen className="w-5 h-5 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground">Drive Folder</p>
-                {client.folder_status === 'created' && client.drive_folder_id ? (
+                {client.folder_status === 'created' && client.client_folder_id ? (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <a 
-                          href={`https://drive.google.com/drive/folders/${client.drive_folder_id}`}
+                          href={`https://drive.google.com/drive/folders/${client.client_folder_id}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 hover:underline transition-all group"

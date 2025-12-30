@@ -12,11 +12,11 @@ interface WebhookPayload {
 
 interface MakeWebhookResponse {
   folder_id?: string;
-  drive_folder_id?: string;
+  client_folder_id?: string;
   folderId?: string;
   data?: {
     folder_id?: string;
-    drive_folder_id?: string;
+    client_folder_id?: string;
     folderId?: string;
   };
   success?: boolean;
@@ -157,7 +157,7 @@ async function hydratePayloadData(
     try {
       const { data: clientRow, error } = await supabase
         .from("clients")
-        .select("id, client_type, first_name, last_name, company_name, email, phone, drive_folder_id")
+        .select("id, client_type, first_name, last_name, company_name, email, phone, client_folder_id")
         .eq("id", clientId)
         .maybeSingle();
 
@@ -173,7 +173,7 @@ async function hydratePayloadData(
           company_name: clientRow.company_name,
           email: clientRow.email,
           phone: clientRow.phone,
-          client_folder_id: clientRow.drive_folder_id,
+          client_folder_id: clientRow.client_folder_id,
         };
       }
     } catch (e) {
@@ -447,17 +447,17 @@ Deno.serve(async (req) => {
             const dataObj = responseData.data || responseData;
             const folderId =
               dataObj.folder_id ||
-              dataObj.drive_folder_id ||
+              dataObj.client_folder_id ||
               dataObj.folderId ||
               responseData.folder_id ||
-              responseData.drive_folder_id ||
+              responseData.client_folder_id ||
               responseData.folderId;
 
             if (folderId) {
               const table = entityType === "client" ? "clients" : "matters";
               console.log(`Updating ${table} ${entityId} with folder_id: ${folderId}`);
 
-              const folderColumn = entityType === "client" ? "drive_folder_id" : "visa_application_folder_id";
+              const folderColumn = entityType === "client" ? "client_folder_id" : "visa_application_folder_id";
               const { error: updateError } = await supabase
                 .from(table)
                 .update({
