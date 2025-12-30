@@ -210,6 +210,7 @@ const ClientDetail = () => {
     mutationFn: async (applicationData: {
       application_name: string;
       visa_subclass: string;
+      country_id: string;
     }) => {
       if (!currentCompany?.id || !clientId) throw new Error("Missing required data");
       
@@ -220,6 +221,7 @@ const ClientDetail = () => {
           client_id: clientId,
           application_name: applicationData.application_name,
           visa_subclass: applicationData.visa_subclass,
+          country_id: applicationData.country_id,
           status: "draft",
         })
         .select()
@@ -408,6 +410,7 @@ const ClientDetail = () => {
     createApplicationMutation.mutate({
       application_name: newApplication.applicationName.trim(),
       visa_subclass: newApplication.visaSubclass,
+      country_id: newApplication.countryId,
     });
   };
 
