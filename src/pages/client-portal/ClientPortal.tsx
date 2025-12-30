@@ -168,7 +168,17 @@ export default function ClientPortal() {
       }
 
       const portalData = accessData[0];
-      setPortalAccess(portalData);
+      // Map the RPC response to our PortalAccess interface
+      setPortalAccess({
+        id: portalData.id,
+        visa_application_id: portalData.matter_id, // RPC still returns matter_id
+        client_id: portalData.client_id,
+        company_id: portalData.company_id,
+        email: portalData.email,
+        is_submitted: portalData.is_submitted,
+        submitted_at: portalData.submitted_at,
+        token_expires_at: portalData.token_expires_at,
+      });
 
       // Update last accessed using secure RPC
       await supabase.rpc("update_portal_access_timestamp", { p_token: token });
@@ -200,11 +210,12 @@ export default function ClientPortal() {
 
       if (docsData) setDocuments(docsData);
 
-      // Load saved form data
+      // Load saved form data - use the mapped visa_application_id
+      const visaAppId = portalData.matter_id; // RPC returns matter_id
       const { data: formDataResult } = await supabase
         .from("client_form_data")
         .select("form_data")
-        .eq("visa_application_id", portalData.visa_application_id)
+        .eq("visa_application_id", visaAppId)
         .eq("client_id", portalData.client_id)
         .maybeSingle();
 
@@ -498,23 +509,49 @@ export default function ClientPortal() {
       // Note: Notifications are handled separately since this is unauthenticated access
       // The edge function or backend should handle notifying team members
 
-      setPortalAccess({ ...portalAccess, is_submitted: true, submitted_at: new Date().toISOString() });
+      // Call edge function to notify team and finalize submission
+      try {
+        await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-portal-submit`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token }),
+          }
+        );
+      } catch (notifyError) {
+        console.error("Failed to notify team:", notifyError);
+      }
+
+      setPortalAccess(prev => prev ? { ...prev, is_submitted: true } : null);
       setIsSubmitDialogOpen(false);
       toast.success("Application submitted successfully!");
     } catch (err) {
       console.error("Submit failed:", err);
-      toast.error("Failed to submit application");
+      toast.error(err instanceof Error ? err.message : "Failed to submit application");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const getClientName = () => {
+    if (!client) return "";
+    if (client.client_type === "corporate") {
+      return client.company_name || "Company";
+    }
+    return client.first_name ? `${client.first_name}${client.last_name ? ` ${client.last_name}` : ""}` : "Client";
+  };
+
+  const completedDocs = documents.filter(d => d.is_completed).length;
+  const totalDocs = documents.length;
+  const progress = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="mt-4 text-muted-foreground">Loading your portal...</p>
+      <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
+          <p className="text-muted-foreground">Loading your portal...</p>
         </div>
       </div>
     );
@@ -522,11 +559,11 @@ export default function ClientPortal() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <AlertCircle className="h-12 w-12 mx-auto text-destructive mb-4" />
-            <CardTitle>Access Error</CardTitle>
+            <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+            <CardTitle className="text-destructive">Access Error</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
         </Card>
@@ -534,38 +571,33 @@ export default function ClientPortal() {
     );
   }
 
-  const clientName = client?.client_type === "corporate" 
-    ? client.company_name 
-    : `${client?.first_name || ""} ${client?.last_name || ""}`.trim();
-
-  const completedDocs = documents.filter(d => d.is_completed).length;
-  const totalDocs = documents.length;
-
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted">
       {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold">Client Portal</h1>
+              <h1 className="text-xl font-semibold">Document Portal</h1>
               <p className="text-sm text-muted-foreground">
-                {clientName && `Welcome, ${clientName}`}
+                Welcome, {getClientName()}
               </p>
             </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Saving...</span>
-                </>
-              ) : lastSaved ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <span>Saved {lastSaved.toLocaleTimeString()}</span>
-                </>
-              ) : null}
-            </div>
+            {!portalAccess?.is_submitted && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : lastSaved ? (
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>Saved {lastSaved.toLocaleTimeString()}</span>
+                  </>
+                ) : null}
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -575,30 +607,34 @@ export default function ClientPortal() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            className="text-center py-12"
           >
-            <Card className="text-center py-12">
-              <CardContent>
-                <CheckCircle2 className="h-16 w-16 mx-auto text-green-500 mb-4" />
-                <h2 className="text-2xl font-bold mb-2">Application Submitted!</h2>
-                <p className="text-muted-foreground mb-4">
+            <Card className="max-w-lg mx-auto">
+              <CardHeader>
+                <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                <CardTitle className="text-2xl">Application Submitted!</CardTitle>
+                <CardDescription className="text-base">
                   Thank you for submitting your documents. Your agent will review them and contact you if anything else is needed.
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Submitted on {new Date(portalAccess.submitted_at!).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', timeZoneName: 'short' })}
-                </p>
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Clock className="w-4 h-4" />
+                  <span>Submitted {portalAccess.submitted_at ? new Date(portalAccess.submitted_at).toLocaleDateString() : "recently"}</span>
+                </div>
               </CardContent>
             </Card>
           </motion.div>
         ) : (
           <div className="space-y-8">
-            {/* Matter Info */}
+            {/* Visa Application Info */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>{matter?.matter_name}</CardTitle>
-                    {matter?.visa_subclass && (
-                      <CardDescription>Visa Subclass: {matter.visa_subclass}</CardDescription>
+                    <CardTitle>{visaApplication?.application_name}</CardTitle>
+                    {visaApplication?.visa_subclass && (
+                      <CardDescription>Visa Subclass: {visaApplication.visa_subclass}</CardDescription>
                     )}
                   </div>
                   <Badge variant="outline">
@@ -648,20 +684,22 @@ export default function ClientPortal() {
                           "Afghan", "Albanian", "Algerian", "American", "Andorran", "Angolan", "Argentine", "Armenian", "Australian", "Austrian",
                           "Azerbaijani", "Bahamian", "Bahraini", "Bangladeshi", "Barbadian", "Belarusian", "Belgian", "Belizean", "Beninese", "Bhutanese",
                           "Bolivian", "Bosnian", "Brazilian", "British", "Bruneian", "Bulgarian", "Burkinabe", "Burmese", "Burundian", "Cambodian",
-                          "Cameroonian", "Canadian", "Cape Verdean", "Central African", "Chadian", "Chilean", "Chinese", "Colombian", "Comorian", "Congolese",
-                          "Costa Rican", "Croatian", "Cuban", "Cypriot", "Czech", "Danish", "Djiboutian", "Dominican", "Dutch", "Ecuadorian",
-                          "Egyptian", "Emirati", "Equatorial Guinean", "Eritrean", "Estonian", "Ethiopian", "Fijian", "Filipino", "Finnish", "French",
-                          "Gabonese", "Gambian", "Georgian", "German", "Ghanaian", "Greek", "Grenadian", "Guatemalan", "Guinean", "Guyanese",
-                          "Haitian", "Honduran", "Hungarian", "Icelandic", "Indian", "Indonesian", "Iranian", "Iraqi", "Irish", "Israeli",
-                          "Italian", "Ivorian", "Jamaican", "Japanese", "Jordanian", "Kazakh", "Kenyan", "Kuwaiti", "Kyrgyz", "Laotian",
-                          "Latvian", "Lebanese", "Liberian", "Libyan", "Lithuanian", "Luxembourgish", "Macedonian", "Malagasy", "Malawian", "Malaysian",
-                          "Maldivian", "Malian", "Maltese", "Mauritanian", "Mauritian", "Mexican", "Moldovan", "Monacan", "Mongolian", "Montenegrin",
-                          "Moroccan", "Mozambican", "Namibian", "Nepalese", "New Zealand", "Nicaraguan", "Nigerian", "North Korean", "Norwegian", "Omani",
-                          "Pakistani", "Palestinian", "Panamanian", "Paraguayan", "Peruvian", "Polish", "Portuguese", "Qatari", "Romanian", "Russian",
-                          "Rwandan", "Saudi", "Senegalese", "Serbian", "Singaporean", "Slovak", "Slovenian", "Somali", "South African", "South Korean",
-                          "Spanish", "Sri Lankan", "Sudanese", "Surinamese", "Swedish", "Swiss", "Syrian", "Taiwanese", "Tajik", "Tanzanian",
-                          "Thai", "Togolese", "Trinidadian", "Tunisian", "Turkish", "Turkmen", "Ugandan", "Ukrainian", "Uruguayan", "Uzbek",
-                          "Venezuelan", "Vietnamese", "Yemeni", "Zambian", "Zimbabwean"
+                          "Cameroonian", "Canadian", "Cape Verdean", "Central African", "Chadian", "Chilean", "Chinese", "Colombian", "Comoran", "Congolese",
+                          "Costa Rican", "Croatian", "Cuban", "Cypriot", "Czech", "Danish", "Djiboutian", "Dominican", "Dutch", "East Timorese",
+                          "Ecuadorean", "Egyptian", "Emirati", "Equatorial Guinean", "Eritrean", "Estonian", "Ethiopian", "Fijian", "Filipino", "Finnish",
+                          "French", "Gabonese", "Gambian", "Georgian", "German", "Ghanaian", "Greek", "Grenadian", "Guatemalan", "Guinean",
+                          "Guyanese", "Haitian", "Honduran", "Hungarian", "Icelandic", "Indian", "Indonesian", "Iranian", "Iraqi", "Irish",
+                          "Israeli", "Italian", "Ivorian", "Jamaican", "Japanese", "Jordanian", "Kazakhstani", "Kenyan", "Kiribati", "Korean",
+                          "Kuwaiti", "Kyrgyz", "Laotian", "Latvian", "Lebanese", "Liberian", "Libyan", "Liechtenstein", "Lithuanian", "Luxembourg",
+                          "Macedonian", "Malagasy", "Malawian", "Malaysian", "Maldivian", "Malian", "Maltese", "Marshallese", "Mauritanian", "Mauritian",
+                          "Mexican", "Micronesian", "Moldovan", "Monegasque", "Mongolian", "Montenegrin", "Moroccan", "Mozambican", "Namibian", "Nauruan",
+                          "Nepalese", "New Zealand", "Nicaraguan", "Nigerian", "Nigerien", "Norwegian", "Omani", "Pakistani", "Palauan", "Palestinian",
+                          "Panamanian", "Papua New Guinean", "Paraguayan", "Peruvian", "Polish", "Portuguese", "Qatari", "Romanian", "Russian", "Rwandan",
+                          "Saint Lucian", "Salvadoran", "Samoan", "Saudi", "Senegalese", "Serbian", "Seychellois", "Sierra Leonean", "Singaporean", "Slovak",
+                          "Slovenian", "Solomon Islander", "Somali", "South African", "South Sudanese", "Spanish", "Sri Lankan", "Sudanese", "Surinamese", "Swazi",
+                          "Swedish", "Swiss", "Syrian", "Taiwanese", "Tajik", "Tanzanian", "Thai", "Togolese", "Tongan", "Trinidadian",
+                          "Tunisian", "Turkish", "Turkmen", "Tuvaluan", "Ugandan", "Ukrainian", "Uruguayan", "Uzbekistani", "Vanuatuan", "Venezuelan",
+                          "Vietnamese", "Yemeni", "Zambian", "Zimbabwean"
                         ].map((nationality) => (
                           <SelectItem key={nationality} value={nationality}>
                             {nationality}
@@ -692,7 +730,7 @@ export default function ClientPortal() {
               </CardContent>
             </Card>
 
-            {/* Contact Information */}
+            {/* Contact Information Form */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Contact Information</CardTitle>
@@ -707,7 +745,7 @@ export default function ClientPortal() {
                       type="tel"
                       value={formData.contact_info.phone}
                       onChange={(e) => updateFormField("contact_info", "phone", e.target.value)}
-                      placeholder="+61 400 000 000"
+                      placeholder="Enter phone number"
                     />
                   </div>
                   <div className="space-y-2">
@@ -717,7 +755,7 @@ export default function ClientPortal() {
                       type="email"
                       value={formData.contact_info.email}
                       onChange={(e) => updateFormField("contact_info", "email", e.target.value)}
-                      placeholder="your@email.com"
+                      placeholder="Enter email address"
                     />
                   </div>
                 </div>
@@ -727,7 +765,7 @@ export default function ClientPortal() {
                     id="address"
                     value={formData.contact_info.address}
                     onChange={(e) => updateFormField("contact_info", "address", e.target.value)}
-                    placeholder="Enter your current residential address"
+                    placeholder="Enter your current address"
                     rows={3}
                   />
                 </div>
@@ -737,145 +775,127 @@ export default function ClientPortal() {
             {/* Document Checklist */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Document Checklist
-                </CardTitle>
-                <CardDescription>
-                  Please upload the required documents (PDF or images, max 10MB). Drag & drop or click to upload.
-                  <br />Progress: {completedDocs}/{totalDocs}
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Required Documents
+                    </CardTitle>
+                    <CardDescription>Upload the required documents for your application</CardDescription>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-primary">{Math.round(progress)}%</div>
+                    <div className="text-sm text-muted-foreground">Complete</div>
+                  </div>
+                </div>
+                {/* Progress Bar */}
+                <div className="w-full h-2 bg-muted rounded-full mt-4">
+                  <div 
+                    className="h-full bg-primary rounded-full transition-all duration-500"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {documents.map((doc) => (
-                    <div
+                    <motion.div
                       key={doc.id}
-                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border transition-colors ${
-                        dragOverDocId === doc.id && !doc.is_completed
-                          ? 'border-primary bg-primary/10'
-                          : 'bg-card hover:bg-accent/5'
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${
+                        doc.is_completed 
+                          ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
+                          : dragOverDocId === doc.id
+                            ? "bg-primary/10 border-primary border-dashed"
+                            : "bg-muted/50 border-transparent hover:border-border"
                       }`}
-                      onDragOver={(e) => !doc.is_completed && handleDragOver(e, doc.id)}
+                      onDragOver={(e) => handleDragOver(e, doc.id)}
                       onDragLeave={handleDragLeave}
-                      onDrop={(e) => !doc.is_completed && handleDrop(e, doc.id)}
+                      onDrop={(e) => handleDrop(e, doc.id)}
                     >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        {/* Thumbnail for images */}
-                        {doc.is_completed && doc.file_path && isImageFile(doc.file_path) && previewUrls[doc.file_path] ? (
-                          <button
-                            type="button"
-                            onClick={() => openPreview(doc.file_path!)}
-                            className="w-10 h-10 rounded border overflow-hidden shrink-0 hover:ring-2 ring-primary transition-all cursor-pointer"
-                          >
-                            <img
-                              src={previewUrls[doc.file_path]}
-                              alt={doc.document_name}
-                              className="w-full h-full object-cover"
-                            />
-                          </button>
-                        ) : doc.is_completed ? (
-                          <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
-                        ) : (
-                          <Circle className="h-5 w-5 text-muted-foreground shrink-0" />
-                        )}
-                        <div className="flex flex-col min-w-0">
-                          <span className={doc.is_completed ? "text-muted-foreground" : ""}>
-                            {doc.document_name.replace(/^\[.*?\]\s*/, "")}
-                          </span>
-                          {doc.is_completed && doc.file_path && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                              <File className="h-3 w-3" />
-                              <span className="truncate">{getFileName(doc.file_path)}</span>
-                              {isImageFile(doc.file_path) && previewUrls[doc.file_path] && (
-                                <button
-                                  type="button"
-                                  onClick={() => openPreview(doc.file_path!)}
-                                  className="text-primary hover:underline ml-1"
-                                >
-                                  View
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                      <div className="flex-shrink-0">
                         {doc.is_completed ? (
-                          // Show remove/replace options for completed documents
-                          removingDocId === doc.id ? (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              <span>Removing...</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1">
-                              <label className={`cursor-pointer ${uploadingDocId || removingDocId ? 'pointer-events-none opacity-50' : ''}`}>
-                                <input
-                                  type="file"
-                                  className="hidden"
-                                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic"
-                                  disabled={!!uploadingDocId || !!removingDocId}
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                      // First remove, then upload
-                                      handleRemoveDocument(doc.id).then(() => {
-                                        handleFileUpload(doc.id, file);
-                                      });
-                                    }
-                                    e.target.value = '';
-                                  }}
-                                />
-                                <Button size="sm" variant="ghost" asChild className="text-muted-foreground hover:text-foreground">
-                                  <span>
-                                    <Upload className="h-4 w-4" />
-                                  </span>
-                                </Button>
-                              </label>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-muted-foreground hover:text-destructive"
-                                onClick={() => handleRemoveDocument(doc.id)}
-                                disabled={!!uploadingDocId || !!removingDocId}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          )
+                          <CheckCircle2 className="w-6 h-6 text-green-600" />
                         ) : (
-                          // Show upload for incomplete documents
-                          uploadingDocId === doc.id ? (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              <span>Uploading...</span>
-                            </div>
-                          ) : (
-                            <label className={`cursor-pointer ${uploadingDocId || removingDocId ? 'pointer-events-none opacity-50' : ''}`}>
-                              <input
-                                type="file"
-                                className="hidden"
-                                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic"
-                                disabled={!!uploadingDocId || !!removingDocId}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) handleFileUpload(doc.id, file);
-                                  e.target.value = '';
-                                }}
-                              />
-                              <Button size="sm" variant="outline" asChild disabled={!!uploadingDocId || !!removingDocId}>
-                                <span>
-                                  <Upload className="h-4 w-4 mr-2" />
-                                  {dragOverDocId === doc.id ? 'Drop here' : 'Upload'}
-                                </span>
-                              </Button>
-                            </label>
-                          )
+                          <Circle className="w-6 h-6 text-muted-foreground" />
                         )}
                       </div>
-                    </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-medium truncate ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
+                          {doc.document_name}
+                        </p>
+                        {doc.is_completed && doc.file_path && (
+                          <div className="flex items-center gap-2 mt-1">
+                            {isImageFile(doc.file_path) && previewUrls[doc.file_path] ? (
+                              <button 
+                                onClick={() => openPreview(doc.file_path!)}
+                                className="hover:opacity-75 transition-opacity"
+                              >
+                                <img 
+                                  src={previewUrls[doc.file_path]} 
+                                  alt="Preview" 
+                                  className="w-10 h-10 object-cover rounded border"
+                                />
+                              </button>
+                            ) : (
+                              <File className="w-4 h-4 text-muted-foreground" />
+                            )}
+                            <span className="text-sm text-muted-foreground truncate">
+                              {getFileName(doc.file_path)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-shrink-0 flex items-center gap-2">
+                        {doc.is_completed ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveDocument(doc.id)}
+                            disabled={removingDocId === doc.id}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            {removingDocId === doc.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <X className="w-4 h-4" />
+                            )}
+                          </Button>
+                        ) : (
+                          <label className="cursor-pointer">
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleFileUpload(doc.id, file);
+                                e.target.value = "";
+                              }}
+                              disabled={uploadingDocId === doc.id}
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              asChild
+                              disabled={uploadingDocId === doc.id}
+                            >
+                              <span>
+                                {uploadingDocId === doc.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Upload className="w-4 h-4 mr-2" />
+                                    Upload
+                                  </>
+                                )}
+                              </span>
+                            </Button>
+                          </label>
+                        )}
+                      </div>
+                    </motion.div>
                   ))}
                 </div>
               </CardContent>
@@ -885,39 +905,30 @@ export default function ClientPortal() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Additional Notes</CardTitle>
-                <CardDescription>Any other information you'd like to share</CardDescription>
+                <CardDescription>Any additional information you'd like to share</CardDescription>
               </CardHeader>
               <CardContent>
                 <Textarea
                   value={formData.additional_notes}
                   onChange={(e) => updateFormField("additional_notes", "", e.target.value)}
-                  placeholder="Enter any additional information here..."
+                  placeholder="Enter any additional notes or comments..."
                   rows={4}
                 />
               </CardContent>
             </Card>
 
-            {/* Submit Section */}
-            <Card className="border-primary/20 bg-primary/5">
-              <CardContent className="pt-6">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div>
-                    <p className="font-medium">Ready to submit?</p>
-                    <p className="text-sm text-muted-foreground">
-                      Make sure all your information is correct and documents are uploaded.
-                    </p>
-                  </div>
-                  <Button 
-                    size="lg" 
-                    onClick={() => setIsSubmitDialogOpen(true)}
-                    className="gradient-bg"
-                  >
-                    <Send className="h-4 w-4 mr-2" />
-                    Submit Application
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Submit Button */}
+            <div className="flex justify-end">
+              <Button
+                size="lg"
+                onClick={() => setIsSubmitDialogOpen(true)}
+                disabled={completedDocs === 0}
+                className="gap-2"
+              >
+                <Send className="w-5 h-5" />
+                Submit Application
+              </Button>
+            </div>
           </div>
         )}
       </main>
@@ -926,20 +937,19 @@ export default function ClientPortal() {
       <AlertDialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Submit Your Application?</AlertDialogTitle>
+            <AlertDialogTitle>Submit Application?</AlertDialogTitle>
             <AlertDialogDescription>
-              Once submitted, you won't be able to make further changes. Your agent will be notified and will review your submission.
+              Once submitted, you won't be able to make changes. Make sure all your information is correct and all required documents are uploaded.
+              <br /><br />
+              <strong>{completedDocs}</strong> of <strong>{totalDocs}</strong> documents uploaded.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-            >
+            <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSubmit} disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Submitting...
                 </>
               ) : (
@@ -952,12 +962,12 @@ export default function ClientPortal() {
 
       {/* Image Preview Dialog */}
       <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
-        <DialogContent className="max-w-3xl p-2">
+        <DialogContent className="max-w-3xl p-0">
           {previewImage && (
-            <img
-              src={previewImage}
-              alt="Document preview"
-              className="w-full h-auto max-h-[80vh] object-contain rounded"
+            <img 
+              src={previewImage} 
+              alt="Document preview" 
+              className="w-full h-auto max-h-[80vh] object-contain"
             />
           )}
         </DialogContent>
