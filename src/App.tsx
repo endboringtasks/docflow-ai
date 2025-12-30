@@ -27,7 +27,7 @@ import MigrationClients from "./pages/migration/Clients";
 import MigrationClientDetail from "./pages/migration/ClientDetail";
 import MigrationMatters from "./pages/migration/Matters";
 import MigrationMatterDetail from "./pages/migration/MatterDetail";
-import MigrationDocumentChecklist from "./pages/migration/DocumentTemplates";
+import MigrationDocumentChecklist from "./pages/migration/DocumentChecklist";
 import AuditDashboard from "./pages/audit/Dashboard";
 import HRDashboard from "./pages/hr/Dashboard";
 import Billing from "./pages/Billing";
