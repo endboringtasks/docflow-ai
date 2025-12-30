@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,13 +36,15 @@ interface DriveConnection {
 }
 
 export function GoogleDriveConnection() {
-  const { currentCompany, currentRole } = useCompany();
+  const { currentCompany, currentRole, refetch } = useCompany();
   const [searchParams, setSearchParams] = useSearchParams();
   const [connection, setConnection] = useState<DriveConnection | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
+  const [saveOriginalEnabled, setSaveOriginalEnabled] = useState(true);
+  const [isUpdatingSaveOriginal, setIsUpdatingSaveOriginal] = useState(false);
 
   const canManage = currentRole === "owner" || currentRole === "admin";
 
@@ -83,9 +87,45 @@ export function GoogleDriveConnection() {
     }
   };
 
+  const fetchSaveOriginalSetting = async () => {
+    if (!currentCompany) return;
+    
+    const { data, error } = await supabase
+      .from("companies")
+      .select("save_original_to_documents_received")
+      .eq("id", currentCompany.id)
+      .single();
+    
+    if (!error && data) {
+      setSaveOriginalEnabled(data.save_original_to_documents_received ?? true);
+    }
+  };
+
   useEffect(() => {
     fetchConnection();
+    fetchSaveOriginalSetting();
   }, [currentCompany]);
+
+  const handleToggleSaveOriginal = async (enabled: boolean) => {
+    if (!currentCompany) return;
+    
+    setIsUpdatingSaveOriginal(true);
+    
+    const { error } = await supabase
+      .from("companies")
+      .update({ save_original_to_documents_received: enabled })
+      .eq("id", currentCompany.id);
+    
+    if (error) {
+      toast.error("Failed to update setting", { description: error.message });
+    } else {
+      setSaveOriginalEnabled(enabled);
+      toast.success(enabled ? "Original files will be saved to Documents Received" : "Original file saving disabled");
+      refetch?.();
+    }
+    
+    setIsUpdatingSaveOriginal(false);
+  };
 
   const handleConnect = async () => {
     if (!currentCompany) return;
@@ -347,6 +387,26 @@ export function GoogleDriveConnection() {
             <p className="text-sm text-muted-foreground">
               New client folders will be created in: <span className="font-medium">{connection.root_folder_name || "My Drive"}</span>
             </p>
+
+            {/* Save Original Files Toggle */}
+            {canManage && (
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+                <div className="space-y-0.5">
+                  <Label htmlFor="save-original" className="text-sm font-medium">
+                    Save original files to Documents Received
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    When enabled, original files uploaded via client portal will also be saved to the Documents Received folder
+                  </p>
+                </div>
+                <Switch
+                  id="save-original"
+                  checked={saveOriginalEnabled}
+                  onCheckedChange={handleToggleSaveOriginal}
+                  disabled={isUpdatingSaveOriginal}
+                />
+              </div>
+            )}
 
           </div>
         ) : (

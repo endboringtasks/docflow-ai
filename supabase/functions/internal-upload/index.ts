@@ -404,6 +404,19 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Check if the company has save_original_to_documents_received enabled
+    let saveOriginalEnabled = true // default to true
+    const { data: companyData } = await supabase
+      .from('companies')
+      .select('save_original_to_documents_received')
+      .eq('id', matterData.company_id)
+      .single()
+    
+    if (companyData) {
+      saveOriginalEnabled = companyData.save_original_to_documents_received ?? true
+    }
+    console.log('Save original to documents received enabled:', saveOriginalEnabled)
+
     console.log('Drive folder IDs:', {
       documentsReceivedFolderId,
       clientFolderId,
@@ -427,7 +440,7 @@ Deno.serve(async (req) => {
 
       if (accessToken) {
         // If documents_received_folder_id is missing, try to find/create it under client folder
-        if (!documentsReceivedFolderId && clientFolderId && matterData.client_id) {
+        if (saveOriginalEnabled && !documentsReceivedFolderId && clientFolderId && matterData.client_id) {
           const ensuredId = await ensureDocumentsReceivedFolderId(accessToken, clientFolderId)
           if (ensuredId) {
             documentsReceivedFolderId = ensuredId
@@ -445,8 +458,8 @@ Deno.serve(async (req) => {
           }
         }
 
-        // 1) Upload original file to Documents Received folder (if available)
-        if (documentsReceivedFolderId) {
+        // 1) Upload original file to Documents Received folder (if available and enabled)
+        if (saveOriginalEnabled && documentsReceivedFolderId) {
           console.log('Uploading original file to documents_received_folder:', documentsReceivedFolderId)
           const originalResult = await uploadToGoogleDrive(
             accessToken,
@@ -463,6 +476,8 @@ Deno.serve(async (req) => {
           } else {
             console.warn('Failed to upload to documents_received_folder')
           }
+        } else if (!saveOriginalEnabled) {
+          console.log('Skipping Documents Received upload (disabled by company setting)')
         }
 
         // 2) Upload renamed file to Visa Application folder (if available)
