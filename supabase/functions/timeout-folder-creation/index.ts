@@ -32,9 +32,11 @@ Deno.serve(async (req) => {
       throw webhooksError;
     }
 
-    // Find webhooks that handle client.created or matter.created events
+    // Find webhooks that handle client.created or visa_application.created events
     const folderCreationWebhooks = webhooks?.filter(w => 
-      w.events?.includes("client.created") || w.events?.includes("matter.created")
+      w.events?.includes("client.created") || 
+      w.events?.includes("visa_application.created") ||
+      w.events?.includes("matter.created") // Legacy support
     ) || [];
 
     // Use the maximum timeout from folder creation webhooks, or default
@@ -58,17 +60,17 @@ Deno.serve(async (req) => {
       throw clientsError;
     }
 
-    // Update stale matter records
-    const { data: mattersUpdated, error: mattersError } = await supabase
-      .from("matters")
+    // Update stale visa application records
+    const { data: applicationsUpdated, error: applicationsError } = await supabase
+      .from("visa_applications")
       .update({ folder_status: "failed" })
       .eq("folder_status", "creating")
       .lt("folder_status_updated_at", cutoffTime)
       .select("id");
 
-    if (mattersError) {
-      console.error("Error updating matters:", mattersError);
-      throw mattersError;
+    if (applicationsError) {
+      console.error("Error updating visa applications:", applicationsError);
+      throw applicationsError;
     }
 
     const result = {
@@ -76,7 +78,7 @@ Deno.serve(async (req) => {
       timeout_seconds: timeoutSeconds,
       cutoff_time: cutoffTime,
       clients_timed_out: clientsUpdated?.length || 0,
-      matters_timed_out: mattersUpdated?.length || 0,
+      visa_applications_timed_out: applicationsUpdated?.length || 0,
       timestamp: new Date().toISOString(),
     };
 

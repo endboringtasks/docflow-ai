@@ -111,42 +111,44 @@ async function hydratePayloadData(
   data: Record<string, unknown>,
   supabase: any
 ): Promise<Record<string, unknown>> {
-  if (!eventType.startsWith("matter.")) return data;
+  // Support both visa_application. and legacy matter. event prefixes
+  if (!eventType.startsWith("visa_application.") && !eventType.startsWith("matter.")) return data;
 
   let hydrated: Record<string, unknown> = { ...data };
 
-  const matterId = (data.matter_id ?? data.id) as string | undefined;
-  if (matterId) {
+  // Support both visa_application_id and legacy matter_id
+  const visaApplicationId = (data.visa_application_id ?? data.matter_id ?? data.id) as string | undefined;
+  if (visaApplicationId) {
     try {
-      const { data: matterRow, error } = await supabase
-        .from("matters")
+      const { data: applicationRow, error } = await supabase
+        .from("visa_applications")
         .select(
-          "id, company_id, client_id, matter_name, visa_subclass, status, visa_application_folder_id, folder_status, folder_status_updated_at, created_at"
+          "id, company_id, client_id, application_name, visa_subclass, status, visa_application_folder_id, folder_status, folder_status_updated_at, created_at"
         )
-        .eq("id", matterId)
+        .eq("id", visaApplicationId)
         .maybeSingle();
 
       if (error) {
-        console.log("Hydration: failed to load matter", { matter_id: matterId, error: error.message });
-      } else if (matterRow) {
+        console.log("Hydration: failed to load visa application", { visa_application_id: visaApplicationId, error: error.message });
+      } else if (applicationRow) {
         hydrated = {
           ...hydrated,
-          matter_id: matterRow.id,
-          company_id: matterRow.company_id,
-          client_id: matterRow.client_id,
-          matter_name: matterRow.matter_name,
-          visa_subclass: matterRow.visa_subclass,
-          status: matterRow.status,
-          visa_application_folder_id: matterRow.visa_application_folder_id,
-          folder_status: matterRow.folder_status,
-          folder_status_updated_at: matterRow.folder_status_updated_at,
-          created_at: matterRow.created_at,
+          visa_application_id: applicationRow.id,
+          company_id: applicationRow.company_id,
+          client_id: applicationRow.client_id,
+          application_name: applicationRow.application_name,
+          visa_subclass: applicationRow.visa_subclass,
+          status: applicationRow.status,
+          visa_application_folder_id: applicationRow.visa_application_folder_id,
+          folder_status: applicationRow.folder_status,
+          folder_status_updated_at: applicationRow.folder_status_updated_at,
+          created_at: applicationRow.created_at,
         };
       } else {
-        hydrated = { ...hydrated, matter_id: (hydrated as any).matter_id ?? matterId };
+        hydrated = { ...hydrated, visa_application_id: (hydrated as any).visa_application_id ?? visaApplicationId };
       }
     } catch (e) {
-      console.log("Hydration: exception loading matter", { matter_id: matterId, error: String(e) });
+      console.log("Hydration: exception loading visa application", { visa_application_id: visaApplicationId, error: String(e) });
     }
   }
 
@@ -282,21 +284,22 @@ Deno.serve(async (req) => {
       return await respondJson(400, { error: "Missing required fields: event_type and data" }, "missing_required_fields");
     }
 
-    // Update folder status to 'creating' for client/matter created events
-    // Determine entity type based on event type, not just presence of IDs (matters also have client_id)
+    // Update folder status to 'creating' for client/visa_application created events
+    // Determine entity type based on event type, not just presence of IDs (visa applications also have client_id)
     let entityId: string | null = null;
-    let entityType: "client" | "matter" | null = null;
+    let entityType: "client" | "visa_application" | null = null;
 
     if (payload.event_type === "client.created") {
       entityId = payload.data.client_id as string;
       entityType = "client";
-    } else if (payload.event_type === "matter.created") {
-      entityId = payload.data.matter_id as string;
-      entityType = "matter";
+    } else if (payload.event_type === "visa_application.created" || payload.event_type === "matter.created") {
+      // Support both new and legacy event names
+      entityId = (payload.data.visa_application_id || payload.data.matter_id) as string;
+      entityType = "visa_application";
     }
 
     if (entityType && entityId) {
-      const table = entityType === "client" ? "clients" : "matters";
+      const table = entityType === "client" ? "clients" : "visa_applications";
       console.log(`Setting folder_status to 'creating' for ${table} ${entityId}`);
 
       await supabase
@@ -370,7 +373,7 @@ Deno.serve(async (req) => {
       return filteredData;
     };
 
-    const contextSnippet = `event=${payload.event_type} matter_id=${String((hydratedData as any).matter_id ?? "")}`;
+    const contextSnippet = `event=${payload.event_type} visa_application_id=${String((hydratedData as any).visa_application_id ?? "")}`;
 
     // Dispatch to all matching webhooks with retry logic
     const results = await Promise.allSettled(
@@ -447,7 +450,7 @@ Deno.serve(async (req) => {
             const dataObj = responseData.data || responseData;
             
             // For clients, look for client_folder_id or folder_id
-            // For matters, look for visa_application_folder_id or folder_id
+            // For visa_applications, look for visa_application_folder_id or folder_id
             let folderId: string | undefined;
             if (entityType === "client") {
               folderId =
@@ -458,7 +461,7 @@ Deno.serve(async (req) => {
                 responseData.folder_id ||
                 responseData.folderId;
             } else {
-              // Matter - look for visa_application_folder_id specifically
+              // Visa application - look for visa_application_folder_id specifically
               folderId =
                 (dataObj as any).visa_application_folder_id ||
                 (dataObj as any).folder_id ||
@@ -469,7 +472,7 @@ Deno.serve(async (req) => {
             }
 
             if (folderId) {
-              const table = entityType === "client" ? "clients" : "matters";
+              const table = entityType === "client" ? "clients" : "visa_applications";
               console.log(`Updating ${table} ${entityId} with folder_id: ${folderId}`);
 
               const folderColumn = entityType === "client" ? "client_folder_id" : "visa_application_folder_id";
@@ -487,11 +490,11 @@ Deno.serve(async (req) => {
                 console.log(`Successfully updated ${table} ${entityId} with folder_id`);
 
                 // Log automation event
-                const eventType = entityType === "client" ? "client_folder_created" : "matter_folder_created";
+                const eventType = entityType === "client" ? "client_folder_created" : "visa_application_folder_created";
                 await supabase.from("automation_events").insert({
                   company_id: (hydratedData as any).company_id ?? (payload.data as any).company_id,
                   client_id: entityType === "client" ? entityId : (((hydratedData as any).client_id ?? (payload.data as any).client_id) || null),
-                  matter_id: entityType === "matter" ? entityId : null,
+                  visa_application_id: entityType === "visa_application" ? entityId : null,
                   event_type: eventType,
                   payload: {
                     folder_id: folderId,
@@ -502,7 +505,7 @@ Deno.serve(async (req) => {
               }
             } else if (responseData.error) {
               // Mark as failed if Make returned an error
-              const table = entityType === "client" ? "clients" : "matters";
+              const table = entityType === "client" ? "clients" : "visa_applications";
               await supabase.from(table).update({ folder_status: "failed" }).eq("id", entityId);
 
               console.error(`Make returned error for ${table} ${entityId}:`, responseData.error);
@@ -530,7 +533,7 @@ Deno.serve(async (req) => {
 
     // If all webhooks failed and we have an entity, mark as failed
     if (failed === webhooks.length && entityType && entityId) {
-      const table = entityType === "client" ? "clients" : "matters";
+      const table = entityType === "client" ? "clients" : "visa_applications";
       await supabase.from(table).update({ folder_status: "failed" }).eq("id", entityId);
     }
 
