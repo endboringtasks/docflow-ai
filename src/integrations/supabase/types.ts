@@ -191,6 +191,7 @@ export type Database = {
           company_id: string
           company_name: string | null
           created_at: string
+          documents_received_folder_id: string | null
           drive_folder_id: string | null
           email: string | null
           first_name: string | null
@@ -205,6 +206,7 @@ export type Database = {
           company_id: string
           company_name?: string | null
           created_at?: string
+          documents_received_folder_id?: string | null
           drive_folder_id?: string | null
           email?: string | null
           first_name?: string | null
@@ -219,6 +221,7 @@ export type Database = {
           company_id?: string
           company_name?: string | null
           created_at?: string
+          documents_received_folder_id?: string | null
           drive_folder_id?: string | null
           email?: string | null
           first_name?: string | null
