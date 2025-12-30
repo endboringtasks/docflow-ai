@@ -389,6 +389,21 @@ Deno.serve(async (req) => {
       console.error('Error fetching matter:', matterError)
     }
 
+    // Check if the company has save_original_to_documents_received enabled
+    let saveOriginalEnabled = true // default to true
+    if (matterData?.company_id) {
+      const { data: companyData } = await supabase
+        .from('companies')
+        .select('save_original_to_documents_received')
+        .eq('id', matterData.company_id)
+        .single()
+      
+      if (companyData) {
+        saveOriginalEnabled = companyData.save_original_to_documents_received ?? true
+      }
+      console.log('Save original to documents received enabled:', saveOriginalEnabled)
+    }
+
     // Get the client's documents_received_folder_id for storing original files
     let documentsReceivedFolderId: string | null = null
     let clientFolderId: string | null = null
@@ -430,7 +445,7 @@ Deno.serve(async (req) => {
 
       if (accessToken) {
         // If the webhook didn't give us documents_received_folder_id, try to locate/create it under the client folder
-        if (!documentsReceivedFolderId && clientFolderId && matterData?.client_id) {
+        if (saveOriginalEnabled && !documentsReceivedFolderId && clientFolderId && matterData?.client_id) {
           const ensuredId = await ensureDocumentsReceivedFolderId(accessToken, clientFolderId)
           if (ensuredId) {
             documentsReceivedFolderId = ensuredId
@@ -450,8 +465,8 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Primary upload: Documents Received folder (original filename)
-        if (documentsReceivedFolderId) {
+        // Primary upload: Documents Received folder (original filename) - only if enabled
+        if (saveOriginalEnabled && documentsReceivedFolderId) {
           console.log('Uploading original file to documents_received_folder:', documentsReceivedFolderId)
           const originalResult = await uploadToGoogleDrive(
             accessToken,
@@ -468,6 +483,8 @@ Deno.serve(async (req) => {
           } else {
             console.warn('Failed to upload to documents_received_folder')
           }
+        } else if (!saveOriginalEnabled) {
+          console.log('Skipping Documents Received upload (disabled by company setting)')
         }
 
         // Secondary upload: Visa Application folder (renamed file)

@@ -248,6 +248,7 @@ export type Database = {
           id: string
           name: string
           niche: Database["public"]["Enums"]["niche_type"]
+          save_original_to_documents_received: boolean
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           subscription_plan: Database["public"]["Enums"]["subscription_plan"]
@@ -259,6 +260,7 @@ export type Database = {
           id?: string
           name: string
           niche: Database["public"]["Enums"]["niche_type"]
+          save_original_to_documents_received?: boolean
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_plan?: Database["public"]["Enums"]["subscription_plan"]
@@ -270,6 +272,7 @@ export type Database = {
           id?: string
           name?: string
           niche?: Database["public"]["Enums"]["niche_type"]
+          save_original_to_documents_received?: boolean
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_plan?: Database["public"]["Enums"]["subscription_plan"]
