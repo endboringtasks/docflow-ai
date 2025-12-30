@@ -11,9 +11,14 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { portal_access_id, matter_id, client_id, company_id } = await req.json()
+    // Support both visa_application_id and legacy matter_id for backward compatibility
+    const body = await req.json()
+    const portal_access_id = body.portal_access_id
+    const visa_application_id = body.visa_application_id || body.matter_id
+    const client_id = body.client_id
+    const company_id = body.company_id
 
-    if (!portal_access_id || !matter_id || !client_id || !company_id) {
+    if (!portal_access_id || !visa_application_id || !client_id || !company_id) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -51,11 +56,11 @@ Deno.serve(async (req) => {
       throw updateError
     }
 
-    // Get matter details for the notification
-    const { data: matter } = await supabase
-      .from('matters')
-      .select('matter_name')
-      .eq('id', matter_id)
+    // Get visa application details for the notification
+    const { data: visaApplication } = await supabase
+      .from('visa_applications')
+      .select('application_name')
+      .eq('id', visa_application_id)
       .single()
 
     // Get client details for the notification
@@ -82,9 +87,9 @@ Deno.serve(async (req) => {
         company_id: company_id,
         type: 'client_submission',
         title: 'Client Submitted Documents',
-        message: `${clientName || 'A client'} has submitted their documents for ${matter?.matter_name || 'a visa application'}.`,
+        message: `${clientName || 'A client'} has submitted their documents for ${visaApplication?.application_name || 'a visa application'}.`,
         metadata: {
-          matter_id,
+          visa_application_id,
           client_id,
           portal_access_id,
         },

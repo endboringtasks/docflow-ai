@@ -354,6 +354,8 @@ Deno.serve(async (req) => {
     }
 
     const portalAccess = accessData[0]
+    // Support both visa_application_id and legacy matter_id from RPC
+    const visaApplicationId = portalAccess.visa_application_id || portalAccess.matter_id
 
     // Check if already submitted
     if (portalAccess.is_submitted) {
@@ -363,12 +365,12 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Verify the document belongs to this matter and get matter details
+    // Verify the document belongs to this visa application and get details
     const { data: docData, error: docError } = await supabase
       .from('document_checklist')
-      .select('id, matter_id, company_id, document_name')
+      .select('id, visa_application_id, company_id, document_name')
       .eq('id', docId)
-      .eq('matter_id', portalAccess.matter_id)
+      .eq('visa_application_id', visaApplicationId)
       .single()
 
     if (docError || !docData) {
@@ -378,24 +380,24 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Get the matter's Google Drive folder ID and client's documents_received_folder_id
-    const { data: matterData, error: matterError } = await supabase
-      .from('matters')
+    // Get the visa application's Google Drive folder ID and client's documents_received_folder_id
+    const { data: applicationData, error: applicationError } = await supabase
+      .from('visa_applications')
       .select('visa_application_folder_id, company_id, client_id')
-      .eq('id', portalAccess.matter_id)
+      .eq('id', visaApplicationId)
       .single()
 
-    if (matterError) {
-      console.error('Error fetching matter:', matterError)
+    if (applicationError) {
+      console.error('Error fetching visa application:', applicationError)
     }
 
     // Check if the company has save_original_to_documents_received enabled
     let saveOriginalEnabled = true // default to true
-    if (matterData?.company_id) {
+    if (applicationData?.company_id) {
       const { data: companyData } = await supabase
         .from('companies')
         .select('save_original_to_documents_received')
-        .eq('id', matterData.company_id)
+        .eq('id', applicationData.company_id)
         .single()
       
       if (companyData) {
@@ -408,11 +410,11 @@ Deno.serve(async (req) => {
     let documentsReceivedFolderId: string | null = null
     let clientFolderId: string | null = null
 
-    if (matterData?.client_id) {
+    if (applicationData?.client_id) {
       const { data: clientData } = await supabase
         .from('clients')
         .select('documents_received_folder_id, client_folder_id')
-        .eq('id', matterData.client_id)
+        .eq('id', applicationData.client_id)
         .single()
 
       if (clientData?.client_folder_id) {
@@ -436,16 +438,16 @@ Deno.serve(async (req) => {
 
     // Try to upload to Google Drive if we have *any* usable folder hint
     const hasGoogleDriveFolder =
-      !!matterData?.company_id && !!(documentsReceivedFolderId || clientFolderId || matterData?.visa_application_folder_id)
+      !!applicationData?.company_id && !!(documentsReceivedFolderId || clientFolderId || applicationData?.visa_application_folder_id)
 
     if (hasGoogleDriveFolder) {
       console.log('Attempting Google Drive upload...')
 
-      const accessToken = await getValidAccessToken(supabase, matterData!.company_id)
+      const accessToken = await getValidAccessToken(supabase, applicationData!.company_id)
 
       if (accessToken) {
         // If the webhook didn't give us documents_received_folder_id, try to locate/create it under the client folder
-        if (saveOriginalEnabled && !documentsReceivedFolderId && clientFolderId && matterData?.client_id) {
+        if (saveOriginalEnabled && !documentsReceivedFolderId && clientFolderId && applicationData?.client_id) {
           const ensuredId = await ensureDocumentsReceivedFolderId(accessToken, clientFolderId)
           if (ensuredId) {
             documentsReceivedFolderId = ensuredId
@@ -453,7 +455,7 @@ Deno.serve(async (req) => {
             const { error: persistError } = await supabase
               .from('clients')
               .update({ documents_received_folder_id: ensuredId })
-              .eq('id', matterData.client_id)
+              .eq('id', applicationData.client_id)
 
             if (persistError) {
               console.warn('Failed to persist documents_received_folder_id on client:', persistError)
@@ -488,15 +490,15 @@ Deno.serve(async (req) => {
         }
 
         // Secondary upload: Visa Application folder (renamed file)
-        if (matterData?.visa_application_folder_id) {
+        if (applicationData?.visa_application_folder_id) {
           // Create a descriptive filename: DocumentName_OriginalFilename
           const cleanDocName = docData.document_name.replace(/[^a-zA-Z0-9]/g, '_')
           const driveFileName = `${cleanDocName}_${file.name}`
 
-          console.log('Uploading renamed file to visa_application_folder:', matterData.visa_application_folder_id)
+          console.log('Uploading renamed file to visa_application_folder:', applicationData.visa_application_folder_id)
           const renamedResult = await uploadToGoogleDrive(
             accessToken,
-            matterData.visa_application_folder_id,
+            applicationData.visa_application_folder_id,
             driveFileName,
             arrayBuffer,
             file.type || 'application/octet-stream'

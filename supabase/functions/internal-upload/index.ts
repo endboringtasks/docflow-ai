@@ -335,36 +335,37 @@ Deno.serve(async (req) => {
     }
 
     const formData = await req.formData()
-    const matterId = formData.get('matter_id') as string
+    // Support both visa_application_id and legacy matter_id for backward compatibility
+    const visaApplicationId = (formData.get('visa_application_id') || formData.get('matter_id')) as string
     const docId = formData.get('doc_id') as string
     const file = formData.get('file') as File
     const documentName = formData.get('document_name') as string
 
     console.log('Upload request:', {
-      matterId,
+      visaApplicationId,
       docId,
       fileName: file?.name,
       fileSize: file?.size,
       documentName,
     })
 
-    if (!matterId || !docId || !file) {
+    if (!visaApplicationId || !docId || !file) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: matter_id, doc_id, or file' }),
+        JSON.stringify({ error: 'Missing required fields: visa_application_id, doc_id, or file' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Get the matter's details including Google Drive folder + client
-    const { data: matterData, error: matterError } = await supabase
-      .from('matters')
+    // Get the visa application's details including Google Drive folder + client
+    const { data: applicationData, error: applicationError } = await supabase
+      .from('visa_applications')
       .select('visa_application_folder_id, company_id, client_id')
-      .eq('id', matterId)
+      .eq('id', visaApplicationId)
       .single()
 
-    if (matterError || !matterData) {
-      console.error('Error fetching matter:', matterError)
-      return new Response(JSON.stringify({ error: 'Matter not found' }), {
+    if (applicationError || !applicationData) {
+      console.error('Error fetching visa application:', applicationError)
+      return new Response(JSON.stringify({ error: 'Visa application not found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -374,7 +375,7 @@ Deno.serve(async (req) => {
     const { data: memberData, error: memberError } = await supabase
       .from('company_members')
       .select('id')
-      .eq('company_id', matterData.company_id)
+      .eq('company_id', applicationData.company_id)
       .eq('user_id', user.id)
       .single()
 
@@ -389,11 +390,11 @@ Deno.serve(async (req) => {
     let documentsReceivedFolderId: string | null = null
     let clientFolderId: string | null = null
 
-    if (matterData.client_id) {
+    if (applicationData.client_id) {
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
         .select('documents_received_folder_id, client_folder_id')
-        .eq('id', matterData.client_id)
+        .eq('id', applicationData.client_id)
         .single()
 
       if (clientError) {
@@ -409,7 +410,7 @@ Deno.serve(async (req) => {
     const { data: companyData } = await supabase
       .from('companies')
       .select('save_original_to_documents_received')
-      .eq('id', matterData.company_id)
+      .eq('id', applicationData.company_id)
       .single()
     
     if (companyData) {
@@ -420,7 +421,7 @@ Deno.serve(async (req) => {
     console.log('Drive folder IDs:', {
       documentsReceivedFolderId,
       clientFolderId,
-      visaApplicationFolderId: matterData.visa_application_folder_id,
+      visaApplicationFolderId: applicationData.visa_application_folder_id,
     })
 
     const arrayBuffer = await file.arrayBuffer()
@@ -430,17 +431,17 @@ Deno.serve(async (req) => {
     const hasGoogleDriveFolderHint = !!(
       documentsReceivedFolderId ||
       clientFolderId ||
-      matterData.visa_application_folder_id
+      applicationData.visa_application_folder_id
     )
 
     if (hasGoogleDriveFolderHint) {
       console.log('Attempting Google Drive upload...')
 
-      const accessToken = await getValidAccessToken(supabase, matterData.company_id)
+      const accessToken = await getValidAccessToken(supabase, applicationData.company_id)
 
       if (accessToken) {
         // If documents_received_folder_id is missing, try to find/create it under client folder
-        if (saveOriginalEnabled && !documentsReceivedFolderId && clientFolderId && matterData.client_id) {
+        if (saveOriginalEnabled && !documentsReceivedFolderId && clientFolderId && applicationData.client_id) {
           const ensuredId = await ensureDocumentsReceivedFolderId(accessToken, clientFolderId)
           if (ensuredId) {
             documentsReceivedFolderId = ensuredId
@@ -448,7 +449,7 @@ Deno.serve(async (req) => {
             const { error: persistError } = await supabase
               .from('clients')
               .update({ documents_received_folder_id: ensuredId })
-              .eq('id', matterData.client_id)
+              .eq('id', applicationData.client_id)
 
             if (persistError) {
               console.warn('Failed to persist documents_received_folder_id on client:', persistError)
@@ -481,14 +482,14 @@ Deno.serve(async (req) => {
         }
 
         // 2) Upload renamed file to Visa Application folder (if available)
-        if (matterData.visa_application_folder_id) {
+        if (applicationData.visa_application_folder_id) {
           const cleanDocName = (documentName || 'Document').replace(/[^a-zA-Z0-9]/g, '_')
           const driveFileName = `${cleanDocName}_${file.name}`
 
-          console.log('Uploading renamed file to visa_application_folder:', matterData.visa_application_folder_id)
+          console.log('Uploading renamed file to visa_application_folder:', applicationData.visa_application_folder_id)
           const renamedResult = await uploadToGoogleDrive(
             accessToken,
-            matterData.visa_application_folder_id,
+            applicationData.visa_application_folder_id,
             driveFileName,
             arrayBuffer,
             file.type || 'application/octet-stream'

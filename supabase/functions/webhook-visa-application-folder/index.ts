@@ -20,7 +20,9 @@ interface WebhookData {
 }
 
 interface WebhookPayload {
-  matter_id: string;
+  // Support both visa_application_id and legacy matter_id
+  visa_application_id?: string;
+  matter_id?: string;
   visa_application_folder_id?: string;
   data?: WebhookData;
   // Accept both for flexibility - organization_id is the preferred external name
@@ -71,28 +73,31 @@ Deno.serve(async (req) => {
 
     // Extract visa_application_folder_id from nested data structure or top level
     const visaApplicationFolderId = payload.data?.visa_application_folder_id || payload.visa_application_folder_id;
+    
+    // Support both visa_application_id and legacy matter_id
+    const visaApplicationId = payload.visa_application_id || payload.matter_id;
 
-    if (!payload.matter_id || !visaApplicationFolderId) {
+    if (!visaApplicationId || !visaApplicationFolderId) {
       logRequestEnd(ctx, 400, { reason: "missing_fields" });
       EdgeRuntime.waitUntil(saveRequestLog(supabase, { ctx, statusCode: 400, errorMessage: "Missing required fields" }));
       return new Response(
-        JSON.stringify({ error: "Missing required fields: matter_id and visa_application_folder_id", request_id: ctx.requestId }),
+        JSON.stringify({ error: "Missing required fields: visa_application_id and visa_application_folder_id", request_id: ctx.requestId }),
         { status: 400, headers: addRequestIdHeader({ ...corsHeaders, "Content-Type": "application/json" }, ctx.requestId) }
       );
     }
 
-    const { data: matter, error: updateError } = await supabase
-      .from("matters")
+    const { data: visaApplication, error: updateError } = await supabase
+      .from("visa_applications")
       .update({ 
         visa_application_folder_id: visaApplicationFolderId,
         folder_status: "created"
       })
-      .eq("id", payload.matter_id)
-      .select("id, company_id, client_id, matter_name")
+      .eq("id", visaApplicationId)
+      .select("id, company_id, client_id, application_name")
       .single();
 
     if (updateError) {
-      logRequestError(ctx, updateError.message, { matter_id: payload.matter_id });
+      logRequestError(ctx, updateError.message, { visa_application_id: visaApplicationId });
       logRequestEnd(ctx, 500, { reason: "update_failed" });
       EdgeRuntime.waitUntil(saveRequestLog(supabase, { ctx, statusCode: 500, errorMessage: updateError.message }));
       return new Response(
@@ -101,8 +106,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!matter) {
-      logRequestEnd(ctx, 404, { reason: "application_not_found", matter_id: payload.matter_id });
+    if (!visaApplication) {
+      logRequestEnd(ctx, 404, { reason: "application_not_found", visa_application_id: visaApplicationId });
       EdgeRuntime.waitUntil(saveRequestLog(supabase, { ctx, statusCode: 404, errorMessage: "Visa application not found" }));
       return new Response(
         JSON.stringify({ error: "Visa application not found", request_id: ctx.requestId }),
@@ -113,13 +118,13 @@ Deno.serve(async (req) => {
     const { error: eventError } = await supabase
       .from("automation_events")
       .insert({
-        company_id: matter.company_id,
-        client_id: matter.client_id,
-        matter_id: matter.id,
+        company_id: visaApplication.company_id,
+        client_id: visaApplication.client_id,
+        visa_application_id: visaApplication.id,
         event_type: "visa_application_folder_created",
         payload: {
           visa_application_folder_id: visaApplicationFolderId,
-          matter_name: matter.matter_name,
+          application_name: visaApplication.application_name,
           request_id: ctx.requestId,
           timestamp: new Date().toISOString(),
         },
@@ -129,14 +134,14 @@ Deno.serve(async (req) => {
       logRequestError(ctx, "Failed to log automation event: " + eventError.message);
     }
 
-    logRequestEnd(ctx, 200, { matter_id: matter.id });
+    logRequestEnd(ctx, 200, { visa_application_id: visaApplication.id });
     EdgeRuntime.waitUntil(saveRequestLog(supabase, { ctx, statusCode: 200 }));
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: "Visa application drive folder updated",
-        matter_id: matter.id,
+        visa_application_id: visaApplication.id,
         request_id: ctx.requestId,
       }),
       { 
