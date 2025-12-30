@@ -20,7 +20,8 @@ interface Notification {
   title: string;
   message: string;
   metadata: {
-    matter_id?: string;
+    matter_id?: string; // Legacy - kept for backwards compatibility
+    visa_application_id?: string;
     client_id?: string;
     portal_access_id?: string;
   };
@@ -89,8 +90,10 @@ export function NotificationBell() {
       markAsReadMutation.mutate(notification.id);
     }
 
-    if (notification.metadata?.matter_id) {
-      navigate(`/app/migration/visa-applications/${notification.metadata.matter_id}`);
+    // Support both legacy matter_id and new visa_application_id
+    const applicationId = notification.metadata?.visa_application_id || notification.metadata?.matter_id;
+    if (applicationId) {
+      navigate(`/app/migration/visa-applications/${applicationId}`);
       setOpen(false);
     }
   };
