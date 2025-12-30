@@ -271,7 +271,7 @@ const Index = () => {
                   <div className="w-14 h-14 rounded-xl gradient-bg flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                     <solution.icon className="w-7 h-7 text-primary-foreground" />
                   </div>
-                  <Badge variant={solution.status === "Available" ? "success" : "secondary"}>
+                  <Badge variant={solution.status === "Beta" ? "warning" : solution.status === "Available" ? "success" : "secondary"}>
                     {solution.status}
                   </Badge>
                 </div>
