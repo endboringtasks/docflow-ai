@@ -56,6 +56,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { useFolderStatusRealtime } from "@/hooks/useFolderStatusRealtime";
+import { getCountryFlag } from "@/lib/countryFlags";
 
 interface VisaApplication {
   id: string;
@@ -714,7 +715,10 @@ const MigrationVisaApplications = () => {
                     <SelectContent>
                       {countries.map((country) => (
                         <SelectItem key={country.id} value={country.id}>
-                          {country.name}
+                          <span className="flex items-center gap-2">
+                            <span className="text-lg">{getCountryFlag(country.code)}</span>
+                            {country.name}
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>
