@@ -69,7 +69,7 @@ interface Client {
   client_folder_id: string | null;
   folder_status: string;
   created_at: string;
-  matters_count: number;
+  visa_applications_count: number;
 }
 
 const MigrationClients = () => {
@@ -124,7 +124,7 @@ const MigrationClients = () => {
 
       return (clientsData || []).map(client => ({
         ...client,
-        matters_count: applicationsCounts[client.id] || 0,
+        visa_applications_count: applicationsCounts[client.id] || 0,
       })) as Client[];
     },
     enabled: !!currentCompany?.id,
@@ -693,7 +693,7 @@ const MigrationClients = () => {
                         )}
                       </td>
                       <td className="p-4">
-                        <Badge variant="outline">{client.matters_count}</Badge>
+                        <Badge variant="outline">{client.visa_applications_count}</Badge>
                       </td>
                       <td className="p-4">
                         <div className="flex gap-1">
@@ -745,9 +745,9 @@ const MigrationClients = () => {
               <AlertDialogTitle>Delete Client</AlertDialogTitle>
               <AlertDialogDescription>
                 Are you sure you want to delete "{clientToDelete ? getFullName(clientToDelete) : ''}"? This action cannot be undone.
-                {clientToDelete && clientToDelete.matters_count > 0 && (
+                {clientToDelete && clientToDelete.visa_applications_count > 0 && (
                   <span className="block mt-2 text-destructive font-medium">
-                    Warning: This client has {clientToDelete.matters_count} associated application(s) that must be deleted first.
+                    Warning: This client has {clientToDelete.visa_applications_count} associated application(s) that must be deleted first.
                   </span>
                 )}
               </AlertDialogDescription>

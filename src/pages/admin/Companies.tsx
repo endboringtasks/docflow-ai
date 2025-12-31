@@ -65,7 +65,7 @@ export default function AdminCompanies() {
           *,
           company_members(count),
           clients(count),
-          matters(count)
+          visa_applications(count)
         `)
         .order("created_at", { ascending: false });
 
@@ -280,7 +280,7 @@ export default function AdminCompanies() {
                       </TableCell>
                       <TableCell onClick={() => setSelectedCompanyId(company.id)}>{(company.company_members as any)?.[0]?.count ?? 0}</TableCell>
                       <TableCell onClick={() => setSelectedCompanyId(company.id)}>{(company.clients as any)?.[0]?.count ?? 0}</TableCell>
-                      <TableCell onClick={() => setSelectedCompanyId(company.id)}>{(company.matters as any)?.[0]?.count ?? 0}</TableCell>
+                      <TableCell onClick={() => setSelectedCompanyId(company.id)}>{(company.visa_applications as any)?.[0]?.count ?? 0}</TableCell>
                       <TableCell className="text-muted-foreground" onClick={() => setSelectedCompanyId(company.id)}>
                         {format(new Date(company.created_at), "MMM d, yyyy")}
                       </TableCell>
