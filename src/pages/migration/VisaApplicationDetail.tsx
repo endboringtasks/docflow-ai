@@ -69,6 +69,7 @@ import { useCompany } from "@/hooks/useCompany";
 import { InviteClientDialog } from "@/components/visa-application/InviteClientDialog";
 import { DocumentPreviewDialog, ReviewStatus } from "@/components/visa-application/DocumentPreviewDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { getCountryFlag } from "@/lib/countryFlags";
 
 interface VisaApplication {
   id: string;
@@ -953,6 +954,11 @@ const VisaApplicationDetail = () => {
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-3 mb-1">
+                  {visaApplication.country_id && countries.find(c => c.id === visaApplication.country_id) && (
+                    <span className="text-2xl" title={countries.find(c => c.id === visaApplication.country_id)?.name}>
+                      {getCountryFlag(countries.find(c => c.id === visaApplication.country_id)?.code || '')}
+                    </span>
+                  )}
                   <h1 className="text-2xl font-bold">{visaApplication.application_name}</h1>
                   <Badge variant={getStatusColor(visaApplication.status)}>
                     {visaApplication.status}
