@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      application_categories: {
+        Row: {
+          code: string
+          country_id: string | null
+          created_at: string | null
+          description: string | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          sort_order: number | null
+        }
+        Insert: {
+          code: string
+          country_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          sort_order?: number | null
+        }
+        Update: {
+          code?: string
+          country_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_categories_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_events: {
         Row: {
           client_id: string | null
@@ -861,6 +905,7 @@ export type Database = {
       visa_applications: {
         Row: {
           application_name: string
+          category_id: string | null
           client_id: string
           company_id: string
           country_id: string | null
@@ -874,6 +919,7 @@ export type Database = {
         }
         Insert: {
           application_name: string
+          category_id?: string | null
           client_id: string
           company_id: string
           country_id?: string | null
@@ -887,6 +933,7 @@ export type Database = {
         }
         Update: {
           application_name?: string
+          category_id?: string | null
           client_id?: string
           company_id?: string
           country_id?: string | null
@@ -914,6 +961,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "visa_applications_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "application_categories"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "visa_applications_country_id_fkey"
             columns: ["country_id"]
             isOneToOne: false
@@ -924,6 +978,7 @@ export type Database = {
       }
       visa_types: {
         Row: {
+          category_id: string | null
           code: string
           country_id: string | null
           created_at: string | null
@@ -934,6 +989,7 @@ export type Database = {
           sort_order: number | null
         }
         Insert: {
+          category_id?: string | null
           code: string
           country_id?: string | null
           created_at?: string | null
@@ -944,6 +1000,7 @@ export type Database = {
           sort_order?: number | null
         }
         Update: {
+          category_id?: string | null
           code?: string
           country_id?: string | null
           created_at?: string | null
@@ -954,6 +1011,13 @@ export type Database = {
           sort_order?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "visa_types_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "application_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "visa_types_country_id_fkey"
             columns: ["country_id"]
