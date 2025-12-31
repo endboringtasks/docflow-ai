@@ -10,6 +10,7 @@ import {
   FileText,
   ChevronLeft,
   Activity,
+  Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -22,6 +23,7 @@ const adminNavItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/companies", label: "Companies", icon: Building2 },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/reference-data", label: "Reference Data", icon: Database },
   { href: "/admin/billing", label: "Billing & Revenue", icon: CreditCard },
   { href: "/admin/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/admin/webhook-monitoring", label: "Webhook Monitoring", icon: Activity },
