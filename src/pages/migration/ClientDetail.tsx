@@ -74,17 +74,28 @@ interface VisaApplication {
   application_name: string;
   visa_subclass: string | null;
   country_id: string | null;
+  category_id: string | null;
   status: "draft" | "active" | "done";
   visa_application_folder_id: string | null;
   created_at: string;
 }
 
-interface VisaType {
+interface ApplicationCategory {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  icon: string | null;
+  country_id: string | null;
+}
+
+interface ApplicationType {
   id: string;
   name: string;
   code: string;
   description: string | null;
   country_id: string | null;
+  category_id: string | null;
 }
 
 interface Country {
@@ -92,17 +103,6 @@ interface Country {
   name: string;
   code: string;
 }
-
-const visaSubclasses = [
-  { value: "482", label: "Temporary Skill Shortage (482)" },
-  { value: "186", label: "Employer Nomination Scheme (186)" },
-  { value: "189", label: "Skilled Independent (189)" },
-  { value: "190", label: "Skilled Nominated (190)" },
-  { value: "500", label: "Student Visa (500)" },
-  { value: "820", label: "Partner Visa (820)" },
-  { value: "188", label: "Business Innovation (188)" },
-  { value: "600", label: "Visitor Visa (600)" },
-];
 
 const ClientDetail = () => {
   const { clientId } = useParams<{ clientId: string }>();
@@ -116,6 +116,7 @@ const ClientDetail = () => {
   
   const [newApplication, setNewApplication] = useState({
     countryId: "",
+    categoryId: "",
     applicationName: "",
     visaSubclass: "",
   });
@@ -170,24 +171,47 @@ const ClientDetail = () => {
     },
   });
 
-  // Fetch visa types for the dropdown
-  const { data: visaTypes = [] } = useQuery({
-    queryKey: ["visa-types"],
+  // Fetch application categories
+  const { data: categories = [] } = useQuery({
+    queryKey: ["application-categories"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("visa_types")
-        .select("id, name, code, description, country_id")
+        .from("application_categories")
+        .select("id, name, code, description, icon, country_id")
         .eq("is_active", true)
         .order("sort_order", { ascending: true });
       
       if (error) throw error;
-      return data as VisaType[];
+      return data as ApplicationCategory[];
     },
   });
 
-  // Filter visa types by selected country
-  const filteredVisaTypes = newApplication.countryId
-    ? visaTypes.filter(type => type.country_id === newApplication.countryId)
+  // Fetch application types (visa_types)
+  const { data: applicationTypes = [] } = useQuery({
+    queryKey: ["application-types"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("visa_types")
+        .select("id, name, code, description, country_id, category_id")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      
+      if (error) throw error;
+      return data as ApplicationType[];
+    },
+  });
+
+  // Filter categories by selected country
+  const filteredCategories = newApplication.countryId
+    ? categories.filter(cat => cat.country_id === newApplication.countryId)
+    : [];
+
+  // Filter application types by selected country and category
+  const filteredApplicationTypes = newApplication.countryId && newApplication.categoryId
+    ? applicationTypes.filter(type => 
+        type.country_id === newApplication.countryId && 
+        type.category_id === newApplication.categoryId
+      )
     : [];
 
   // Fetch visa applications for this client
@@ -207,12 +231,14 @@ const ClientDetail = () => {
     },
     enabled: !!clientId,
   });
+
   // Create visa application mutation
   const createApplicationMutation = useMutation({
     mutationFn: async (applicationData: {
       application_name: string;
       visa_subclass: string;
       country_id: string;
+      category_id: string;
     }) => {
       if (!currentCompany?.id || !clientId) throw new Error("Missing required data");
       
@@ -222,8 +248,9 @@ const ClientDetail = () => {
           company_id: currentCompany.id,
           client_id: clientId,
           application_name: applicationData.application_name,
-          visa_subclass: applicationData.visa_subclass,
+          visa_subclass: applicationData.visa_subclass || null,
           country_id: applicationData.country_id,
+          category_id: applicationData.category_id,
           status: "draft",
         })
         .select()
@@ -298,8 +325,8 @@ const ClientDetail = () => {
       queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
       setIsCreateApplicationOpen(false);
-      setNewApplication({ countryId: "", applicationName: "", visaSubclass: "" });
-      toast.success("Visa application created!");
+      setNewApplication({ countryId: "", categoryId: "", applicationName: "", visaSubclass: "" });
+      toast.success("Application created!");
     },
     onError: (error) => {
       toast.error("Failed to create application", {
@@ -397,7 +424,7 @@ const ClientDetail = () => {
       queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
       setApplicationToDelete(null);
-      toast.success("Visa application deleted successfully");
+      toast.success("Application deleted successfully");
     },
     onError: (error) => {
       toast.error("Failed to delete application", {
@@ -407,12 +434,13 @@ const ClientDetail = () => {
   });
 
   const handleCreateApplication = () => {
-    if (!newApplication.countryId || !newApplication.applicationName.trim() || !newApplication.visaSubclass) return;
+    if (!newApplication.countryId || !newApplication.categoryId || !newApplication.applicationName.trim()) return;
     
     createApplicationMutation.mutate({
       application_name: newApplication.applicationName.trim(),
       visa_subclass: newApplication.visaSubclass,
       country_id: newApplication.countryId,
+      category_id: newApplication.categoryId,
     });
   };
 
@@ -458,6 +486,24 @@ const ClientDetail = () => {
       month: "short",
       day: "numeric",
     });
+  };
+
+  const getCategoryName = (categoryId: string | null) => {
+    if (!categoryId) return null;
+    const category = categories.find(c => c.id === categoryId);
+    return category?.name || null;
+  };
+
+  const getCategoryBadgeColor = (code: string | null) => {
+    if (!code) return "secondary";
+    switch (code) {
+      case "visa": return "default";
+      case "skill_assessment": return "outline";
+      case "sponsorship": return "secondary";
+      case "police_check": return "outline";
+      case "citizenship": return "default";
+      default: return "secondary";
+    }
   };
 
   const isLoading = isLoadingClient || isLoadingApplications;
@@ -581,10 +627,10 @@ const ClientDetail = () => {
           </div>
         </div>
 
-        {/* Visa Applications Section */}
+        {/* Applications Section */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Visa Applications</h2>
+            <h2 className="text-xl font-semibold">Applications</h2>
             <Button onClick={() => setIsCreateApplicationOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
               New Application
@@ -594,9 +640,9 @@ const ClientDetail = () => {
           {visaApplications.length === 0 ? (
             <div className="card-gradient rounded-xl border border-border/50 p-8 text-center">
               <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">No Visa Applications</h3>
+              <h3 className="text-lg font-medium mb-2">No Applications</h3>
               <p className="text-muted-foreground mb-4">
-                Create the first visa application for this client.
+                Create the first application for this client.
               </p>
               <Button onClick={() => setIsCreateApplicationOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
@@ -624,13 +670,18 @@ const ClientDetail = () => {
                             {getCountryFlag(countries.find(c => c.id === application.country_id)?.code || '')}
                           </span>
                         )}
+                        {application.category_id && (
+                          <Badge variant={getCategoryBadgeColor(categories.find(c => c.id === application.category_id)?.code || null)}>
+                            {getCategoryName(application.category_id)}
+                          </Badge>
+                        )}
                         <h3 className="font-semibold">{application.application_name}</h3>
                         <Badge variant={getStatusColor(application.status)}>
                           {application.status}
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {application.visa_subclass ? `Subclass ${application.visa_subclass}` : "No visa subclass"} • 
+                        {application.visa_subclass ? `${application.visa_subclass}` : "No code"} • 
                         Created {formatDate(application.created_at)}
                       </p>
                     </div>
@@ -675,9 +726,9 @@ const ClientDetail = () => {
       <Dialog open={isCreateApplicationOpen} onOpenChange={setIsCreateApplicationOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New Visa Application</DialogTitle>
+            <DialogTitle>New Application</DialogTitle>
             <DialogDescription>
-              Create a new visa application for {getFullName(client)}.
+              Create a new application for {getFullName(client)}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -688,7 +739,8 @@ const ClientDetail = () => {
                 onValueChange={(value) => setNewApplication(prev => ({ 
                   ...prev, 
                   countryId: value, 
-                  applicationName: "", // Reset when country changes
+                  categoryId: "",
+                  applicationName: "",
                   visaSubclass: "" 
                 }))}
               >
@@ -708,43 +760,74 @@ const ClientDetail = () => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="applicationName">Application Name</Label>
+              <Label htmlFor="category">Application Category</Label>
               <Select
-                value={newApplication.applicationName}
-                onValueChange={(value) => setNewApplication(prev => ({ ...prev, applicationName: value }))}
+                value={newApplication.categoryId}
+                onValueChange={(value) => setNewApplication(prev => ({ 
+                  ...prev, 
+                  categoryId: value,
+                  applicationName: "",
+                  visaSubclass: ""
+                }))}
                 disabled={!newApplication.countryId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder={newApplication.countryId ? "Select application type" : "Select a country first"} />
+                  <SelectValue placeholder={newApplication.countryId ? "Select category" : "Select a country first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredVisaTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.name}>
-                      {type.name}
+                  {filteredCategories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="visaSubclass">Visa Subclass</Label>
-              <Select
-                value={newApplication.visaSubclass}
-                onValueChange={(value) => setNewApplication(prev => ({ ...prev, visaSubclass: value }))}
-                disabled={!newApplication.countryId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={newApplication.countryId ? "Select visa subclass" : "Select a country first"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredVisaTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.code}>
-                      {type.code} - {type.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="applicationName">Application Type</Label>
+              {filteredApplicationTypes.length > 0 ? (
+                <Select
+                  value={newApplication.applicationName}
+                  onValueChange={(value) => {
+                    const selectedType = filteredApplicationTypes.find(t => t.name === value);
+                    setNewApplication(prev => ({ 
+                      ...prev, 
+                      applicationName: value,
+                      visaSubclass: selectedType?.code || ""
+                    }));
+                  }}
+                  disabled={!newApplication.categoryId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={newApplication.categoryId ? "Select application type" : "Select a category first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredApplicationTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.name}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  placeholder={newApplication.categoryId ? "Enter application name" : "Select a category first"}
+                  value={newApplication.applicationName}
+                  onChange={(e) => setNewApplication(prev => ({ ...prev, applicationName: e.target.value }))}
+                  disabled={!newApplication.categoryId}
+                />
+              )}
             </div>
+            {filteredApplicationTypes.length === 0 && newApplication.categoryId && (
+              <div className="space-y-2">
+                <Label htmlFor="visaSubclass">Code/Subclass (Optional)</Label>
+                <Input
+                  placeholder="Enter code or subclass"
+                  value={newApplication.visaSubclass}
+                  onChange={(e) => setNewApplication(prev => ({ ...prev, visaSubclass: e.target.value }))}
+                />
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setIsCreateApplicationOpen(false)}>
@@ -752,7 +835,7 @@ const ClientDetail = () => {
             </Button>
             <Button 
               onClick={handleCreateApplication}
-              disabled={!newApplication.countryId || !newApplication.applicationName.trim() || !newApplication.visaSubclass || createApplicationMutation.isPending}
+              disabled={!newApplication.countryId || !newApplication.categoryId || !newApplication.applicationName.trim() || createApplicationMutation.isPending}
             >
               {createApplicationMutation.isPending ? (
                 <>
@@ -868,7 +951,7 @@ const ClientDetail = () => {
       <AlertDialog open={!!applicationToDelete} onOpenChange={() => setApplicationToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Visa Application</AlertDialogTitle>
+            <AlertDialogTitle>Delete Application</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete "{applicationToDelete?.application_name}"? This action cannot be undone.
             </AlertDialogDescription>
