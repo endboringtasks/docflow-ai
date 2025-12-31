@@ -560,14 +560,14 @@ function CategoriesTab() {
             <div className="space-y-2">
               <Label>Country (Optional)</Label>
               <Select
-                value={form.country_id}
-                onValueChange={(value) => setForm({ ...form, country_id: value })}
+                value={form.country_id || "__none__"}
+                onValueChange={(value) => setForm({ ...form, country_id: value === "__none__" ? "" : value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All countries" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Countries</SelectItem>
+                  <SelectItem value="__none__">All Countries</SelectItem>
                   {countries?.map((country) => (
                     <SelectItem key={country.id} value={country.id}>
                       {getCountryFlag(country.code)} {country.name}
@@ -777,12 +777,12 @@ function TypesTab() {
     <div className="space-y-4">
       <div className="flex justify-between items-center gap-4">
         <div className="flex gap-2">
-          <Select value={filterCountry} onValueChange={setFilterCountry}>
+          <Select value={filterCountry || "__all__"} onValueChange={(v) => setFilterCountry(v === "__all__" ? "" : v)}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="All Countries" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Countries</SelectItem>
+              <SelectItem value="__all__">All Countries</SelectItem>
               {countries?.map((country) => (
                 <SelectItem key={country.id} value={country.id}>
                   {getCountryFlag(country.code)} {country.name}
@@ -790,12 +790,12 @@ function TypesTab() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={filterCategory} onValueChange={setFilterCategory}>
+          <Select value={filterCategory || "__all__"} onValueChange={(v) => setFilterCategory(v === "__all__" ? "" : v)}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Categories</SelectItem>
+              <SelectItem value="__all__">All Categories</SelectItem>
               {categories?.map((cat) => (
                 <SelectItem key={cat.id} value={cat.id}>
                   {cat.name}
@@ -915,14 +915,14 @@ function TypesTab() {
               <div className="space-y-2">
                 <Label>Country</Label>
                 <Select
-                  value={form.country_id}
-                  onValueChange={(value) => setForm({ ...form, country_id: value })}
+                  value={form.country_id || "__none__"}
+                  onValueChange={(value) => setForm({ ...form, country_id: value === "__none__" ? "" : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select country" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Countries</SelectItem>
+                    <SelectItem value="__none__">All Countries</SelectItem>
                     {countries?.map((country) => (
                       <SelectItem key={country.id} value={country.id}>
                         {getCountryFlag(country.code)} {country.name}
@@ -934,14 +934,14 @@ function TypesTab() {
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select
-                  value={form.category_id}
-                  onValueChange={(value) => setForm({ ...form, category_id: value })}
+                  value={form.category_id || "__none__"}
+                  onValueChange={(value) => setForm({ ...form, category_id: value === "__none__" ? "" : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="__none__">None</SelectItem>
                     {categories?.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         {cat.name}
@@ -1155,12 +1155,12 @@ function DocumentsTab() {
     <div className="space-y-4">
       <div className="flex justify-between items-center gap-4">
         <div className="flex gap-2">
-          <Select value={filterCountry} onValueChange={setFilterCountry}>
+          <Select value={filterCountry || "__all__"} onValueChange={(v) => setFilterCountry(v === "__all__" ? "" : v)}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="All Countries" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Countries</SelectItem>
+              <SelectItem value="__all__">All Countries</SelectItem>
               {countries?.map((country) => (
                 <SelectItem key={country.id} value={country.id}>
                   {getCountryFlag(country.code)} {country.name}
@@ -1168,12 +1168,12 @@ function DocumentsTab() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={filterCategory} onValueChange={setFilterCategory}>
+          <Select value={filterCategory || "__all__"} onValueChange={(v) => setFilterCategory(v === "__all__" ? "" : v)}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Categories</SelectItem>
+              <SelectItem value="__all__">All Categories</SelectItem>
               {documentCategories.map((cat) => (
                 <SelectItem key={cat} value={cat!}>
                   {cat}
@@ -1291,14 +1291,14 @@ function DocumentsTab() {
               <div className="space-y-2">
                 <Label>Country</Label>
                 <Select
-                  value={form.country_id}
-                  onValueChange={(value) => setForm({ ...form, country_id: value })}
+                  value={form.country_id || "__none__"}
+                  onValueChange={(value) => setForm({ ...form, country_id: value === "__none__" ? "" : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="All countries" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Countries</SelectItem>
+                    <SelectItem value="__none__">All Countries</SelectItem>
                     {countries?.map((country) => (
                       <SelectItem key={country.id} value={country.id}>
                         {getCountryFlag(country.code)} {country.name}
@@ -1310,14 +1310,14 @@ function DocumentsTab() {
               <div className="space-y-2">
                 <Label>Visa Type (Optional)</Label>
                 <Select
-                  value={form.visa_type_id}
-                  onValueChange={(value) => setForm({ ...form, visa_type_id: value })}
+                  value={form.visa_type_id || "__none__"}
+                  onValueChange={(value) => setForm({ ...form, visa_type_id: value === "__none__" ? "" : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="All types" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Types</SelectItem>
+                    <SelectItem value="__none__">All Types</SelectItem>
                     {visaTypes?.map((vt) => (
                       <SelectItem key={vt.id} value={vt.id}>
                         {vt.name}
