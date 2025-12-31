@@ -16,6 +16,7 @@ import Terms from "./pages/Terms";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminCompanies from "./pages/admin/Companies";
 import AdminUsers from "./pages/admin/Users";
+import AdminReferenceData from "./pages/admin/ReferenceData";
 import AdminBilling from "./pages/admin/Billing";
 import AdminWebhooks from "./pages/admin/Webhooks";
 import AdminWebhookMonitoring from "./pages/admin/WebhookMonitoring";
@@ -148,6 +149,7 @@ const App = () => (
               <Route path="/admin" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
               <Route path="/admin/companies" element={<AdminProtectedRoute><AdminCompanies /></AdminProtectedRoute>} />
               <Route path="/admin/users" element={<AdminProtectedRoute><AdminUsers /></AdminProtectedRoute>} />
+              <Route path="/admin/reference-data" element={<AdminProtectedRoute><AdminReferenceData /></AdminProtectedRoute>} />
               <Route path="/admin/billing" element={<AdminProtectedRoute><AdminBilling /></AdminProtectedRoute>} />
               <Route path="/admin/webhooks" element={<AdminProtectedRoute><AdminWebhooks /></AdminProtectedRoute>} />
               <Route path="/admin/webhook-monitoring" element={<AdminProtectedRoute><AdminWebhookMonitoring /></AdminProtectedRoute>} />
