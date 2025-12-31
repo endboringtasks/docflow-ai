@@ -73,6 +73,7 @@ interface VisaApplication {
   id: string;
   application_name: string;
   visa_subclass: string | null;
+  country_id: string | null;
   status: "draft" | "active" | "done";
   visa_application_folder_id: string | null;
   created_at: string;
@@ -618,6 +619,11 @@ const ClientDetail = () => {
                       onClick={() => navigate(`/app/migration/visa-applications/${application.id}`)}
                     >
                       <div className="flex items-center gap-3 mb-1">
+                        {application.country_id && countries.find(c => c.id === application.country_id) && (
+                          <span className="text-lg" title={countries.find(c => c.id === application.country_id)?.name}>
+                            {getCountryFlag(countries.find(c => c.id === application.country_id)?.code || '')}
+                          </span>
+                        )}
                         <h3 className="font-semibold">{application.application_name}</h3>
                         <Badge variant={getStatusColor(application.status)}>
                           {application.status}

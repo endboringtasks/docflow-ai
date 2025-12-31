@@ -843,6 +843,11 @@ const MigrationVisaApplications = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1">
+                      {application.country_id && countries.find(c => c.id === application.country_id) && (
+                        <span className="text-lg" title={countries.find(c => c.id === application.country_id)?.name}>
+                          {getCountryFlag(countries.find(c => c.id === application.country_id)?.code || '')}
+                        </span>
+                      )}
                       <h3 className="font-semibold truncate">{application.application_name}</h3>
                       <Badge variant={getStatusColor(application.status)}>
                         {application.status}
