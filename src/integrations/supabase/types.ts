@@ -58,6 +58,50 @@ export type Database = {
           },
         ]
       }
+      application_subcategories: {
+        Row: {
+          category_id: string
+          code: string
+          created_at: string | null
+          description: string | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          sort_order: number | null
+        }
+        Insert: {
+          category_id: string
+          code: string
+          created_at?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          sort_order?: number | null
+        }
+        Update: {
+          category_id?: string
+          code?: string
+          created_at?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_subcategories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "application_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_events: {
         Row: {
           client_id: string | null
@@ -987,6 +1031,7 @@ export type Database = {
           is_active: boolean | null
           name: string
           sort_order: number | null
+          subcategory_id: string | null
         }
         Insert: {
           category_id?: string | null
@@ -998,6 +1043,7 @@ export type Database = {
           is_active?: boolean | null
           name: string
           sort_order?: number | null
+          subcategory_id?: string | null
         }
         Update: {
           category_id?: string | null
@@ -1009,6 +1055,7 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           sort_order?: number | null
+          subcategory_id?: string | null
         }
         Relationships: [
           {
@@ -1023,6 +1070,13 @@ export type Database = {
             columns: ["country_id"]
             isOneToOne: false
             referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visa_types_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "application_subcategories"
             referencedColumns: ["id"]
           },
         ]

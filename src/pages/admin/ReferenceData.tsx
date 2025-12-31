@@ -54,6 +54,7 @@ import {
   Trash2,
   Loader2,
   GripVertical,
+  Layers,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCountryFlag } from "@/lib/countryFlags";
@@ -80,6 +81,18 @@ interface ApplicationCategory {
   country?: Country;
 }
 
+interface ApplicationSubcategory {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  category_id: string;
+  is_active: boolean;
+  sort_order: number;
+  category?: ApplicationCategory;
+}
+
 interface ApplicationType {
   id: string;
   code: string;
@@ -87,10 +100,12 @@ interface ApplicationType {
   description: string | null;
   country_id: string | null;
   category_id: string | null;
+  subcategory_id: string | null;
   is_active: boolean;
   sort_order: number;
   country?: Country;
   category?: ApplicationCategory;
+  subcategory?: ApplicationSubcategory;
 }
 
 interface DocumentTemplate {
@@ -630,6 +645,338 @@ function CategoriesTab() {
   );
 }
 
+// Application Subcategories Tab Component
+function SubcategoriesTab() {
+  const queryClient = useQueryClient();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingSubcategory, setEditingSubcategory] = useState<ApplicationSubcategory | null>(null);
+  const [deleteSubcategory, setDeleteSubcategory] = useState<ApplicationSubcategory | null>(null);
+  const [filterCategory, setFilterCategory] = useState<string>("");
+  const [form, setForm] = useState({
+    code: "",
+    name: "",
+    description: "",
+    icon: "",
+    category_id: "",
+    is_active: true,
+    sort_order: 0,
+  });
+
+  const { data: categories } = useQuery({
+    queryKey: ["admin-categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("application_categories")
+        .select("*, country:countries(*)")
+        .eq("is_active", true)
+        .order("sort_order");
+      if (error) throw error;
+      return data as ApplicationCategory[];
+    },
+  });
+
+  const { data: subcategories, isLoading } = useQuery({
+    queryKey: ["admin-subcategories", filterCategory],
+    queryFn: async () => {
+      let query = supabase
+        .from("application_subcategories")
+        .select("*, category:application_categories(*, country:countries(*))")
+        .order("sort_order");
+
+      if (filterCategory) query = query.eq("category_id", filterCategory);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as ApplicationSubcategory[];
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const payload = {
+        ...data,
+        description: data.description || null,
+        icon: data.icon || null,
+      };
+      if (editingSubcategory) {
+        const { error } = await supabase
+          .from("application_subcategories")
+          .update(payload)
+          .eq("id", editingSubcategory.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("application_subcategories").insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-subcategories"] });
+      toast.success(editingSubcategory ? "Subcategory updated" : "Subcategory created");
+      closeDialog();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("application_subcategories").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-subcategories"] });
+      toast.success("Subcategory deleted");
+      setDeleteSubcategory(null);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const openCreate = () => {
+    setEditingSubcategory(null);
+    setForm({
+      code: "",
+      name: "",
+      description: "",
+      icon: "",
+      category_id: filterCategory || "",
+      is_active: true,
+      sort_order: (subcategories?.length || 0) * 10,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const openEdit = (subcategory: ApplicationSubcategory) => {
+    setEditingSubcategory(subcategory);
+    setForm({
+      code: subcategory.code,
+      name: subcategory.name,
+      description: subcategory.description || "",
+      icon: subcategory.icon || "",
+      category_id: subcategory.category_id,
+      is_active: subcategory.is_active,
+      sort_order: subcategory.sort_order,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingSubcategory(null);
+  };
+
+  const handleSave = () => {
+    if (!form.code || !form.name || !form.category_id) {
+      toast.error("Code, name, and category are required");
+      return;
+    }
+    saveMutation.mutate(form);
+  };
+
+  if (isLoading) {
+    return <Skeleton className="h-64 w-full" />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center gap-4">
+        <div className="flex gap-2">
+          <Select value={filterCategory || "__all__"} onValueChange={(v) => setFilterCategory(v === "__all__" ? "" : v)}>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Categories</SelectItem>
+              {categories?.map((cat) => (
+                <SelectItem key={cat.id} value={cat.id}>
+                  {cat.country ? `${getCountryFlag(cat.country.code)} ` : ""}{cat.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={openCreate} size="sm">
+          <Plus className="w-4 h-4 mr-2" />
+          Add Subcategory
+        </Button>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-12">Order</TableHead>
+            <TableHead>Code</TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Category</TableHead>
+            <TableHead>Country</TableHead>
+            <TableHead>Description</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="w-24">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {subcategories?.map((subcategory) => (
+            <TableRow key={subcategory.id}>
+              <TableCell className="text-muted-foreground">{subcategory.sort_order}</TableCell>
+              <TableCell className="font-mono">{subcategory.code}</TableCell>
+              <TableCell className="font-medium">{subcategory.name}</TableCell>
+              <TableCell>
+                {subcategory.category ? (
+                  <Badge variant="secondary">{subcategory.category.name}</Badge>
+                ) : (
+                  "—"
+                )}
+              </TableCell>
+              <TableCell>
+                {subcategory.category?.country ? (
+                  <span className="flex items-center gap-2">
+                    {getCountryFlag(subcategory.category.country.code)} {subcategory.category.country.name}
+                  </span>
+                ) : (
+                  <Badge variant="outline">All</Badge>
+                )}
+              </TableCell>
+              <TableCell className="text-muted-foreground max-w-48 truncate">
+                {subcategory.description || "—"}
+              </TableCell>
+              <TableCell>
+                <Badge variant={subcategory.is_active ? "default" : "secondary"}>
+                  {subcategory.is_active ? "Active" : "Inactive"}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(subcategory)}>
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive"
+                    onClick={() => setDeleteSubcategory(subcategory)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+          {subcategories?.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                No subcategories found. Add one to get started.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingSubcategory ? "Edit Subcategory" : "Add Subcategory"}</DialogTitle>
+            <DialogDescription>
+              {editingSubcategory ? "Update subcategory details" : "Add a new subcategory under a category"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Category *</Label>
+              <Select
+                value={form.category_id || "__none__"}
+                onValueChange={(value) => setForm({ ...form, category_id: value === "__none__" ? "" : value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Select a category</SelectItem>
+                  {categories?.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.country ? `${getCountryFlag(cat.country.code)} ` : ""}{cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Code</Label>
+                <Input
+                  value={form.code}
+                  onChange={(e) => setForm({ ...form, code: e.target.value.toLowerCase() })}
+                  placeholder="temporary_work"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Sort Order</Label>
+                <Input
+                  type="number"
+                  value={form.sort_order}
+                  onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Temporary Work"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Brief description of this subcategory..."
+                rows={2}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={form.is_active}
+                onCheckedChange={(checked) => setForm({ ...form, is_active: checked })}
+              />
+              <Label>Active</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saveMutation.isPending}>
+              {saveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteSubcategory} onOpenChange={() => setDeleteSubcategory(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Subcategory</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteSubcategory?.name}"? This may affect existing
+              application types.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteSubcategory && deleteMutation.mutate(deleteSubcategory.id)}
+            >
+              {deleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 // Application Types Tab Component
 function TypesTab() {
   const queryClient = useQueryClient();
@@ -638,12 +985,14 @@ function TypesTab() {
   const [deleteType, setDeleteType] = useState<ApplicationType | null>(null);
   const [filterCountry, setFilterCountry] = useState<string>("");
   const [filterCategory, setFilterCategory] = useState<string>("");
+  const [filterSubcategory, setFilterSubcategory] = useState<string>("");
   const [form, setForm] = useState({
     code: "",
     name: "",
     description: "",
     country_id: "",
     category_id: "",
+    subcategory_id: "",
     is_active: true,
     sort_order: 0,
   });
@@ -674,16 +1023,35 @@ function TypesTab() {
     },
   });
 
+  const { data: subcategories } = useQuery({
+    queryKey: ["admin-subcategories-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("application_subcategories")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order");
+      if (error) throw error;
+      return data as ApplicationSubcategory[];
+    },
+  });
+
+  // Filtered subcategories for the filter dropdown
+  const filteredSubcategories = filterCategory 
+    ? subcategories?.filter(s => s.category_id === filterCategory) 
+    : subcategories;
+
   const { data: types, isLoading } = useQuery({
-    queryKey: ["admin-types", filterCountry, filterCategory],
+    queryKey: ["admin-types", filterCountry, filterCategory, filterSubcategory],
     queryFn: async () => {
       let query = supabase
         .from("visa_types")
-        .select("*, country:countries(*), category:application_categories(*)")
+        .select("*, country:countries(*), category:application_categories(*), subcategory:application_subcategories(*)")
         .order("sort_order");
 
       if (filterCountry) query = query.eq("country_id", filterCountry);
       if (filterCategory) query = query.eq("category_id", filterCategory);
+      if (filterSubcategory) query = query.eq("subcategory_id", filterSubcategory);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -697,6 +1065,7 @@ function TypesTab() {
         ...data,
         country_id: data.country_id || null,
         category_id: data.category_id || null,
+        subcategory_id: data.subcategory_id || null,
         description: data.description || null,
       };
       if (editingType) {
@@ -736,6 +1105,7 @@ function TypesTab() {
       description: "",
       country_id: filterCountry || "",
       category_id: filterCategory || "",
+      subcategory_id: filterSubcategory || "",
       is_active: true,
       sort_order: (types?.length || 0) * 10,
     });
@@ -750,6 +1120,7 @@ function TypesTab() {
       description: type.description || "",
       country_id: type.country_id || "",
       category_id: type.category_id || "",
+      subcategory_id: type.subcategory_id || "",
       is_active: type.is_active,
       sort_order: type.sort_order,
     });
@@ -790,7 +1161,7 @@ function TypesTab() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={filterCategory || "__all__"} onValueChange={(v) => setFilterCategory(v === "__all__" ? "" : v)}>
+          <Select value={filterCategory || "__all__"} onValueChange={(v) => { setFilterCategory(v === "__all__" ? "" : v); setFilterSubcategory(""); }}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
@@ -803,6 +1174,21 @@ function TypesTab() {
               ))}
             </SelectContent>
           </Select>
+          {filterCategory && filteredSubcategories && filteredSubcategories.length > 0 && (
+            <Select value={filterSubcategory || "__all__"} onValueChange={(v) => setFilterSubcategory(v === "__all__" ? "" : v)}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="All Subcategories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All Subcategories</SelectItem>
+                {filteredSubcategories?.map((sub) => (
+                  <SelectItem key={sub.id} value={sub.id}>
+                    {sub.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         <Button onClick={openCreate} size="sm">
           <Plus className="w-4 h-4 mr-2" />
@@ -818,6 +1204,7 @@ function TypesTab() {
             <TableHead>Name</TableHead>
             <TableHead>Country</TableHead>
             <TableHead>Category</TableHead>
+            <TableHead>Subcategory</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="w-24">Actions</TableHead>
           </TableRow>
@@ -840,6 +1227,13 @@ function TypesTab() {
               <TableCell>
                 {type.category ? (
                   <Badge variant="secondary">{type.category.name}</Badge>
+                ) : (
+                  "—"
+                )}
+              </TableCell>
+              <TableCell>
+                {type.subcategory ? (
+                  <Badge variant="outline">{type.subcategory.name}</Badge>
                 ) : (
                   "—"
                 )}
@@ -935,7 +1329,7 @@ function TypesTab() {
                 <Label>Category</Label>
                 <Select
                   value={form.category_id || "__none__"}
-                  onValueChange={(value) => setForm({ ...form, category_id: value === "__none__" ? "" : value })}
+                  onValueChange={(value) => setForm({ ...form, category_id: value === "__none__" ? "" : value, subcategory_id: "" })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
@@ -951,6 +1345,27 @@ function TypesTab() {
                 </Select>
               </div>
             </div>
+            {form.category_id && subcategories && subcategories.filter(s => s.category_id === form.category_id).length > 0 && (
+              <div className="space-y-2">
+                <Label>Subcategory (Optional)</Label>
+                <Select
+                  value={form.subcategory_id || "__none__"}
+                  onValueChange={(value) => setForm({ ...form, subcategory_id: value === "__none__" ? "" : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select subcategory" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {subcategories?.filter(s => s.category_id === form.category_id).map((sub) => (
+                      <SelectItem key={sub.id} value={sub.id}>
+                        {sub.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Description</Label>
               <Textarea
@@ -1384,7 +1799,7 @@ export default function AdminReferenceData() {
         </div>
 
         <Tabs defaultValue="countries" className="space-y-4">
-          <TabsList>
+          <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="countries" className="gap-2">
               <Globe className="w-4 h-4" />
               Countries
@@ -1392,6 +1807,10 @@ export default function AdminReferenceData() {
             <TabsTrigger value="categories" className="gap-2">
               <FolderTree className="w-4 h-4" />
               Categories
+            </TabsTrigger>
+            <TabsTrigger value="subcategories" className="gap-2">
+              <Layers className="w-4 h-4" />
+              Subcategories
             </TabsTrigger>
             <TabsTrigger value="types" className="gap-2">
               <FileType className="w-4 h-4" />
@@ -1411,6 +1830,10 @@ export default function AdminReferenceData() {
 
               <TabsContent value="categories" className="mt-0">
                 <CategoriesTab />
+              </TabsContent>
+
+              <TabsContent value="subcategories" className="mt-0">
+                <SubcategoriesTab />
               </TabsContent>
 
               <TabsContent value="types" className="mt-0">
