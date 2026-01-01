@@ -662,7 +662,7 @@ const ClientDetail = () => {
                   <div className="flex items-center justify-between">
                     <div 
                       className="flex-1 cursor-pointer"
-                      onClick={() => navigate(`/app/migration/visa-applications/${application.id}`)}
+                      onClick={() => navigate(`/app/migration/applications/${application.id}`)}
                     >
                       <div className="flex items-center gap-3 mb-1">
                         {application.country_id && countries.find(c => c.id === application.country_id) && (

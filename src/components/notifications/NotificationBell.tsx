@@ -93,7 +93,7 @@ export function NotificationBell() {
     // Support both legacy matter_id and new visa_application_id
     const applicationId = notification.metadata?.visa_application_id || notification.metadata?.matter_id;
     if (applicationId) {
-      navigate(`/app/migration/visa-applications/${applicationId}`);
+      navigate(`/app/migration/applications/${applicationId}`);
       setOpen(false);
     }
   };

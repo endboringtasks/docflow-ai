@@ -32,7 +32,7 @@
   "nav": {
     "dashboard": "Painel",
     "clients": "Clientes",
-    "visaApplications": "Solicitações de Visto",
+    "applications": "Solicitações",
     "documentChecklist": "Lista de Documentos",
     "settings": "Configurações",
     "billing": "Faturamento",
