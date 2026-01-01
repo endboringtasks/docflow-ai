@@ -127,6 +127,7 @@ const MigrationVisaApplications = () => {
   const [editForm, setEditForm] = useState({
     countryId: "",
     categoryId: "",
+    subcategoryId: "",
     applicationName: "",
     visaSubclass: "",
   });
@@ -243,12 +244,22 @@ const MigrationVisaApplications = () => {
     ? categories.filter(cat => cat.country_id === editForm.countryId)
     : [];
 
+  // Filter subcategories for edit form
+  const editFilteredSubcategories = editForm.countryId && editForm.categoryId
+    ? subcategories.filter(sub => 
+        sub.country_id === editForm.countryId && 
+        sub.category_id === editForm.categoryId
+      )
+    : [];
+
   // Filter application types for edit form
   const editFilteredApplicationTypes = editForm.countryId && editForm.categoryId
-    ? applicationTypes.filter(type => 
-        type.country_id === editForm.countryId && 
-        type.category_id === editForm.categoryId
-      )
+    ? applicationTypes.filter(type => {
+        const matchesCountry = type.country_id === editForm.countryId;
+        const matchesCategory = type.category_id === editForm.categoryId;
+        const matchesSubcategory = !editForm.subcategoryId || type.subcategory_id === editForm.subcategoryId;
+        return matchesCountry && matchesCategory && matchesSubcategory;
+      })
     : [];
 
   // Fetch visa applications with client names
@@ -684,6 +695,7 @@ const MigrationVisaApplications = () => {
     setEditForm({
       countryId: application.country_id || "",
       categoryId: application.category_id || "",
+      subcategoryId: "",
       applicationName: application.application_name,
       visaSubclass: application.visa_subclass || "",
     });
@@ -1133,12 +1145,13 @@ const MigrationVisaApplications = () => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="editCategory">Application Category</Label>
+              <Label htmlFor="editCategory">Category</Label>
               <Select
                 value={editForm.categoryId}
                 onValueChange={(value) => setEditForm(prev => ({ 
                   ...prev, 
                   categoryId: value,
+                  subcategoryId: "",
                   applicationName: "",
                   visaSubclass: ""
                 }))}
@@ -1156,41 +1169,74 @@ const MigrationVisaApplications = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="editApplicationName">Application Type</Label>
-              {editFilteredApplicationTypes.length > 0 ? (
+            {editForm.categoryId && editFilteredSubcategories.length === 0 && (
+              <div className="p-3 bg-muted/50 rounded-md border border-border">
+                <p className="text-sm text-muted-foreground">
+                  No sub-categories available for this category.
+                </p>
+              </div>
+            )}
+            {editForm.categoryId && editFilteredSubcategories.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="editSubcategory">Sub-category (Optional)</Label>
                 <Select
-                  value={editForm.applicationName}
-                  onValueChange={(value) => {
-                    const selectedType = editFilteredApplicationTypes.find(t => t.name === value);
-                    setEditForm(prev => ({ 
-                      ...prev, 
-                      applicationName: value,
-                      visaSubclass: selectedType?.code || ""
-                    }));
-                  }}
-                  disabled={!editForm.categoryId}
+                  value={editForm.subcategoryId || "__all__"}
+                  onValueChange={(value) => setEditForm(prev => ({ 
+                    ...prev, 
+                    subcategoryId: value === "__all__" ? "" : value,
+                    applicationName: "",
+                    visaSubclass: ""
+                  }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={editForm.categoryId ? "Select application type" : "Select a category first"} />
+                    <SelectValue placeholder="All sub-categories" />
                   </SelectTrigger>
                   <SelectContent>
-                    {editFilteredApplicationTypes.map((type) => (
-                      <SelectItem key={type.id} value={type.name}>
-                        {type.name}
+                    <SelectItem value="__all__">All sub-categories</SelectItem>
+                    {editFilteredSubcategories.map((subcategory) => (
+                      <SelectItem key={subcategory.id} value={subcategory.id}>
+                        {subcategory.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              ) : (
-                <Input
-                  placeholder={editForm.categoryId ? "Enter application name" : "Select a category first"}
-                  value={editForm.applicationName}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, applicationName: e.target.value }))}
-                  disabled={!editForm.categoryId}
-                />
-              )}
-            </div>
+              </div>
+            )}
+            {editForm.categoryId && (editFilteredSubcategories.length > 0 || editFilteredApplicationTypes.length > 0) && (
+              <div className="space-y-2">
+                <Label htmlFor="editApplicationName">Application Name</Label>
+                {editFilteredApplicationTypes.length > 0 ? (
+                  <Select
+                    value={editForm.applicationName}
+                    onValueChange={(value) => {
+                      const selectedType = editFilteredApplicationTypes.find(t => t.name === value);
+                      setEditForm(prev => ({ 
+                        ...prev, 
+                        applicationName: value,
+                        visaSubclass: selectedType?.code || ""
+                      }));
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select application type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {editFilteredApplicationTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.name}>
+                          {type.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    placeholder="Enter application name"
+                    value={editForm.applicationName}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, applicationName: e.target.value }))}
+                  />
+                )}
+              </div>
+            )}
             {editFilteredApplicationTypes.length === 0 && editForm.categoryId && (
               <div className="space-y-2">
                 <Label htmlFor="editVisaSubclass">Code/Subclass (Optional)</Label>
