@@ -845,10 +845,10 @@ const MigrationVisaApplications = () => {
                   <div className="space-y-2">
                     <Label htmlFor="subcategory">Sub-category (Optional)</Label>
                     <Select
-                      value={newApplication.subcategoryId}
+                      value={newApplication.subcategoryId || "__all__"}
                       onValueChange={(value) => setNewApplication(prev => ({ 
                         ...prev, 
-                        subcategoryId: value,
+                        subcategoryId: value === "__all__" ? "" : value,
                         applicationName: "",
                         visaSubclass: ""
                       }))}
@@ -857,7 +857,7 @@ const MigrationVisaApplications = () => {
                         <SelectValue placeholder="All sub-categories" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All sub-categories</SelectItem>
+                        <SelectItem value="__all__">All sub-categories</SelectItem>
                         {filteredSubcategories.map((subcategory) => (
                           <SelectItem key={subcategory.id} value={subcategory.id}>
                             {subcategory.name}
