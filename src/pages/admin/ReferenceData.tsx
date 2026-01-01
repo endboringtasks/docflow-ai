@@ -1486,9 +1486,11 @@ interface SortableDocumentRowProps {
   onEdit: (doc: DocumentTemplate) => void;
   onDuplicate: (doc: DocumentTemplate) => void;
   onDelete: (doc: DocumentTemplate) => void;
+  isSelected: boolean;
+  onToggleSelect: (id: string) => void;
 }
 
-function SortableDocumentRow({ doc, onEdit, onDuplicate, onDelete }: SortableDocumentRowProps) {
+function SortableDocumentRow({ doc, onEdit, onDuplicate, onDelete, isSelected, onToggleSelect }: SortableDocumentRowProps) {
   const {
     attributes,
     listeners,
@@ -1505,15 +1507,23 @@ function SortableDocumentRow({ doc, onEdit, onDuplicate, onDelete }: SortableDoc
   };
 
   return (
-    <TableRow ref={setNodeRef} style={style}>
+    <TableRow ref={setNodeRef} style={style} className={isSelected ? "bg-muted/50" : ""}>
       <TableCell>
-        <button
-          {...attributes}
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
-        >
-          <GripVertical className="w-4 h-4 text-muted-foreground" />
-        </button>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelect(doc.id)}
+            className="h-4 w-4 rounded border-input"
+          />
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
+          >
+            <GripVertical className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </div>
       </TableCell>
       <TableCell className="font-medium">{doc.document_name}</TableCell>
       <TableCell>
@@ -1567,7 +1577,6 @@ function SortableDocumentRow({ doc, onEdit, onDuplicate, onDelete }: SortableDoc
   );
 }
 
-// Document Checklist Tab Component
 function DocumentsTab() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -1575,6 +1584,10 @@ function DocumentsTab() {
   const [deleteDoc, setDeleteDoc] = useState<DocumentTemplate | null>(null);
   const [filterCountry, setFilterCountry] = useState<string>("");
   const [filterCategory, setFilterCategory] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [isBulkAssignOpen, setIsBulkAssignOpen] = useState(false);
+  const [bulkAssignIds, setBulkAssignIds] = useState<string[]>([]);
   const [form, setForm] = useState({
     document_name: "",
     category: "",
@@ -1810,6 +1823,71 @@ function DocumentsTab() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      for (const id of ids) {
+        const { error } = await supabase.from("document_checklist_templates").delete().eq("id", id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-doc-templates"] });
+      toast.success(`${selectedIds.length} documents deleted`);
+      setSelectedIds([]);
+      setIsBulkDeleteOpen(false);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const bulkAssignMutation = useMutation({
+    mutationFn: async ({ docIds, appIds }: { docIds: string[]; appIds: string[] }) => {
+      for (const docId of docIds) {
+        // Delete existing junction records
+        const { error: deleteError } = await supabase
+          .from("document_template_applications")
+          .delete()
+          .eq("document_template_id", docId);
+        if (deleteError) throw deleteError;
+        
+        // Insert new junction records
+        if (appIds.length > 0) {
+          const junctionRecords = appIds.map(vtId => ({
+            document_template_id: docId,
+            visa_type_id: vtId,
+          }));
+          const { error: junctionError } = await supabase
+            .from("document_template_applications")
+            .insert(junctionRecords);
+          if (junctionError) throw junctionError;
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-doc-templates"] });
+      toast.success(`Applications assigned to ${selectedIds.length} documents`);
+      setSelectedIds([]);
+      setIsBulkAssignOpen(false);
+      setBulkAssignIds([]);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (documents) {
+      if (selectedIds.length === documents.length) {
+        setSelectedIds([]);
+      } else {
+        setSelectedIds(documents.map(d => d.id));
+      }
+    }
+  };
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -1926,10 +2004,32 @@ function DocumentsTab() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Document
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedIds.length > 0 && (
+            <>
+              <span className="text-sm text-muted-foreground">{selectedIds.length} selected</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setIsBulkAssignOpen(true)}
+              >
+                Assign Applications
+              </Button>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={() => setIsBulkDeleteOpen(true)}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </Button>
+            </>
+          )}
+          <Button onClick={openCreate} size="sm">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Document
+          </Button>
+        </div>
       </div>
 
       <DndContext
@@ -1940,7 +2040,14 @@ function DocumentsTab() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12"></TableHead>
+              <TableHead className="w-16">
+                <input
+                  type="checkbox"
+                  checked={documents ? selectedIds.length === documents.length && documents.length > 0 : false}
+                  onChange={toggleSelectAll}
+                  className="h-4 w-4 rounded border-input"
+                />
+              </TableHead>
               <TableHead>Document Name</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Country</TableHead>
@@ -1961,12 +2068,14 @@ function DocumentsTab() {
                   onEdit={openEdit}
                   onDuplicate={duplicateDoc}
                   onDelete={setDeleteDoc}
+                  isSelected={selectedIds.includes(doc.id)}
+                  onToggleSelect={toggleSelect}
                 />
               ))}
             </SortableContext>
             {documents?.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                   No document checklist items found. Add one to get started.
                 </TableCell>
               </TableRow>
@@ -2165,6 +2274,111 @@ function DocumentsTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Delete Dialog */}
+      <AlertDialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.length} Documents</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedIds.length} selected documents? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => bulkDeleteMutation.mutate(selectedIds)}
+            >
+              {bulkDeleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Delete {selectedIds.length} Documents
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Assign Applications Dialog */}
+      <Dialog open={isBulkAssignOpen} onOpenChange={(open) => {
+        setIsBulkAssignOpen(open);
+        if (!open) setBulkAssignIds([]);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Applications to {selectedIds.length} Documents</DialogTitle>
+            <DialogDescription>
+              Select the application names to assign to the selected documents. This will replace any existing assignments.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label>Application Names</Label>
+              {visaTypes && visaTypes.length > 0 && (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={() => setBulkAssignIds(visaTypes.map(vt => vt.id))}
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={() => setBulkAssignIds([])}
+                  >
+                    Clear All
+                  </Button>
+                </div>
+              )}
+            </div>
+            <div className="border rounded-md p-2 max-h-64 overflow-y-auto space-y-1">
+              {visaTypes?.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2 text-center">No application names available</p>
+              ) : (
+                visaTypes?.map((vt) => (
+                  <label
+                    key={vt.id}
+                    className="flex items-center gap-2 p-2 hover:bg-muted rounded cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={bulkAssignIds.includes(vt.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setBulkAssignIds([...bulkAssignIds, vt.id]);
+                        } else {
+                          setBulkAssignIds(bulkAssignIds.filter(id => id !== vt.id));
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-input"
+                    />
+                    <span className="text-sm">{vt.name}</span>
+                  </label>
+                ))
+              )}
+            </div>
+            {bulkAssignIds.length > 0 && (
+              <p className="text-xs text-muted-foreground">{bulkAssignIds.length} applications selected</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBulkAssignOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => bulkAssignMutation.mutate({ docIds: selectedIds, appIds: bulkAssignIds })}
+              disabled={bulkAssignMutation.isPending}
+            >
+              {bulkAssignMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Assign to {selectedIds.length} Documents
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
