@@ -1596,6 +1596,8 @@ function DocumentsTab() {
     is_required: true,
     sort_order: 0,
   });
+  const [dialogCategoryFilter, setDialogCategoryFilter] = useState<string>("");
+  const [dialogSubcategoryFilter, setDialogSubcategoryFilter] = useState<string>("");
 
   const { data: countries } = useQuery({
     queryKey: ["admin-countries"],
@@ -1621,12 +1623,40 @@ function DocumentsTab() {
     },
   });
 
-  // Visa types filtered by form.country_id for the dialog
+  // Categories for dialog filter
+  const { data: dialogCategories } = useQuery({
+    queryKey: ["admin-categories-for-dialog"],
+    queryFn: async () => {
+      let query = supabase.from("application_categories").select("*").eq("is_active", true).order("sort_order");
+      if (form.country_id) query = query.eq("country_id", form.country_id);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as ApplicationCategory[];
+    },
+    enabled: isDialogOpen,
+  });
+
+  // Subcategories for dialog filter
+  const { data: dialogSubcategories } = useQuery({
+    queryKey: ["admin-subcategories-for-dialog", dialogCategoryFilter],
+    queryFn: async () => {
+      let query = supabase.from("application_subcategories").select("*").eq("is_active", true).order("sort_order");
+      if (dialogCategoryFilter) query = query.eq("category_id", dialogCategoryFilter);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as ApplicationSubcategory[];
+    },
+    enabled: isDialogOpen,
+  });
+
+  // Visa types filtered by form.country_id, category, and subcategory for the dialog
   const { data: dialogVisaTypes } = useQuery({
-    queryKey: ["admin-visa-types-for-dialog", form.country_id],
+    queryKey: ["admin-visa-types-for-dialog", form.country_id, dialogCategoryFilter, dialogSubcategoryFilter],
     queryFn: async () => {
       let query = supabase.from("visa_types").select("*").eq("is_active", true).order("name");
       if (form.country_id) query = query.eq("country_id", form.country_id);
+      if (dialogCategoryFilter) query = query.eq("category_id", dialogCategoryFilter);
+      if (dialogSubcategoryFilter) query = query.eq("subcategory_id", dialogSubcategoryFilter);
       const { data, error } = await query;
       if (error) throw error;
       return data as ApplicationType[];
@@ -1935,6 +1965,8 @@ function DocumentsTab() {
       is_required: true,
       sort_order: (documents?.length || 0) * 10,
     });
+    setDialogCategoryFilter("");
+    setDialogSubcategoryFilter("");
     setIsDialogOpen(true);
   };
 
@@ -1951,6 +1983,8 @@ function DocumentsTab() {
       is_required: doc.is_required,
       sort_order: doc.sort_order,
     });
+    setDialogCategoryFilter("");
+    setDialogSubcategoryFilter("");
     setIsDialogOpen(true);
   };
 
@@ -1966,12 +2000,16 @@ function DocumentsTab() {
       is_required: doc.is_required,
       sort_order: (documents?.length || 0) * 10,
     });
+    setDialogCategoryFilter("");
+    setDialogSubcategoryFilter("");
     setIsDialogOpen(true);
   };
 
   const closeDialog = () => {
     setIsDialogOpen(false);
     setEditingDoc(null);
+    setDialogCategoryFilter("");
+    setDialogSubcategoryFilter("");
   };
 
   const handleSave = () => {
@@ -2175,7 +2213,11 @@ function DocumentsTab() {
                 <Label>Country</Label>
                 <Select
                   value={form.country_id || "__none__"}
-                  onValueChange={(value) => setForm({ ...form, country_id: value === "__none__" ? "" : value, visa_type_ids: [] })}
+                  onValueChange={(value) => {
+                    setForm({ ...form, country_id: value === "__none__" ? "" : value, visa_type_ids: [] });
+                    setDialogCategoryFilter("");
+                    setDialogSubcategoryFilter("");
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="All countries" />
@@ -2185,6 +2227,48 @@ function DocumentsTab() {
                     {countries?.map((country) => (
                       <SelectItem key={country.id} value={country.id}>
                         {getCountryFlag(country.code)} {country.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Filter by Category</Label>
+                <Select
+                  value={dialogCategoryFilter || "__none__"}
+                  onValueChange={(value) => {
+                    setDialogCategoryFilter(value === "__none__" ? "" : value);
+                    setDialogSubcategoryFilter("");
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">All Categories</SelectItem>
+                    {dialogCategories?.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Filter by Sub-category</Label>
+                <Select
+                  value={dialogSubcategoryFilter || "__none__"}
+                  onValueChange={(value) => setDialogSubcategoryFilter(value === "__none__" ? "" : value)}
+                  disabled={!dialogCategoryFilter}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={dialogCategoryFilter ? "All sub-categories" : "Select a category first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">All Sub-categories</SelectItem>
+                    {dialogSubcategories?.map((sub) => (
+                      <SelectItem key={sub.id} value={sub.id}>
+                        {sub.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -2218,7 +2302,10 @@ function DocumentsTab() {
                 </div>
                 <div className="border rounded-md p-2 max-h-48 overflow-y-auto space-y-1">
                   {dialogVisaTypes?.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-2 text-center">No application names available{form.country_id ? " for this country" : ""}</p>
+                    <p className="text-sm text-muted-foreground py-2 text-center">
+                      No application names available
+                      {form.country_id || dialogCategoryFilter || dialogSubcategoryFilter ? " for the selected filters" : ""}
+                    </p>
                   ) : (
                     dialogVisaTypes?.map((vt) => (
                       <label
