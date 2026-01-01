@@ -588,6 +588,42 @@ export type Database = {
           },
         ]
       }
+      document_template_applications: {
+        Row: {
+          created_at: string
+          document_template_id: string
+          id: string
+          visa_type_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_template_id: string
+          id?: string
+          visa_type_id: string
+        }
+        Update: {
+          created_at?: string
+          document_template_id?: string
+          id?: string
+          visa_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_template_applications_document_template_id_fkey"
+            columns: ["document_template_id"]
+            isOneToOne: false
+            referencedRelation: "document_checklist_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_template_applications_visa_type_id_fkey"
+            columns: ["visa_type_id"]
+            isOneToOne: false
+            referencedRelation: "visa_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_drive_connections: {
         Row: {
           access_token: string

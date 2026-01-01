@@ -138,6 +138,7 @@ interface DocumentTemplate {
   sort_order: number;
   country?: Country;
   visa_type?: ApplicationType;
+  document_template_applications?: { visa_type: ApplicationType }[];
 }
 
 // Countries Tab Component
@@ -1528,7 +1529,15 @@ function SortableDocumentRow({ doc, onEdit, onDuplicate, onDelete }: SortableDoc
         )}
       </TableCell>
       <TableCell>
-        {doc.visa_type ? <Badge variant="secondary">{doc.visa_type.name}</Badge> : "—"}
+        {doc.document_template_applications && doc.document_template_applications.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {doc.document_template_applications.map((app) => (
+              <Badge key={app.visa_type.id} variant="secondary">{app.visa_type.name}</Badge>
+            ))}
+          </div>
+        ) : doc.visa_type ? (
+          <Badge variant="secondary">{doc.visa_type.name}</Badge>
+        ) : "—"}
       </TableCell>
       <TableCell>
         <Badge variant={doc.is_required ? "default" : "secondary"}>
@@ -1570,7 +1579,7 @@ function DocumentsTab() {
     document_name: "",
     category: "",
     country_id: "",
-    visa_type_id: "",
+    visa_type_ids: [] as string[],
     is_required: true,
     sort_order: 0,
   });
@@ -1605,7 +1614,7 @@ function DocumentsTab() {
       // Only fetch global templates (company_id IS NULL)
       let query = supabase
         .from("document_checklist_templates")
-        .select("*, country:countries(*), visa_type:visa_types(*)")
+        .select("*, country:countries(*), visa_type:visa_types(*), document_template_applications(visa_type:visa_types(*))")
         .is("company_id", null)
         .order("sort_order");
 
@@ -1712,23 +1721,54 @@ function DocumentsTab() {
   };
 
   const saveMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: typeof form) => {
+      const { visa_type_ids, ...rest } = data;
       const payload = {
-        ...data,
-        country_id: data.country_id || null,
-        visa_type_id: data.visa_type_id || null,
-        category: data.category || null,
+        document_name: rest.document_name,
+        country_id: rest.country_id || null,
+        category: rest.category || null,
+        is_required: rest.is_required,
+        sort_order: rest.sort_order,
         company_id: null, // Global template
+        visa_type_id: null, // No longer used, using junction table
       };
+      
+      let templateId: string;
+      
       if (editingDoc) {
         const { error } = await supabase
           .from("document_checklist_templates")
           .update(payload)
           .eq("id", editingDoc.id);
         if (error) throw error;
+        templateId = editingDoc.id;
+        
+        // Delete existing junction records
+        const { error: deleteError } = await supabase
+          .from("document_template_applications")
+          .delete()
+          .eq("document_template_id", editingDoc.id);
+        if (deleteError) throw deleteError;
       } else {
-        const { error } = await supabase.from("document_checklist_templates").insert(payload);
+        const { data: inserted, error } = await supabase
+          .from("document_checklist_templates")
+          .insert(payload)
+          .select()
+          .single();
         if (error) throw error;
+        templateId = inserted.id;
+      }
+      
+      // Insert new junction records
+      if (visa_type_ids.length > 0) {
+        const junctionRecords = visa_type_ids.map(vtId => ({
+          document_template_id: templateId,
+          visa_type_id: vtId,
+        }));
+        const { error: junctionError } = await supabase
+          .from("document_template_applications")
+          .insert(junctionRecords);
+        if (junctionError) throw junctionError;
       }
     },
     onSuccess: () => {
@@ -1800,7 +1840,7 @@ function DocumentsTab() {
       document_name: "",
       category: filterCategory || "",
       country_id: filterCountry || "",
-      visa_type_id: "",
+      visa_type_ids: [],
       is_required: true,
       sort_order: (documents?.length || 0) * 10,
     });
@@ -1809,11 +1849,14 @@ function DocumentsTab() {
 
   const openEdit = (doc: DocumentTemplate) => {
     setEditingDoc(doc);
+    // Get visa_type_ids from junction table or fallback to legacy visa_type_id
+    const visaTypeIds = doc.document_template_applications?.map(app => app.visa_type.id) || 
+                        (doc.visa_type_id ? [doc.visa_type_id] : []);
     setForm({
       document_name: doc.document_name,
       category: doc.category || "",
       country_id: doc.country_id || "",
-      visa_type_id: doc.visa_type_id || "",
+      visa_type_ids: visaTypeIds,
       is_required: doc.is_required,
       sort_order: doc.sort_order,
     });
@@ -1822,11 +1865,13 @@ function DocumentsTab() {
 
   const duplicateDoc = (doc: DocumentTemplate) => {
     setEditingDoc(null);
+    const visaTypeIds = doc.document_template_applications?.map(app => app.visa_type.id) || 
+                        (doc.visa_type_id ? [doc.visa_type_id] : []);
     setForm({
       document_name: `${doc.document_name} (Copy)`,
       category: doc.category || "",
       country_id: doc.country_id || "",
-      visa_type_id: doc.visa_type_id || "",
+      visa_type_ids: visaTypeIds,
       is_required: doc.is_required,
       sort_order: (documents?.length || 0) * 10,
     });
@@ -1899,7 +1944,7 @@ function DocumentsTab() {
               <TableHead>Document Name</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Country</TableHead>
-              <TableHead>Application Type</TableHead>
+              <TableHead>Application Name</TableHead>
               <TableHead>Required</TableHead>
               <TableHead className="w-32">Actions</TableHead>
             </TableRow>
@@ -2024,23 +2069,36 @@ function DocumentsTab() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Application Type (Optional)</Label>
-                <Select
-                  value={form.visa_type_id || "__none__"}
-                  onValueChange={(value) => setForm({ ...form, visa_type_id: value === "__none__" ? "" : value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="All types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">All Types</SelectItem>
-                    {visaTypes?.map((vt) => (
-                      <SelectItem key={vt.id} value={vt.id}>
-                        {vt.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Application Names (Optional)</Label>
+                <div className="border rounded-md p-2 max-h-48 overflow-y-auto space-y-1">
+                  {visaTypes?.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-2 text-center">No application names available</p>
+                  ) : (
+                    visaTypes?.map((vt) => (
+                      <label
+                        key={vt.id}
+                        className="flex items-center gap-2 p-2 hover:bg-muted rounded cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={form.visa_type_ids.includes(vt.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setForm({ ...form, visa_type_ids: [...form.visa_type_ids, vt.id] });
+                            } else {
+                              setForm({ ...form, visa_type_ids: form.visa_type_ids.filter(id => id !== vt.id) });
+                            }
+                          }}
+                          className="h-4 w-4 rounded border-input"
+                        />
+                        <span className="text-sm">{vt.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                {form.visa_type_ids.length > 0 && (
+                  <p className="text-xs text-muted-foreground">{form.visa_type_ids.length} selected</p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
