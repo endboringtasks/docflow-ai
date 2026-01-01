@@ -1857,7 +1857,7 @@ function DocumentsTab() {
               <TableHead>Document Name</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Country</TableHead>
-              <TableHead>Visa Type</TableHead>
+              <TableHead>Application Type</TableHead>
               <TableHead>Required</TableHead>
               <TableHead className="w-32">Actions</TableHead>
             </TableRow>
@@ -1982,7 +1982,7 @@ function DocumentsTab() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Visa Type (Optional)</Label>
+                <Label>Application Type (Optional)</Label>
                 <Select
                   value={form.visa_type_id || "__none__"}
                   onValueChange={(value) => setForm({ ...form, visa_type_id: value === "__none__" ? "" : value })}
