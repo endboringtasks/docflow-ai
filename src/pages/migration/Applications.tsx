@@ -841,33 +841,33 @@ const MigrationVisaApplications = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                {filteredSubcategories.length > 0 && (
-                  <div className="space-y-2">
-                    <Label htmlFor="subcategory">Sub-category (Optional)</Label>
-                    <Select
-                      value={newApplication.subcategoryId || "__all__"}
-                      onValueChange={(value) => setNewApplication(prev => ({ 
-                        ...prev, 
-                        subcategoryId: value === "__all__" ? "" : value,
-                        applicationName: "",
-                        visaSubclass: ""
-                      }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All sub-categories" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__all__">All sub-categories</SelectItem>
-                        {filteredSubcategories.map((subcategory) => (
-                          <SelectItem key={subcategory.id} value={subcategory.id}>
-                            {subcategory.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                <div className="space-y-2">
+                {newApplication.categoryId && filteredSubcategories.length > 0 && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="subcategory">Sub-category (Optional)</Label>
+                      <Select
+                        value={newApplication.subcategoryId || "__all__"}
+                        onValueChange={(value) => setNewApplication(prev => ({ 
+                          ...prev, 
+                          subcategoryId: value === "__all__" ? "" : value,
+                          applicationName: "",
+                          visaSubclass: ""
+                        }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All sub-categories" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__all__">All sub-categories</SelectItem>
+                          {filteredSubcategories.map((subcategory) => (
+                            <SelectItem key={subcategory.id} value={subcategory.id}>
+                              {subcategory.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
                   <Label htmlFor="applicationName">Application Name</Label>
                   {filteredApplicationTypes.length > 0 ? (
                     <Select
@@ -901,8 +901,10 @@ const MigrationVisaApplications = () => {
                       disabled={!newApplication.categoryId}
                     />
                   )}
-                </div>
-                {filteredApplicationTypes.length === 0 && newApplication.categoryId && (
+                    </div>
+                  </>
+                )}
+                {filteredApplicationTypes.length === 0 && newApplication.categoryId && filteredSubcategories.length === 0 && (
                   <div className="space-y-2">
                     <Label htmlFor="visaSubclass">Code/Subclass (Optional)</Label>
                     <Input
