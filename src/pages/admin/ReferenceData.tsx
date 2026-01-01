@@ -2069,7 +2069,31 @@ function DocumentsTab() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Application Names (Optional)</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Application Names (Optional)</Label>
+                  {visaTypes && visaTypes.length > 0 && (
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs"
+                        onClick={() => setForm({ ...form, visa_type_ids: visaTypes.map(vt => vt.id) })}
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs"
+                        onClick={() => setForm({ ...form, visa_type_ids: [] })}
+                      >
+                        Clear All
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 <div className="border rounded-md p-2 max-h-48 overflow-y-auto space-y-1">
                   {visaTypes?.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-2 text-center">No application names available</p>
