@@ -59,6 +59,23 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCountryFlag } from "@/lib/countryFlags";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // Types
 interface Country {
@@ -1419,6 +1436,86 @@ function TypesTab() {
     </div>
   );
 }
+
+// Sortable Document Row Component
+interface SortableDocumentRowProps {
+  doc: DocumentTemplate;
+  onEdit: (doc: DocumentTemplate) => void;
+  onDuplicate: (doc: DocumentTemplate) => void;
+  onDelete: (doc: DocumentTemplate) => void;
+}
+
+function SortableDocumentRow({ doc, onEdit, onDuplicate, onDelete }: SortableDocumentRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: doc.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <TableRow ref={setNodeRef} style={style}>
+      <TableCell>
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
+        >
+          <GripVertical className="w-4 h-4 text-muted-foreground" />
+        </button>
+      </TableCell>
+      <TableCell className="font-medium">{doc.document_name}</TableCell>
+      <TableCell>
+        {doc.category ? <Badge variant="outline">{doc.category}</Badge> : "—"}
+      </TableCell>
+      <TableCell>
+        {doc.country ? (
+          <span className="flex items-center gap-2">
+            {getCountryFlag(doc.country.code)} {doc.country.name}
+          </span>
+        ) : (
+          <Badge variant="outline">All</Badge>
+        )}
+      </TableCell>
+      <TableCell>
+        {doc.visa_type ? <Badge variant="secondary">{doc.visa_type.name}</Badge> : "—"}
+      </TableCell>
+      <TableCell>
+        <Badge variant={doc.is_required ? "default" : "secondary"}>
+          {doc.is_required ? "Required" : "Optional"}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="icon" onClick={() => onEdit(doc)} title="Edit">
+            <Pencil className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => onDuplicate(doc)} title="Duplicate">
+            <Copy className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-destructive"
+            onClick={() => onDelete(doc)}
+            title="Delete"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 // Document Checklist Tab Component
 function DocumentsTab() {
   const queryClient = useQueryClient();
@@ -1613,6 +1710,48 @@ function DocumentsTab() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const reorderMutation = useMutation({
+    mutationFn: async (items: { id: string; sort_order: number }[]) => {
+      // Update each item's sort order
+      for (const item of items) {
+        const { error } = await supabase
+          .from("document_checklist_templates")
+          .update({ sort_order: item.sort_order })
+          .eq("id", item.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-doc-templates"] });
+      toast.success("Order updated");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id && documents) {
+      const oldIndex = documents.findIndex((doc) => doc.id === active.id);
+      const newIndex = documents.findIndex((doc) => doc.id === over.id);
+
+      const newOrder = arrayMove(documents, oldIndex, newIndex);
+      const updates = newOrder.map((doc, index) => ({
+        id: doc.id,
+        sort_order: index * 10,
+      }));
+
+      reorderMutation.mutate(updates);
+    }
+  };
+
   const openCreate = () => {
     setEditingDoc(null);
     setForm({
@@ -1706,73 +1845,48 @@ function DocumentsTab() {
         </Button>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-12">Order</TableHead>
-            <TableHead>Document Name</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Country</TableHead>
-            <TableHead>Visa Type</TableHead>
-            <TableHead>Required</TableHead>
-            <TableHead className="w-24">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {documents?.map((doc) => (
-            <TableRow key={doc.id}>
-              <TableCell className="text-muted-foreground">{doc.sort_order}</TableCell>
-              <TableCell className="font-medium">{doc.document_name}</TableCell>
-              <TableCell>
-                {doc.category ? <Badge variant="outline">{doc.category}</Badge> : "—"}
-              </TableCell>
-              <TableCell>
-                {doc.country ? (
-                  <span className="flex items-center gap-2">
-                    {getCountryFlag(doc.country.code)} {doc.country.name}
-                  </span>
-                ) : (
-                  <Badge variant="outline">All</Badge>
-                )}
-              </TableCell>
-              <TableCell>
-                {doc.visa_type ? <Badge variant="secondary">{doc.visa_type.name}</Badge> : "—"}
-              </TableCell>
-              <TableCell>
-                <Badge variant={doc.is_required ? "default" : "secondary"}>
-                  {doc.is_required ? "Required" : "Optional"}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(doc)} title="Edit">
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => duplicateDoc(doc)} title="Duplicate">
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive"
-                    onClick={() => setDeleteDoc(doc)}
-                    title="Delete"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-          {documents?.length === 0 && (
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                No document checklist items found. Add one to get started.
-              </TableCell>
+              <TableHead className="w-12"></TableHead>
+              <TableHead>Document Name</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Country</TableHead>
+              <TableHead>Visa Type</TableHead>
+              <TableHead>Required</TableHead>
+              <TableHead className="w-32">Actions</TableHead>
             </TableRow>
-          )}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            <SortableContext
+              items={documents?.map((doc) => doc.id) || []}
+              strategy={verticalListSortingStrategy}
+            >
+              {documents?.map((doc) => (
+                <SortableDocumentRow
+                  key={doc.id}
+                  doc={doc}
+                  onEdit={openEdit}
+                  onDuplicate={duplicateDoc}
+                  onDelete={setDeleteDoc}
+                />
+              ))}
+            </SortableContext>
+            {documents?.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  No document checklist items found. Add one to get started.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </DndContext>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
