@@ -62,6 +62,7 @@ export type Database = {
         Row: {
           category_id: string
           code: string
+          country_id: string | null
           created_at: string | null
           description: string | null
           icon: string | null
@@ -73,6 +74,7 @@ export type Database = {
         Insert: {
           category_id: string
           code: string
+          country_id?: string | null
           created_at?: string | null
           description?: string | null
           icon?: string | null
@@ -84,6 +86,7 @@ export type Database = {
         Update: {
           category_id?: string
           code?: string
+          country_id?: string | null
           created_at?: string | null
           description?: string | null
           icon?: string | null
@@ -98,6 +101,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "application_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_subcategories_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
             referencedColumns: ["id"]
           },
         ]

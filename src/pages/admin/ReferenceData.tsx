@@ -106,9 +106,11 @@ interface ApplicationSubcategory {
   description: string | null;
   icon: string | null;
   category_id: string;
+  country_id: string | null;
   is_active: boolean;
   sort_order: number;
   category?: ApplicationCategory;
+  country?: Country;
 }
 
 interface ApplicationType {
@@ -676,6 +678,7 @@ function SubcategoriesTab() {
     description: "",
     icon: "",
     category_id: "",
+    country_id: "" as string | null,
     is_active: true,
     sort_order: 0,
   });
@@ -693,12 +696,25 @@ function SubcategoriesTab() {
     },
   });
 
+  const { data: countries } = useQuery({
+    queryKey: ["admin-countries-for-subcats"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("countries")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order");
+      if (error) throw error;
+      return data as Country[];
+    },
+  });
+
   const { data: subcategories, isLoading } = useQuery({
     queryKey: ["admin-subcategories", filterCategory],
     queryFn: async () => {
       let query = supabase
         .from("application_subcategories")
-        .select("*, category:application_categories(*, country:countries(*))")
+        .select("*, category:application_categories(*, country:countries(*)), country:countries(*)")
         .order("sort_order");
 
       if (filterCategory) query = query.eq("category_id", filterCategory);
@@ -715,6 +731,7 @@ function SubcategoriesTab() {
         ...data,
         description: data.description || null,
         icon: data.icon || null,
+        country_id: data.country_id || null,
       };
       if (editingSubcategory) {
         const { error } = await supabase
@@ -756,6 +773,7 @@ function SubcategoriesTab() {
       description: "",
       icon: "",
       category_id: filterCategory || "",
+      country_id: null,
       is_active: true,
       sort_order: (subcategories?.length || 0) * 10,
     });
@@ -770,6 +788,7 @@ function SubcategoriesTab() {
       description: subcategory.description || "",
       icon: subcategory.icon || "",
       category_id: subcategory.category_id,
+      country_id: subcategory.country_id,
       is_active: subcategory.is_active,
       sort_order: subcategory.sort_order,
     });
@@ -844,9 +863,13 @@ function SubcategoriesTab() {
                 )}
               </TableCell>
               <TableCell>
-                {subcategory.category?.country ? (
+                {subcategory.country ? (
                   <span className="flex items-center gap-2">
-                    {getCountryFlag(subcategory.category.country.code)} {subcategory.category.country.name}
+                    {getCountryFlag(subcategory.country.code)} {subcategory.country.name}
+                  </span>
+                ) : subcategory.category?.country ? (
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    {getCountryFlag(subcategory.category.country.code)} {subcategory.category.country.name} (inherited)
                   </span>
                 ) : (
                   <Badge variant="outline">All</Badge>
@@ -910,6 +933,25 @@ function SubcategoriesTab() {
                   {categories?.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       {cat.country ? `${getCountryFlag(cat.country.code)} ` : ""}{cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Country</Label>
+              <Select
+                value={form.country_id || "__all__"}
+                onValueChange={(value) => setForm({ ...form, country_id: value === "__all__" ? null : value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select country (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Countries</SelectItem>
+                  {countries?.map((country) => (
+                    <SelectItem key={country.id} value={country.id}>
+                      {getCountryFlag(country.code)} {country.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
