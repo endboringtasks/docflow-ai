@@ -868,7 +868,7 @@ const MigrationVisaApplications = () => {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="applicationName">Application Type</Label>
+                  <Label htmlFor="applicationName">Application Name</Label>
                   {filteredApplicationTypes.length > 0 ? (
                     <Select
                       value={newApplication.applicationName}
