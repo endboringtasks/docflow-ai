@@ -32,7 +32,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "clients": "Clients",
-    "visaApplications": "Visa Applications",
+    "applications": "Applications",
     "documentChecklist": "Document Checklist",
     "settings": "Settings",
     "billing": "Billing",

@@ -81,12 +81,12 @@ const App = () => (
                   <MigrationClientDetail />
                 </ProtectedRoute>
               } />
-              <Route path="/app/migration/visa-applications" element={
+              <Route path="/app/migration/applications" element={
                 <ProtectedRoute>
                   <MigrationVisaApplications />
                 </ProtectedRoute>
               } />
-              <Route path="/app/migration/visa-applications/:visaApplicationId" element={
+              <Route path="/app/migration/applications/:visaApplicationId" element={
                 <ProtectedRoute>
                   <VisaApplicationDetail />
                 </ProtectedRoute>
