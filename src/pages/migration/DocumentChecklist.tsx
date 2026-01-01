@@ -89,6 +89,13 @@ interface ApplicationCategory {
   country_id: string | null;
 }
 
+interface ApplicationSubcategory {
+  id: string;
+  name: string;
+  code: string;
+  category_id: string;
+}
+
 interface VisaType {
   id: string;
   name: string;
@@ -210,6 +217,7 @@ const DocumentTemplates = () => {
   // Filter states
   const [selectedCountry, setSelectedCountry] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string>("");
   const [selectedApplicationType, setSelectedApplicationType] = useState<string>("");
   const [searchName, setSearchName] = useState("");
   
@@ -265,9 +273,26 @@ const DocumentTemplates = () => {
     enabled: !!selectedCountry,
   });
 
-  // Fetch visa types (application types) based on country and category
+  // Fetch subcategories based on selected category
+  const { data: subcategories = [] } = useQuery({
+    queryKey: ["application-subcategories", selectedCategory],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("application_subcategories")
+        .select("id, name, code, category_id")
+        .eq("category_id", selectedCategory)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      
+      if (error) throw error;
+      return data as ApplicationSubcategory[];
+    },
+    enabled: !!selectedCategory,
+  });
+
+  // Fetch visa types (application types) based on country, category, and subcategory
   const { data: visaTypes = [] } = useQuery({
-    queryKey: ["visa-types", selectedCountry, selectedCategory],
+    queryKey: ["visa-types", selectedCountry, selectedCategory, selectedSubcategory],
     queryFn: async () => {
       let query = supabase
         .from("visa_types")
@@ -281,6 +306,10 @@ const DocumentTemplates = () => {
       
       if (selectedCategory) {
         query = query.eq("category_id", selectedCategory);
+      }
+      
+      if (selectedSubcategory) {
+        query = query.eq("subcategory_id", selectedSubcategory);
       }
       
       const { data, error } = await query;
@@ -452,17 +481,25 @@ const DocumentTemplates = () => {
   const handleCountryChange = (value: string) => {
     setSelectedCountry(value);
     setSelectedCategory("");
+    setSelectedSubcategory("");
     setSelectedApplicationType("");
   };
 
   const handleCategoryChange = (value: string) => {
     setSelectedCategory(value);
+    setSelectedSubcategory("");
+    setSelectedApplicationType("");
+  };
+
+  const handleSubcategoryChange = (value: string) => {
+    setSelectedSubcategory(value);
     setSelectedApplicationType("");
   };
 
   const clearFilters = () => {
     setSelectedCountry("");
     setSelectedCategory("");
+    setSelectedSubcategory("");
     setSelectedApplicationType("");
     setSearchName("");
   };
@@ -504,7 +541,7 @@ const DocumentTemplates = () => {
 
         {/* Filter Bar */}
         <div className="card-gradient rounded-xl border border-border/50 p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {/* Country Filter */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Country</Label>
@@ -537,6 +574,33 @@ const DocumentTemplates = () => {
                   {applicationCategories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Subcategory Filter */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Subcategory</Label>
+              <Select 
+                value={selectedSubcategory} 
+                onValueChange={handleSubcategoryChange}
+                disabled={!selectedCategory || subcategories.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={
+                    !selectedCategory 
+                      ? "Select category first" 
+                      : subcategories.length === 0 
+                        ? "No subcategories" 
+                        : "Select subcategory (optional)"
+                  } />
+                </SelectTrigger>
+                <SelectContent>
+                  {subcategories.map((sub) => (
+                    <SelectItem key={sub.id} value={sub.id}>
+                      {sub.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -591,7 +655,7 @@ const DocumentTemplates = () => {
           </div>
 
           {/* Clear Filters */}
-          {(selectedCountry || selectedCategory || selectedApplicationType || searchName) && (
+          {(selectedCountry || selectedCategory || selectedSubcategory || selectedApplicationType || searchName) && (
             <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between">
               <div className="flex items-center gap-2 flex-wrap">
                 {selectedCountry && (
@@ -609,6 +673,15 @@ const DocumentTemplates = () => {
                     <X 
                       className="w-3 h-3 cursor-pointer" 
                       onClick={() => handleCategoryChange("")}
+                    />
+                  </Badge>
+                )}
+                {selectedSubcategory && (
+                  <Badge variant="secondary" className="gap-1">
+                    {subcategories.find(s => s.id === selectedSubcategory)?.name}
+                    <X 
+                      className="w-3 h-3 cursor-pointer" 
+                      onClick={() => handleSubcategoryChange("")}
                     />
                   </Badge>
                 )}
