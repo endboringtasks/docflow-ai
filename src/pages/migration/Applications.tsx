@@ -817,7 +817,7 @@ const MigrationVisaApplications = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="category">Application Category</Label>
+                  <Label htmlFor="category">Category</Label>
                   <Select
                     value={newApplication.categoryId}
                     onValueChange={(value) => setNewApplication(prev => ({ 
