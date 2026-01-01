@@ -841,77 +841,74 @@ const MigrationVisaApplications = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                {newApplication.categoryId && filteredSubcategories.length === 0 && (
+                  <div className="p-3 bg-muted/50 rounded-md border border-border">
+                    <p className="text-sm text-muted-foreground">
+                      No sub-categories available for this category.
+                    </p>
+                  </div>
+                )}
                 {newApplication.categoryId && filteredSubcategories.length > 0 && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="subcategory">Sub-category (Optional)</Label>
-                      <Select
-                        value={newApplication.subcategoryId || "__all__"}
-                        onValueChange={(value) => setNewApplication(prev => ({ 
-                          ...prev, 
-                          subcategoryId: value === "__all__" ? "" : value,
-                          applicationName: "",
-                          visaSubclass: ""
-                        }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="All sub-categories" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">All sub-categories</SelectItem>
-                          {filteredSubcategories.map((subcategory) => (
-                            <SelectItem key={subcategory.id} value={subcategory.id}>
-                              {subcategory.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                  <Label htmlFor="applicationName">Application Name</Label>
-                  {filteredApplicationTypes.length > 0 ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="subcategory">Sub-category (Optional)</Label>
                     <Select
-                      value={newApplication.applicationName}
-                      onValueChange={(value) => {
-                        const selectedType = filteredApplicationTypes.find(t => t.name === value);
-                        setNewApplication(prev => ({ 
-                          ...prev, 
-                          applicationName: value,
-                          visaSubclass: selectedType?.code || ""
-                        }));
-                      }}
-                      disabled={!newApplication.categoryId}
+                      value={newApplication.subcategoryId || "__all__"}
+                      onValueChange={(value) => setNewApplication(prev => ({ 
+                        ...prev, 
+                        subcategoryId: value === "__all__" ? "" : value,
+                        applicationName: "",
+                        visaSubclass: ""
+                      }))}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder={newApplication.categoryId ? "Select application type" : "Select a category first"} />
+                        <SelectValue placeholder="All sub-categories" />
                       </SelectTrigger>
                       <SelectContent>
-                        {filteredApplicationTypes.map((type) => (
-                          <SelectItem key={type.id} value={type.name}>
-                            {type.name}
+                        <SelectItem value="__all__">All sub-categories</SelectItem>
+                        {filteredSubcategories.map((subcategory) => (
+                          <SelectItem key={subcategory.id} value={subcategory.id}>
+                            {subcategory.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                  ) : (
-                    <Input
-                      placeholder={newApplication.categoryId ? "Enter application name" : "Select a category first"}
-                      value={newApplication.applicationName}
-                      onChange={(e) => setNewApplication(prev => ({ ...prev, applicationName: e.target.value }))}
-                      disabled={!newApplication.categoryId}
-                    />
-                  )}
-                    </div>
-                  </>
+                  </div>
                 )}
-                {filteredApplicationTypes.length === 0 && newApplication.categoryId && filteredSubcategories.length === 0 && (
+                {newApplication.categoryId && filteredSubcategories.length > 0 && (
                   <div className="space-y-2">
-                    <Label htmlFor="visaSubclass">Code/Subclass (Optional)</Label>
-                    <Input
-                      placeholder="Enter code or subclass"
-                      value={newApplication.visaSubclass}
-                      onChange={(e) => setNewApplication(prev => ({ ...prev, visaSubclass: e.target.value }))}
-                    />
+                    <Label htmlFor="applicationName">Application Name</Label>
+                    {filteredApplicationTypes.length > 0 ? (
+                      <Select
+                        value={newApplication.applicationName}
+                        onValueChange={(value) => {
+                          const selectedType = filteredApplicationTypes.find(t => t.name === value);
+                          setNewApplication(prev => ({ 
+                            ...prev, 
+                            applicationName: value,
+                            visaSubclass: selectedType?.code || ""
+                          }));
+                        }}
+                        disabled={!newApplication.categoryId}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={newApplication.categoryId ? "Select application type" : "Select a category first"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filteredApplicationTypes.map((type) => (
+                            <SelectItem key={type.id} value={type.name}>
+                              {type.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        placeholder={newApplication.categoryId ? "Enter application name" : "Select a category first"}
+                        value={newApplication.applicationName}
+                        onChange={(e) => setNewApplication(prev => ({ ...prev, applicationName: e.target.value }))}
+                        disabled={!newApplication.categoryId}
+                      />
+                    )}
                   </div>
                 )}
               </div>
