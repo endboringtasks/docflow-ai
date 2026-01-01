@@ -1625,7 +1625,7 @@ function DocumentsTab() {
 
   // Categories for dialog filter
   const { data: dialogCategories } = useQuery({
-    queryKey: ["admin-categories-for-dialog"],
+    queryKey: ["admin-categories-for-dialog", form.country_id],
     queryFn: async () => {
       let query = supabase.from("application_categories").select("*").eq("is_active", true).order("sort_order");
       if (form.country_id) query = query.eq("country_id", form.country_id);
