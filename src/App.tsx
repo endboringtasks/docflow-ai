@@ -26,8 +26,8 @@ import Onboarding from "./pages/Onboarding";
 import MigrationDashboard from "./pages/migration/Dashboard";
 import MigrationClients from "./pages/migration/Clients";
 import MigrationClientDetail from "./pages/migration/ClientDetail";
-import MigrationVisaApplications from "./pages/migration/VisaApplications";
-import VisaApplicationDetail from "./pages/migration/VisaApplicationDetail";
+import MigrationApplications from "./pages/migration/Applications";
+import ApplicationDetail from "./pages/migration/ApplicationDetail";
 import MigrationDocumentChecklist from "./pages/migration/DocumentChecklist";
 import AuditDashboard from "./pages/audit/Dashboard";
 import HRDashboard from "./pages/hr/Dashboard";
@@ -83,12 +83,12 @@ const App = () => (
               } />
               <Route path="/app/migration/applications" element={
                 <ProtectedRoute>
-                  <MigrationVisaApplications />
+                  <MigrationApplications />
                 </ProtectedRoute>
               } />
               <Route path="/app/migration/applications/:visaApplicationId" element={
                 <ProtectedRoute>
-                  <VisaApplicationDetail />
+                  <ApplicationDetail />
                 </ProtectedRoute>
               } />
               <Route path="/app/migration/document-checklist" element={
