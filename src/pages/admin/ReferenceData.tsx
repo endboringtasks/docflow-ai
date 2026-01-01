@@ -1478,8 +1478,23 @@ function DocumentsTab() {
     },
   });
 
-  // Get unique categories from documents
-  const documentCategories = [...new Set(documents?.map((d) => d.category).filter(Boolean) || [])];
+  // Predefined document categories
+  const predefinedCategories = [
+    "Identity Documents",
+    "Financial Documents",
+    "Employment Records",
+    "Educational Documents",
+    "Health & Medical",
+    "Legal Documents",
+    "Travel Documents",
+    "Supporting Evidence",
+  ];
+
+  // Get unique categories from documents, merged with predefined ones
+  const documentCategories = [...new Set([
+    ...predefinedCategories,
+    ...(documents?.map((d) => d.category).filter(Boolean) || [])
+  ])];
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
