@@ -1281,7 +1281,7 @@ function TypesTab() {
           {types?.length === 0 && (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                No application types found. Add one to get started.
+                No application names found. Add one to get started.
               </TableCell>
             </TableRow>
           )}
@@ -1291,9 +1291,9 @@ function TypesTab() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingType ? "Edit Application Type" : "Add Application Type"}</DialogTitle>
+            <DialogTitle>{editingType ? "Edit Application Name" : "Add Application Name"}</DialogTitle>
             <DialogDescription>
-              {editingType ? "Update type details" : "Add a new application type (e.g., Subclass 482, VETASSESS)"}
+              {editingType ? "Update application name details" : "Add a new application name (e.g., Subclass 482, VETASSESS)"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1416,7 +1416,7 @@ function TypesTab() {
       <AlertDialog open={!!deleteType} onOpenChange={() => setDeleteType(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Application Type</AlertDialogTitle>
+            <AlertDialogTitle>Delete Application Name</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete "{deleteType?.name}"? This may affect existing applications.
             </AlertDialogDescription>
@@ -2073,7 +2073,7 @@ export default function AdminReferenceData() {
             </TabsTrigger>
             <TabsTrigger value="types" className="gap-2">
               <FileType className="w-4 h-4" />
-              Application Types
+              Application Names
             </TabsTrigger>
             <TabsTrigger value="documents" className="gap-2">
               <FileText className="w-4 h-4" />
