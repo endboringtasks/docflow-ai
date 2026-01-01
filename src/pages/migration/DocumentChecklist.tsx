@@ -607,16 +607,16 @@ const DocumentTemplates = () => {
               </Select>
             </div>
 
-            {/* Application Type Filter */}
+            {/* Application Name Filter */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Application Type</Label>
+              <Label className="text-sm font-medium">Application Name</Label>
               <Select 
                 value={selectedApplicationType} 
                 onValueChange={setSelectedApplicationType}
                 disabled={!selectedCategory}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder={selectedCategory ? "Select application type" : "Select category first"} />
+                  <SelectValue placeholder={selectedCategory ? "Select application name" : "Select category first"} />
                 </SelectTrigger>
                 <SelectContent>
                   {visaTypes.map((type) => (
