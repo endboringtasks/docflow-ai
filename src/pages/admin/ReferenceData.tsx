@@ -644,7 +644,7 @@ function CategoriesTab() {
             <AlertDialogTitle>Delete Category</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete "{deleteCategory?.name}"? This may affect existing
-              application types.
+              application names.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -976,7 +976,7 @@ function SubcategoriesTab() {
             <AlertDialogTitle>Delete Subcategory</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete "{deleteSubcategory?.name}"? This may affect existing
-              application types.
+              application names.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -995,7 +995,7 @@ function SubcategoriesTab() {
   );
 }
 
-// Application Types Tab Component
+// Application Names Tab Component
 function TypesTab() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -1096,7 +1096,7 @@ function TypesTab() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-types"] });
-      toast.success(editingType ? "Type updated" : "Type created");
+      toast.success(editingType ? "Application name updated" : "Application name created");
       closeDialog();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -1109,7 +1109,7 @@ function TypesTab() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-types"] });
-      toast.success("Type deleted");
+      toast.success("Application name deleted");
       setDeleteType(null);
     },
     onError: (error: Error) => toast.error(error.message),
@@ -1210,7 +1210,7 @@ function TypesTab() {
         </div>
         <Button onClick={openCreate} size="sm">
           <Plus className="w-4 h-4 mr-2" />
-          Add Type
+          Add Application Name
         </Button>
       </div>
 
