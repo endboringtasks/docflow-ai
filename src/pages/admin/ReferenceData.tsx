@@ -1478,23 +1478,98 @@ function DocumentsTab() {
     },
   });
 
-  // Predefined document categories
-  const predefinedCategories = [
-    "Identity Documents",
-    "Financial Documents",
-    "Employment Records",
-    "Educational Documents",
-    "Health & Medical",
-    "Legal Documents",
-    "Travel Documents",
-    "Supporting Evidence",
-  ];
+  // Predefined document names by category
+  const predefinedDocuments: Record<string, string[]> = {
+    "Identity Documents": [
+      "Passport",
+      "Birth Certificate",
+      "National ID Card",
+      "Driver's License",
+      "Marriage Certificate",
+      "Divorce Certificate",
+      "Name Change Certificate",
+    ],
+    "Financial Documents": [
+      "Bank Statements",
+      "Tax Returns",
+      "Pay Slips",
+      "Proof of Assets",
+      "Investment Statements",
+      "Credit Card Statements",
+      "Loan Documents",
+    ],
+    "Employment Records": [
+      "Employment Contract",
+      "Reference Letters",
+      "Resume/CV",
+      "Job Offer Letter",
+      "Salary Certificate",
+      "Employment Verification Letter",
+      "Work Experience Letters",
+    ],
+    "Educational Documents": [
+      "Degree Certificate",
+      "Transcripts",
+      "Diploma",
+      "Academic Records",
+      "Professional Certifications",
+      "Skills Assessment",
+      "English Test Results",
+    ],
+    "Health & Medical": [
+      "Medical Examination",
+      "Vaccination Records",
+      "Health Insurance",
+      "Medical Clearance",
+      "Chest X-Ray",
+      "Blood Test Results",
+    ],
+    "Legal Documents": [
+      "Police Clearance Certificate",
+      "Character Reference",
+      "Court Records",
+      "Statutory Declaration",
+      "Power of Attorney",
+      "Affidavit",
+    ],
+    "Travel Documents": [
+      "Previous Visas",
+      "Travel History",
+      "Flight Itinerary",
+      "Hotel Bookings",
+      "Travel Insurance",
+    ],
+    "Supporting Evidence": [
+      "Photographs",
+      "Relationship Evidence",
+      "Sponsor Documents",
+      "Accommodation Proof",
+      "Business Registration",
+    ],
+  };
+
+  // Predefined categories (keys from predefinedDocuments)
+  const predefinedCategories = Object.keys(predefinedDocuments);
 
   // Get unique categories from documents, merged with predefined ones
   const documentCategories = [...new Set([
     ...predefinedCategories,
     ...(documents?.map((d) => d.category).filter(Boolean) || [])
   ])];
+
+  // Get document names for the selected category (predefined + existing from DB)
+  const getDocumentNamesForCategory = (category: string) => {
+    const predefined = predefinedDocuments[category] || [];
+    const existing = documents?.filter(d => d.category === category).map(d => d.document_name) || [];
+    return [...new Set([...predefined, ...existing])].sort();
+  };
+
+  // Get all document names (for when no category is selected)
+  const getAllDocumentNames = () => {
+    const allPredefined = Object.values(predefinedDocuments).flat();
+    const existing = documents?.map(d => d.document_name).filter(Boolean) || [];
+    return [...new Set([...allPredefined, ...existing])].sort();
+  };
 
   const saveMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -1690,39 +1765,12 @@ function DocumentsTab() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Document Name</Label>
-              <Select
-                value={form.document_name || "__custom__"}
-                onValueChange={(value) => setForm({ ...form, document_name: value === "__custom__" ? "" : value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select or type a document name" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__custom__">+ Add Custom Name</SelectItem>
-                  {[...new Set(documents?.map((d) => d.document_name).filter(Boolean) || [])].sort().map((name) => (
-                    <SelectItem key={name} value={name!}>
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {(form.document_name === "" || !documents?.some(d => d.document_name === form.document_name)) && (
-                <Input
-                  value={form.document_name}
-                  onChange={(e) => setForm({ ...form, document_name: e.target.value })}
-                  placeholder="Enter custom document name"
-                  className="mt-2"
-                />
-              )}
-            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select
                   value={form.category || "__custom__"}
-                  onValueChange={(value) => setForm({ ...form, category: value === "__custom__" ? "" : value })}
+                  onValueChange={(value) => setForm({ ...form, category: value === "__custom__" ? "" : value, document_name: "" })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select or type a category" />
@@ -1746,6 +1794,34 @@ function DocumentsTab() {
                 )}
               </div>
               <div className="space-y-2">
+                <Label>Document Name</Label>
+                <Select
+                  value={form.document_name || "__custom__"}
+                  onValueChange={(value) => setForm({ ...form, document_name: value === "__custom__" ? "" : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select or type a document name" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__custom__">+ Add Custom Name</SelectItem>
+                    {(form.category ? getDocumentNamesForCategory(form.category) : getAllDocumentNames()).map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {(form.document_name === "" || ![...getAllDocumentNames()].includes(form.document_name)) && (
+                  <Input
+                    value={form.document_name}
+                    onChange={(e) => setForm({ ...form, document_name: e.target.value })}
+                    placeholder="Enter custom document name"
+                    className="mt-2"
+                  />
+                )}
+              </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label>Sort Order</Label>
                 <Input
                   type="number"
@@ -1754,7 +1830,6 @@ function DocumentsTab() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Country</Label>
                 <Select
