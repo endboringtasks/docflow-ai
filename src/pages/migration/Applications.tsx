@@ -339,6 +339,7 @@ const MigrationVisaApplications = () => {
       visa_subclass: string;
       country_id: string;
       category_id: string;
+      subcategory_id: string | null;
     }) => {
       if (!currentCompany?.id) throw new Error("No company selected");
       
@@ -351,6 +352,7 @@ const MigrationVisaApplications = () => {
           visa_subclass: applicationData.visa_subclass || null,
           country_id: applicationData.country_id,
           category_id: applicationData.category_id,
+          subcategory_id: applicationData.subcategory_id || null,
           status: "draft",
         })
         .select()
@@ -557,6 +559,7 @@ const MigrationVisaApplications = () => {
       visa_subclass: string | null;
       country_id: string | null;
       category_id: string | null;
+      subcategory_id: string | null;
     }) => {
       const { data, error } = await supabase
         .from("visa_applications")
@@ -565,6 +568,7 @@ const MigrationVisaApplications = () => {
           visa_subclass: applicationData.visa_subclass,
           country_id: applicationData.country_id,
           category_id: applicationData.category_id,
+          subcategory_id: applicationData.subcategory_id,
         })
         .eq("id", applicationData.id)
         .select()
@@ -688,6 +692,7 @@ const MigrationVisaApplications = () => {
       visa_subclass: newApplication.visaSubclass,
       country_id: newApplication.countryId,
       category_id: newApplication.categoryId,
+      subcategory_id: newApplication.subcategoryId || null,
     });
   };
 
@@ -711,6 +716,7 @@ const MigrationVisaApplications = () => {
       visa_subclass: editForm.visaSubclass || null,
       country_id: editForm.countryId || null,
       category_id: editForm.categoryId || null,
+      subcategory_id: editForm.subcategoryId || null,
     });
   };
 

@@ -1004,6 +1004,7 @@ export type Database = {
           folder_status_updated_at: string | null
           id: string
           status: Database["public"]["Enums"]["matter_status"]
+          subcategory_id: string | null
           visa_application_folder_id: string | null
           visa_subclass: string | null
         }
@@ -1018,6 +1019,7 @@ export type Database = {
           folder_status_updated_at?: string | null
           id?: string
           status?: Database["public"]["Enums"]["matter_status"]
+          subcategory_id?: string | null
           visa_application_folder_id?: string | null
           visa_subclass?: string | null
         }
@@ -1032,6 +1034,7 @@ export type Database = {
           folder_status_updated_at?: string | null
           id?: string
           status?: Database["public"]["Enums"]["matter_status"]
+          subcategory_id?: string | null
           visa_application_folder_id?: string | null
           visa_subclass?: string | null
         }
@@ -1062,6 +1065,13 @@ export type Database = {
             columns: ["country_id"]
             isOneToOne: false
             referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visa_applications_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "application_subcategories"
             referencedColumns: ["id"]
           },
         ]
