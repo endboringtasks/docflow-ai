@@ -55,6 +55,7 @@ import {
   Loader2,
   GripVertical,
   Layers,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCountryFlag } from "@/lib/countryFlags";
@@ -1638,6 +1639,19 @@ function DocumentsTab() {
     setIsDialogOpen(true);
   };
 
+  const duplicateDoc = (doc: DocumentTemplate) => {
+    setEditingDoc(null);
+    setForm({
+      document_name: `${doc.document_name} (Copy)`,
+      category: doc.category || "",
+      country_id: doc.country_id || "",
+      visa_type_id: doc.visa_type_id || "",
+      is_required: doc.is_required,
+      sort_order: (documents?.length || 0) * 10,
+    });
+    setIsDialogOpen(true);
+  };
+
   const closeDialog = () => {
     setIsDialogOpen(false);
     setEditingDoc(null);
@@ -1731,14 +1745,18 @@ function DocumentsTab() {
               </TableCell>
               <TableCell>
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(doc)}>
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(doc)} title="Edit">
                     <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => duplicateDoc(doc)} title="Duplicate">
+                    <Copy className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="text-destructive"
                     onClick={() => setDeleteDoc(doc)}
+                    title="Delete"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
