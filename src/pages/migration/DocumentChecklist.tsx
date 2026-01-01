@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,9 @@ import {
   ChevronRight,
   Save,
   Check,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Search,
+  X
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -57,7 +59,6 @@ import {
 } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -66,23 +67,36 @@ import { cn } from "@/lib/utils";
 
 interface DocumentTemplate {
   id: string;
-  visa_subclass: string;
+  visa_type_id: string | null;
+  visa_subclass: string | null;
   category: string;
   document_name: string;
   is_required: boolean;
   sort_order: number;
+  country_id: string | null;
 }
 
-const visaSubclasses = [
-  { value: "482", label: "Temporary Skill Shortage (482)" },
-  { value: "186", label: "Employer Nomination Scheme (186)" },
-  { value: "189", label: "Skilled Independent (189)" },
-  { value: "190", label: "Skilled Nominated (190)" },
-  { value: "500", label: "Student Visa (500)" },
-  { value: "820", label: "Partner Visa (820)" },
-  { value: "188", label: "Business Innovation (188)" },
-  { value: "600", label: "Visitor Visa (600)" },
-];
+interface Country {
+  id: string;
+  name: string;
+  code: string;
+}
+
+interface ApplicationCategory {
+  id: string;
+  name: string;
+  code: string;
+  country_id: string | null;
+}
+
+interface VisaType {
+  id: string;
+  name: string;
+  code: string;
+  country_id: string | null;
+  category_id: string | null;
+  subcategory_id: string | null;
+}
 
 const defaultCategories = [
   "Identity",
@@ -193,9 +207,14 @@ const DocumentTemplates = () => {
   const { currentCompany, currentRole } = useCompany();
   const isAdmin = currentRole === "owner" || currentRole === "admin";
   
-  const [selectedVisa, setSelectedVisa] = useState(visaSubclasses[0].value);
+  // Filter states
+  const [selectedCountry, setSelectedCountry] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedApplicationType, setSelectedApplicationType] = useState<string>("");
+  const [searchName, setSearchName] = useState("");
+  
+  // Dialog states
   const [isAddDocOpen, setIsAddDocOpen] = useState(false);
-  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState<DocumentTemplate | null>(null);
   const [docToDelete, setDocToDelete] = useState<DocumentTemplate | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(defaultCategories));
@@ -206,39 +225,107 @@ const DocumentTemplates = () => {
     isRequired: true,
   });
   
-  const [newCategory, setNewCategory] = useState("");
   const [docNameOpen, setDocNameOpen] = useState(false);
   const [editDocNameOpen, setEditDocNameOpen] = useState(false);
   const [customDocName, setCustomDocName] = useState("");
 
-  // Fetch templates for selected visa
-  const { data: templates = [], isLoading } = useQuery({
-    queryKey: ["document-templates", currentCompany?.id, selectedVisa],
+  // Fetch countries
+  const { data: countries = [] } = useQuery({
+    queryKey: ["countries"],
     queryFn: async () => {
-      if (!currentCompany?.id) return [];
+      const { data, error } = await supabase
+        .from("countries")
+        .select("id, name, code")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      
+      if (error) throw error;
+      return data as Country[];
+    },
+  });
+
+  // Fetch application categories based on selected country
+  const { data: applicationCategories = [] } = useQuery({
+    queryKey: ["application-categories", selectedCountry],
+    queryFn: async () => {
+      let query = supabase
+        .from("application_categories")
+        .select("id, name, code, country_id")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      
+      if (selectedCountry) {
+        query = query.or(`country_id.eq.${selectedCountry},country_id.is.null`);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as ApplicationCategory[];
+    },
+    enabled: !!selectedCountry,
+  });
+
+  // Fetch visa types (application types) based on country and category
+  const { data: visaTypes = [] } = useQuery({
+    queryKey: ["visa-types", selectedCountry, selectedCategory],
+    queryFn: async () => {
+      let query = supabase
+        .from("visa_types")
+        .select("id, name, code, country_id, category_id, subcategory_id")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      
+      if (selectedCountry) {
+        query = query.or(`country_id.eq.${selectedCountry},country_id.is.null`);
+      }
+      
+      if (selectedCategory) {
+        query = query.eq("category_id", selectedCategory);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as VisaType[];
+    },
+    enabled: !!selectedCountry && !!selectedCategory,
+  });
+
+  // Fetch templates for selected application type
+  const { data: templates = [], isLoading } = useQuery({
+    queryKey: ["document-templates", currentCompany?.id, selectedApplicationType],
+    queryFn: async () => {
+      if (!currentCompany?.id || !selectedApplicationType) return [];
       
       const { data, error } = await supabase
         .from("document_checklist_templates")
         .select("*")
         .eq("company_id", currentCompany.id)
-        .eq("visa_subclass", selectedVisa)
+        .eq("visa_type_id", selectedApplicationType)
         .order("category", { ascending: true })
         .order("sort_order", { ascending: true });
       
       if (error) throw error;
       return data as DocumentTemplate[];
     },
-    enabled: !!currentCompany?.id,
+    enabled: !!currentCompany?.id && !!selectedApplicationType,
   });
 
+  // Filter templates by search name
+  const filteredTemplates = useMemo(() => {
+    if (!searchName.trim()) return templates;
+    return templates.filter(t => 
+      t.document_name.toLowerCase().includes(searchName.toLowerCase())
+    );
+  }, [templates, searchName]);
+
   // Get unique categories from templates
-  const categories = [...new Set([
+  const docCategories = [...new Set([
     ...defaultCategories,
-    ...templates.map(t => t.category)
+    ...filteredTemplates.map(t => t.category)
   ])];
 
   // Group templates by category
-  const groupedTemplates = templates.reduce((acc, template) => {
+  const groupedTemplates = filteredTemplates.reduce((acc, template) => {
     if (!acc[template.category]) {
       acc[template.category] = [];
     }
@@ -246,10 +333,13 @@ const DocumentTemplates = () => {
     return acc;
   }, {} as Record<string, DocumentTemplate[]>);
 
+  // Get selected application type details
+  const selectedTypeDetails = visaTypes.find(v => v.id === selectedApplicationType);
+
   // Add document mutation
   const addDocMutation = useMutation({
     mutationFn: async (doc: { category: string; document_name: string; is_required: boolean }) => {
-      if (!currentCompany?.id) throw new Error("No company");
+      if (!currentCompany?.id || !selectedApplicationType) throw new Error("No company or application type selected");
       
       const maxOrder = templates
         .filter(t => t.category === doc.category)
@@ -259,7 +349,8 @@ const DocumentTemplates = () => {
         .from("document_checklist_templates")
         .insert({
           company_id: currentCompany.id,
-          visa_subclass: selectedVisa,
+          visa_type_id: selectedApplicationType,
+          country_id: selectedCountry || null,
           category: doc.category,
           document_name: doc.document_name,
           is_required: doc.is_required,
@@ -272,7 +363,7 @@ const DocumentTemplates = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-templates", currentCompany?.id, selectedVisa] });
+      queryClient.invalidateQueries({ queryKey: ["document-templates", currentCompany?.id, selectedApplicationType] });
       setIsAddDocOpen(false);
       setNewDoc({ category: "", documentName: "", isRequired: true });
       toast.success("Document added to template");
@@ -300,7 +391,7 @@ const DocumentTemplates = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-templates", currentCompany?.id, selectedVisa] });
+      queryClient.invalidateQueries({ queryKey: ["document-templates", currentCompany?.id, selectedApplicationType] });
       setEditingDoc(null);
       toast.success("Document updated");
     },
@@ -320,7 +411,7 @@ const DocumentTemplates = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-templates", currentCompany?.id, selectedVisa] });
+      queryClient.invalidateQueries({ queryKey: ["document-templates", currentCompany?.id, selectedApplicationType] });
       setDocToDelete(null);
       toast.success("Document removed from template");
     },
@@ -358,8 +449,22 @@ const DocumentTemplates = () => {
     setExpandedCategories(newExpanded);
   };
 
-  const getVisaLabel = (value: string) => {
-    return visaSubclasses.find(v => v.value === value)?.label || value;
+  const handleCountryChange = (value: string) => {
+    setSelectedCountry(value);
+    setSelectedCategory("");
+    setSelectedApplicationType("");
+  };
+
+  const handleCategoryChange = (value: string) => {
+    setSelectedCategory(value);
+    setSelectedApplicationType("");
+  };
+
+  const clearFilters = () => {
+    setSelectedCountry("");
+    setSelectedCategory("");
+    setSelectedApplicationType("");
+    setSearchName("");
   };
 
   if (!isAdmin) {
@@ -384,133 +489,267 @@ const DocumentTemplates = () => {
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Document Checklist</h1>
             <p className="text-muted-foreground mt-1">
-              Configure required documents for each visa type
+              Configure required documents for each application type
             </p>
           </div>
-          <Button variant="gradient" onClick={() => setIsAddDocOpen(true)}>
+          <Button 
+            variant="gradient" 
+            onClick={() => setIsAddDocOpen(true)}
+            disabled={!selectedApplicationType}
+          >
             <Plus className="w-4 h-4 mr-2" />
             Add Document
           </Button>
         </div>
 
-        {/* Visa Type Tabs */}
-        <Tabs value={selectedVisa} onValueChange={setSelectedVisa}>
-          <div className="overflow-x-auto">
-            <TabsList className="bg-secondary inline-flex w-auto min-w-full lg:min-w-0">
-              {visaSubclasses.map((visa) => (
-                <TabsTrigger 
-                  key={visa.value} 
-                  value={visa.value}
-                  className="whitespace-nowrap"
-                >
-                  {visa.value}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+        {/* Filter Bar */}
+        <div className="card-gradient rounded-xl border border-border/50 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Country Filter */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Country</Label>
+              <Select value={selectedCountry} onValueChange={handleCountryChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent>
+                  {countries.map((country) => (
+                    <SelectItem key={country.id} value={country.id}>
+                      {country.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Category Filter */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Category</Label>
+              <Select 
+                value={selectedCategory} 
+                onValueChange={handleCategoryChange}
+                disabled={!selectedCountry}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={selectedCountry ? "Select category" : "Select country first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {applicationCategories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Application Type Filter */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Application Type</Label>
+              <Select 
+                value={selectedApplicationType} 
+                onValueChange={setSelectedApplicationType}
+                disabled={!selectedCategory}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={selectedCategory ? "Select application type" : "Select category first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {visaTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.name} ({type.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Search Input */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Search Documents</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name..."
+                  value={searchName}
+                  onChange={(e) => setSearchName(e.target.value)}
+                  className="pl-9"
+                  disabled={!selectedApplicationType}
+                />
+                {searchName && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                    onClick={() => setSearchName("")}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
 
-          {visaSubclasses.map((visa) => (
-            <TabsContent key={visa.value} value={visa.value} className="space-y-4 mt-6">
-              <div className="card-gradient rounded-xl border border-border/50 p-4">
-                <h2 className="text-lg font-semibold mb-1">{visa.label}</h2>
-                <p className="text-sm text-muted-foreground">
-                  {templates.length} document{templates.length !== 1 ? "s" : ""} configured
-                </p>
+          {/* Clear Filters */}
+          {(selectedCountry || selectedCategory || selectedApplicationType || searchName) && (
+            <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between">
+              <div className="flex items-center gap-2 flex-wrap">
+                {selectedCountry && (
+                  <Badge variant="secondary" className="gap-1">
+                    {countries.find(c => c.id === selectedCountry)?.name}
+                    <X 
+                      className="w-3 h-3 cursor-pointer" 
+                      onClick={() => handleCountryChange("")}
+                    />
+                  </Badge>
+                )}
+                {selectedCategory && (
+                  <Badge variant="secondary" className="gap-1">
+                    {applicationCategories.find(c => c.id === selectedCategory)?.name}
+                    <X 
+                      className="w-3 h-3 cursor-pointer" 
+                      onClick={() => handleCategoryChange("")}
+                    />
+                  </Badge>
+                )}
+                {selectedApplicationType && (
+                  <Badge variant="secondary" className="gap-1">
+                    {visaTypes.find(v => v.id === selectedApplicationType)?.name}
+                    <X 
+                      className="w-3 h-3 cursor-pointer" 
+                      onClick={() => setSelectedApplicationType("")}
+                    />
+                  </Badge>
+                )}
               </div>
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                Clear All
+              </Button>
+            </div>
+          )}
+        </div>
 
-              {isLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                </div>
-              ) : templates.length === 0 ? (
-                <div className="card-gradient rounded-xl border border-border/50 p-12 text-center">
-                  <FileCheck className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No documents configured</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Add required documents for {visa.label} applications.
-                  </p>
+        {/* Content Area */}
+        {!selectedApplicationType ? (
+          <div className="card-gradient rounded-xl border border-border/50 p-12 text-center">
+            <FileCheck className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Select an Application Type</h3>
+            <p className="text-muted-foreground max-w-md mx-auto">
+              Choose a country, category, and application type from the filters above to view and manage the document checklist.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Selected Type Info */}
+            <div className="card-gradient rounded-xl border border-border/50 p-4">
+              <h2 className="text-lg font-semibold mb-1">
+                {selectedTypeDetails?.name} ({selectedTypeDetails?.code})
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {filteredTemplates.length} document{filteredTemplates.length !== 1 ? "s" : ""} configured
+                {searchName && ` (filtered from ${templates.length})`}
+              </p>
+            </div>
+
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : filteredTemplates.length === 0 ? (
+              <div className="card-gradient rounded-xl border border-border/50 p-12 text-center">
+                <FileCheck className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">
+                  {searchName ? "No documents match your search" : "No documents configured"}
+                </h3>
+                <p className="text-muted-foreground mb-4">
+                  {searchName 
+                    ? `Try a different search term or clear the filter.`
+                    : `Add required documents for ${selectedTypeDetails?.name} applications.`
+                  }
+                </p>
+                {!searchName && (
                   <Button variant="outline" onClick={() => setIsAddDocOpen(true)}>
                     <Plus className="w-4 h-4 mr-2" />
                     Add First Document
                   </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {categories
-                    .filter(category => groupedTemplates[category]?.length > 0)
-                    .map((category) => (
-                      <div 
-                        key={category} 
-                        className="card-gradient rounded-xl border border-border/50 overflow-hidden"
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {docCategories
+                  .filter(category => groupedTemplates[category]?.length > 0)
+                  .map((category) => (
+                    <div 
+                      key={category} 
+                      className="card-gradient rounded-xl border border-border/50 overflow-hidden"
+                    >
+                      <button
+                        onClick={() => toggleCategory(category)}
+                        className="w-full flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors"
                       >
-                        <button
-                          onClick={() => toggleCategory(category)}
-                          className="w-full flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            {expandedCategories.has(category) ? (
-                              <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                            )}
-                            <h3 className="font-semibold">{category}</h3>
-                            <Badge variant="outline">
-                              {groupedTemplates[category]?.length || 0}
-                            </Badge>
-                          </div>
-                        </button>
-
-                        <AnimatePresence>
-                          {expandedCategories.has(category) && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.2 }}
-                            >
-                              <div className="border-t border-border/50 divide-y divide-border/50">
-                                {groupedTemplates[category]?.map((doc) => (
-                                  <div 
-                                    key={doc.id}
-                                    className="flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors"
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <GripVertical className="w-4 h-4 text-muted-foreground/50" />
-                                      <span className="font-medium">{doc.document_name}</span>
-                                      {!doc.is_required && (
-                                        <Badge variant="secondary" className="text-xs">Optional</Badge>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => setEditingDoc(doc)}
-                                      >
-                                        <Pencil className="w-4 h-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                        onClick={() => setDocToDelete(doc)}
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </motion.div>
+                        <div className="flex items-center gap-3">
+                          {expandedCategories.has(category) ? (
+                            <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="w-5 h-5 text-muted-foreground" />
                           )}
-                        </AnimatePresence>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </TabsContent>
-          ))}
-        </Tabs>
+                          <h3 className="font-semibold">{category}</h3>
+                          <Badge variant="outline">
+                            {groupedTemplates[category]?.length || 0}
+                          </Badge>
+                        </div>
+                      </button>
+
+                      <AnimatePresence>
+                        {expandedCategories.has(category) && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <div className="border-t border-border/50 divide-y divide-border/50">
+                              {groupedTemplates[category]?.map((doc) => (
+                                <div 
+                                  key={doc.id}
+                                  className="flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <GripVertical className="w-4 h-4 text-muted-foreground/50" />
+                                    <span className="font-medium">{doc.document_name}</span>
+                                    {!doc.is_required && (
+                                      <Badge variant="secondary" className="text-xs">Optional</Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => setEditingDoc(doc)}
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                      onClick={() => setDocToDelete(doc)}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Add Document Dialog */}
@@ -519,7 +758,7 @@ const DocumentTemplates = () => {
           <DialogHeader>
             <DialogTitle>Add Document</DialogTitle>
             <DialogDescription>
-              Add a new required document for {getVisaLabel(selectedVisa)} applications.
+              Add a new required document for {selectedTypeDetails?.name} applications.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-4">
@@ -533,7 +772,7 @@ const DocumentTemplates = () => {
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((cat) => (
+                  {docCategories.map((cat) => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
                 </SelectContent>
@@ -673,7 +912,7 @@ const DocumentTemplates = () => {
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((cat) => (
+                    {docCategories.map((cat) => (
                       <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                     ))}
                   </SelectContent>
@@ -799,8 +1038,8 @@ const DocumentTemplates = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Document?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove "{docToDelete?.document_name}" from the {getVisaLabel(selectedVisa)} template. 
-              This won't affect existing matters that already use this document.
+              This will remove "{docToDelete?.document_name}" from the {selectedTypeDetails?.name} template. 
+              This won't affect existing applications that already use this document.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
