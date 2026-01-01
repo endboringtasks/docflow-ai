@@ -1418,8 +1418,7 @@ function TypesTab() {
     </div>
   );
 }
-
-// Document Templates Tab Component
+// Document Checklist Tab Component
 function DocumentsTab() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -1660,7 +1659,7 @@ function DocumentsTab() {
           {documents?.length === 0 && (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                No document templates found. Add one to get started.
+                No document checklist items found. Add one to get started.
               </TableCell>
             </TableRow>
           )}
@@ -1670,28 +1669,66 @@ function DocumentsTab() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingDoc ? "Edit Document Template" : "Add Document Template"}</DialogTitle>
+            <DialogTitle>{editingDoc ? "Edit Document" : "Add Document"}</DialogTitle>
             <DialogDescription>
-              {editingDoc ? "Update document details" : "Add a new document template"}
+              {editingDoc ? "Update document details" : "Add a new document to the checklist"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Document Name</Label>
-              <Input
-                value={form.document_name}
-                onChange={(e) => setForm({ ...form, document_name: e.target.value })}
-                placeholder="Passport"
-              />
+              <Select
+                value={form.document_name || "__custom__"}
+                onValueChange={(value) => setForm({ ...form, document_name: value === "__custom__" ? "" : value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select or type a document name" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__custom__">+ Add Custom Name</SelectItem>
+                  {[...new Set(documents?.map((d) => d.document_name).filter(Boolean) || [])].sort().map((name) => (
+                    <SelectItem key={name} value={name!}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(form.document_name === "" || !documents?.some(d => d.document_name === form.document_name)) && (
+                <Input
+                  value={form.document_name}
+                  onChange={(e) => setForm({ ...form, document_name: e.target.value })}
+                  placeholder="Enter custom document name"
+                  className="mt-2"
+                />
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Category</Label>
-                <Input
-                  value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  placeholder="Identity Documents"
-                />
+                <Select
+                  value={form.category || "__custom__"}
+                  onValueChange={(value) => setForm({ ...form, category: value === "__custom__" ? "" : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select or type a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__custom__">+ Add Custom Category</SelectItem>
+                    {documentCategories.sort().map((cat) => (
+                      <SelectItem key={cat} value={cat!}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {(form.category === "" || !documentCategories.includes(form.category)) && (
+                  <Input
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    placeholder="Enter custom category"
+                    className="mt-2"
+                  />
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Sort Order</Label>
@@ -1765,7 +1802,7 @@ function DocumentsTab() {
       <AlertDialog open={!!deleteDoc} onOpenChange={() => setDeleteDoc(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Document Template</AlertDialogTitle>
+            <AlertDialogTitle>Delete Document</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete "{deleteDoc?.document_name}"?
             </AlertDialogDescription>
@@ -1794,7 +1831,7 @@ export default function AdminReferenceData() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Reference Data</h1>
           <p className="text-muted-foreground">
-            Manage countries, application categories, types, and document templates
+            Manage countries, application categories, types, and document checklist
           </p>
         </div>
 
@@ -1818,7 +1855,7 @@ export default function AdminReferenceData() {
             </TabsTrigger>
             <TabsTrigger value="documents" className="gap-2">
               <FileText className="w-4 h-4" />
-              Document Templates
+              Document Checklist
             </TabsTrigger>
           </TabsList>
 
