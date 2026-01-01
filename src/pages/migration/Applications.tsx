@@ -874,7 +874,7 @@ const MigrationVisaApplications = () => {
                     </Select>
                   </div>
                 )}
-                {newApplication.categoryId && filteredSubcategories.length > 0 && (
+                {newApplication.categoryId && (filteredSubcategories.length > 0 || filteredApplicationTypes.length > 0) && (
                   <div className="space-y-2">
                     <Label htmlFor="applicationName">Application Name</Label>
                     {filteredApplicationTypes.length > 0 ? (
@@ -891,7 +891,7 @@ const MigrationVisaApplications = () => {
                         disabled={!newApplication.categoryId}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder={newApplication.categoryId ? "Select application type" : "Select a category first"} />
+                          <SelectValue placeholder="Select application type" />
                         </SelectTrigger>
                         <SelectContent>
                           {filteredApplicationTypes.map((type) => (
@@ -903,10 +903,9 @@ const MigrationVisaApplications = () => {
                       </Select>
                     ) : (
                       <Input
-                        placeholder={newApplication.categoryId ? "Enter application name" : "Select a category first"}
+                        placeholder="Enter application name"
                         value={newApplication.applicationName}
                         onChange={(e) => setNewApplication(prev => ({ ...prev, applicationName: e.target.value }))}
-                        disabled={!newApplication.categoryId}
                       />
                     )}
                   </div>
