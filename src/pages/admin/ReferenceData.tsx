@@ -1621,6 +1621,19 @@ function DocumentsTab() {
     },
   });
 
+  // Visa types filtered by form.country_id for the dialog
+  const { data: dialogVisaTypes } = useQuery({
+    queryKey: ["admin-visa-types-for-dialog", form.country_id],
+    queryFn: async () => {
+      let query = supabase.from("visa_types").select("*").eq("is_active", true).order("name");
+      if (form.country_id) query = query.eq("country_id", form.country_id);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as ApplicationType[];
+    },
+    enabled: isDialogOpen,
+  });
+
   const { data: documents, isLoading } = useQuery({
     queryKey: ["admin-doc-templates", filterCountry, filterCategory],
     queryFn: async () => {
@@ -2162,7 +2175,7 @@ function DocumentsTab() {
                 <Label>Country</Label>
                 <Select
                   value={form.country_id || "__none__"}
-                  onValueChange={(value) => setForm({ ...form, country_id: value === "__none__" ? "" : value })}
+                  onValueChange={(value) => setForm({ ...form, country_id: value === "__none__" ? "" : value, visa_type_ids: [] })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="All countries" />
@@ -2180,14 +2193,14 @@ function DocumentsTab() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>Application Names (Optional)</Label>
-                  {visaTypes && visaTypes.length > 0 && (
+                  {dialogVisaTypes && dialogVisaTypes.length > 0 && (
                     <div className="flex gap-2">
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         className="h-6 text-xs"
-                        onClick={() => setForm({ ...form, visa_type_ids: visaTypes.map(vt => vt.id) })}
+                        onClick={() => setForm({ ...form, visa_type_ids: dialogVisaTypes.map(vt => vt.id) })}
                       >
                         Select All
                       </Button>
@@ -2204,10 +2217,10 @@ function DocumentsTab() {
                   )}
                 </div>
                 <div className="border rounded-md p-2 max-h-48 overflow-y-auto space-y-1">
-                  {visaTypes?.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-2 text-center">No application names available</p>
+                  {dialogVisaTypes?.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-2 text-center">No application names available{form.country_id ? " for this country" : ""}</p>
                   ) : (
-                    visaTypes?.map((vt) => (
+                    dialogVisaTypes?.map((vt) => (
                       <label
                         key={vt.id}
                         className="flex items-center gap-2 p-2 hover:bg-muted rounded cursor-pointer"
