@@ -89,6 +89,15 @@ interface ApplicationCategory {
   country_id: string | null;
 }
 
+interface ApplicationSubcategory {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  category_id: string;
+  country_id: string | null;
+}
+
 interface ApplicationType {
   id: string;
   name: string;
@@ -96,6 +105,7 @@ interface ApplicationType {
   description: string | null;
   country_id: string | null;
   category_id: string | null;
+  subcategory_id: string | null;
 }
 
 interface Country {
@@ -124,6 +134,7 @@ const MigrationVisaApplications = () => {
     clientId: "",
     countryId: "",
     categoryId: "",
+    subcategoryId: "",
     applicationName: "",
     visaSubclass: "",
   });
@@ -174,13 +185,28 @@ const MigrationVisaApplications = () => {
     },
   });
 
+  // Fetch application subcategories
+  const { data: subcategories = [] } = useQuery({
+    queryKey: ["application-subcategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("application_subcategories")
+        .select("id, name, code, description, category_id, country_id")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      
+      if (error) throw error;
+      return data as ApplicationSubcategory[];
+    },
+  });
+
   // Fetch application types (visa_types)
   const { data: applicationTypes = [] } = useQuery({
     queryKey: ["application-types"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("visa_types")
-        .select("id, name, code, description, country_id, category_id")
+        .select("id, name, code, description, country_id, category_id, subcategory_id")
         .eq("is_active", true)
         .order("sort_order", { ascending: true });
       
@@ -194,12 +220,22 @@ const MigrationVisaApplications = () => {
     ? categories.filter(cat => cat.country_id === newApplication.countryId)
     : [];
 
-  // Filter application types by selected country and category
-  const filteredApplicationTypes = newApplication.countryId && newApplication.categoryId
-    ? applicationTypes.filter(type => 
-        type.country_id === newApplication.countryId && 
-        type.category_id === newApplication.categoryId
+  // Filter subcategories by selected country and category
+  const filteredSubcategories = newApplication.countryId && newApplication.categoryId
+    ? subcategories.filter(sub => 
+        sub.country_id === newApplication.countryId && 
+        sub.category_id === newApplication.categoryId
       )
+    : [];
+
+  // Filter application types by selected country, category, and optionally subcategory
+  const filteredApplicationTypes = newApplication.countryId && newApplication.categoryId
+    ? applicationTypes.filter(type => {
+        const matchesCountry = type.country_id === newApplication.countryId;
+        const matchesCategory = type.category_id === newApplication.categoryId;
+        const matchesSubcategory = !newApplication.subcategoryId || type.subcategory_id === newApplication.subcategoryId;
+        return matchesCountry && matchesCategory && matchesSubcategory;
+      })
     : [];
 
   // Filter categories for edit form
@@ -384,7 +420,7 @@ const MigrationVisaApplications = () => {
       queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
       setIsCreateOpen(false);
-      setNewApplication({ clientId: "", countryId: "", categoryId: "", applicationName: "", visaSubclass: "" });
+      setNewApplication({ clientId: "", countryId: "", categoryId: "", subcategoryId: "", applicationName: "", visaSubclass: "" });
       toast.success("Application created!", {
         description: "A webhook can be configured to create the application folder.",
       });
@@ -760,6 +796,7 @@ const MigrationVisaApplications = () => {
                       ...prev, 
                       countryId: value, 
                       categoryId: "",
+                      subcategoryId: "",
                       applicationName: "", 
                       visaSubclass: "" 
                     }))}
@@ -786,6 +823,7 @@ const MigrationVisaApplications = () => {
                     onValueChange={(value) => setNewApplication(prev => ({ 
                       ...prev, 
                       categoryId: value,
+                      subcategoryId: "",
                       applicationName: "",
                       visaSubclass: ""
                     }))}
@@ -803,6 +841,32 @@ const MigrationVisaApplications = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                {filteredSubcategories.length > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="subcategory">Sub-category (Optional)</Label>
+                    <Select
+                      value={newApplication.subcategoryId}
+                      onValueChange={(value) => setNewApplication(prev => ({ 
+                        ...prev, 
+                        subcategoryId: value,
+                        applicationName: "",
+                        visaSubclass: ""
+                      }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="All sub-categories" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">All sub-categories</SelectItem>
+                        {filteredSubcategories.map((subcategory) => (
+                          <SelectItem key={subcategory.id} value={subcategory.id}>
+                            {subcategory.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="applicationName">Application Type</Label>
                   {filteredApplicationTypes.length > 0 ? (
