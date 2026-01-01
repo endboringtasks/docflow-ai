@@ -909,7 +909,7 @@ const MigrationVisaApplications = () => {
                         disabled={!newApplication.categoryId}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select application type" />
+                          <SelectValue placeholder="Select application name" />
                         </SelectTrigger>
                         <SelectContent>
                           {filteredApplicationTypes.map((type) => (
@@ -1224,7 +1224,7 @@ const MigrationVisaApplications = () => {
                     }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select application type" />
+                      <SelectValue placeholder="Select application name" />
                     </SelectTrigger>
                     <SelectContent>
                       {editFilteredApplicationTypes.map((type) => (
