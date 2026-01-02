@@ -536,6 +536,7 @@ export type Database = {
           document_name: string
           id: string
           is_required: boolean | null
+          is_standard_for_client: boolean | null
           sort_order: number | null
           visa_subclass: string | null
           visa_type_id: string | null
@@ -548,6 +549,7 @@ export type Database = {
           document_name: string
           id?: string
           is_required?: boolean | null
+          is_standard_for_client?: boolean | null
           sort_order?: number | null
           visa_subclass?: string | null
           visa_type_id?: string | null
@@ -560,6 +562,7 @@ export type Database = {
           document_name?: string
           id?: string
           is_required?: boolean | null
+          is_standard_for_client?: boolean | null
           sort_order?: number | null
           visa_subclass?: string | null
           visa_type_id?: string | null
