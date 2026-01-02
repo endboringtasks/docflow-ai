@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
+import { getFileTypeBadge } from "@/lib/fileUtils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -1634,6 +1635,14 @@ const VisaApplicationDetail = () => {
                                   Ready to Review
                                 </Badge>
                               )}
+                              {doc.filePath && (() => {
+                                const fileType = getFileTypeBadge(doc.filePath);
+                                return fileType ? (
+                                  <Badge variant="outline" className={`text-xs ${fileType.color}`}>
+                                    {fileType.label}
+                                  </Badge>
+                                ) : null;
+                              })()}
                             </div>
                             {/* Document Timeline */}
                             {(doc.uploadedAt || doc.reviewedAt) && (
