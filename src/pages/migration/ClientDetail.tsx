@@ -808,34 +808,57 @@ const ClientDetail = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="applicationName">Application Type</Label>
-              {filteredApplicationTypes.length > 0 ? (
-                <Select
-                  value={newApplication.applicationName}
-                  onValueChange={(value) => {
-                    const selectedType = filteredApplicationTypes.find(t => t.name === value);
-                    setNewApplication(prev => ({ 
-                      ...prev, 
-                      applicationName: value,
-                      visaSubclass: selectedType?.code || "",
-                      visaTypeId: selectedType?.id || ""
-                    }));
-                  }}
-                  disabled={!newApplication.categoryId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={newApplication.categoryId ? "Select application type" : "Select a category first"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredApplicationTypes.map((type) => (
-                      <SelectItem key={type.id} value={type.name}>
-                        {type.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
+              <div className="space-y-2">
+                <Label htmlFor="applicationName">Application Type</Label>
+                {filteredApplicationTypes.length > 0 ? (
+                  <Select
+                    value={newApplication.visaTypeId}
+                    onValueChange={(value) => {
+                      const selectedType = filteredApplicationTypes.find((t) => t.id === value);
+                      setNewApplication((prev) => ({
+                        ...prev,
+                        applicationName: selectedType?.name || "",
+                        visaSubclass: selectedType?.code || "",
+                        visaTypeId: value,
+                      }));
+                    }}
+                    disabled={!newApplication.categoryId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          newApplication.categoryId
+                            ? "Select application type"
+                            : "Select a category first"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredApplicationTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.id}>
+                          {type.code ? `${type.code} - ${type.name}` : type.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    placeholder={
+                      newApplication.categoryId
+                        ? "Enter application name"
+                        : "Select a category first"
+                    }
+                    value={newApplication.applicationName}
+                    onChange={(e) =>
+                      setNewApplication((prev) => ({
+                        ...prev,
+                        applicationName: e.target.value,
+                      }))
+                    }
+                    disabled={!newApplication.categoryId}
+                  />
+                )}
+              </div>
                 <Input
                   placeholder={newApplication.categoryId ? "Enter application name" : "Select a category first"}
                   value={newApplication.applicationName}

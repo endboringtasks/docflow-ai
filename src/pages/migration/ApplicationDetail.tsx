@@ -410,38 +410,118 @@ const VisaApplicationDetail = () => {
 
   // Initialize documents in database if none exist
   const initializeDocumentsMutation = useMutation({
-    mutationFn: async (docs: DefaultDocFields[]) => {
+    mutationFn: async () => {
       if (!visaApplicationId || !visaApplication?.company_id) throw new Error("Missing IDs");
-      
-      const documentsToInsert = docs.map(doc => ({
+
+      // 1) Try to initialize from configured templates (preferred)
+      const visaTypeQuery = supabase
+        .from("visa_types")
+        .select("id")
+        .eq("is_active", true)
+        .eq("name", visaApplication.application_name)
+        .limit(1);
+
+      const { data: matchingVisaType, error: visaTypeError } = await (visaApplication.visa_subclass
+        ? visaTypeQuery.eq("code", visaApplication.visa_subclass).maybeSingle()
+        : visaTypeQuery.maybeSingle());
+
+      if (visaTypeError) throw visaTypeError;
+
+      const visaTypeId = matchingVisaType?.id;
+
+      if (visaTypeId) {
+        const { data: linkedTemplates, error: linkedError } = await supabase
+          .from("document_template_applications")
+          .select("document_template_id")
+          .eq("visa_type_id", visaTypeId);
+
+        if (linkedError) throw linkedError;
+
+        const templateIds = (linkedTemplates || [])
+          .map((t) => t.document_template_id)
+          .filter(Boolean);
+
+        if (templateIds.length > 0) {
+          const { data: templates, error: templatesError } = await supabase
+            .from("document_checklist_templates")
+            .select(
+              `
+                document_name, 
+                category, 
+                description,
+                age_condition,
+                is_required, 
+                sort_order,
+                applicant_type:applicant_types(name)
+              `
+            )
+            .in("id", templateIds)
+            .order("sort_order");
+
+          if (templatesError) throw templatesError;
+
+          if (templates && templates.length > 0) {
+            const documentsToInsert = templates.map((template: any) => ({
+              visa_application_id: visaApplicationId,
+              company_id: visaApplication.company_id,
+              document_name: template.document_name,
+              category: template.category,
+              description: template.description,
+              applicant_type: template.applicant_type?.name || null,
+              age_condition: template.age_condition,
+              is_completed: false,
+              is_standard_for_client: true,
+            }));
+
+            const { error: insertError } = await supabase
+              .from("document_checklist")
+              .insert(documentsToInsert);
+
+            if (insertError) throw insertError;
+            return;
+          }
+        }
+      }
+
+      // 2) Fallback: initialize with generic default docs
+      const defaultDocs = getDefaultDocuments(visaApplication.visa_subclass);
+      const documentsToInsert = defaultDocs.map((doc) => ({
         visa_application_id: visaApplicationId,
         company_id: visaApplication.company_id,
         document_name: formatDocumentForStorage(doc),
         is_completed: false,
       }));
-      
-      const { data, error } = await supabase
+
+      const { error: fallbackError } = await supabase
         .from("document_checklist")
-        .insert(documentsToInsert)
-        .select();
-      
-      if (error) throw error;
-      return data;
+        .insert(documentsToInsert);
+
+      if (fallbackError) throw fallbackError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
       setDocumentsInitialized(true);
     },
     onError: (error) => {
+      // Prevent infinite retries, and surface the problem
+      setDocumentsInitialized(true);
       console.error("Failed to initialize documents:", error);
+      toast.error("Couldn't generate document checklist", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
     },
   });
 
   // Initialize documents when visa application loads and no documents exist
   useEffect(() => {
-    if (visaApplication && dbDocuments !== undefined && dbDocuments.length === 0 && !documentsInitialized && !initializeDocumentsMutation.isPending) {
-      const defaultDocs = getDefaultDocuments(visaApplication.visa_subclass);
-      initializeDocumentsMutation.mutate(defaultDocs);
+    if (
+      visaApplication &&
+      dbDocuments !== undefined &&
+      dbDocuments.length === 0 &&
+      !documentsInitialized &&
+      !initializeDocumentsMutation.isPending
+    ) {
+      initializeDocumentsMutation.mutate();
     }
   }, [visaApplication, dbDocuments, documentsInitialized]);
 
