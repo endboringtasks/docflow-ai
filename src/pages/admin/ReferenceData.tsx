@@ -138,8 +138,11 @@ interface DocumentTemplate {
   country_id: string | null;
   is_required: boolean;
   sort_order: number;
+  applicant_type_id: string | null;
+  age_condition: string | null;
   country?: Country;
   visa_type?: ApplicationType;
+  applicant_type?: { id: string; name: string; code: string } | null;
   document_template_applications?: { visa_type: ApplicationType }[];
 }
 
@@ -1855,6 +1858,16 @@ function SortableDocumentRow({ doc, onEdit, onDuplicate, onDelete, isSelected, o
         ) : "—"}
       </TableCell>
       <TableCell>
+        <div className="flex flex-col gap-1">
+          {doc.applicant_type ? (
+            <Badge variant="outline">{doc.applicant_type.name}</Badge>
+          ) : "—"}
+          {doc.age_condition && (
+            <Badge variant="secondary" className="text-xs">{doc.age_condition}</Badge>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
         <Badge variant={doc.is_required ? "default" : "secondary"}>
           {doc.is_required ? "Required" : "Optional"}
         </Badge>
@@ -1900,6 +1913,8 @@ function DocumentsTab() {
     visa_type_ids: [] as string[],
     is_required: true,
     sort_order: 0,
+    applicant_type_id: "",
+    age_condition: "",
   });
   const [dialogCategoryFilter, setDialogCategoryFilter] = useState<string>("");
   const [dialogSubcategoryFilter, setDialogSubcategoryFilter] = useState<string>("");
@@ -1925,6 +1940,19 @@ function DocumentsTab() {
       const { data, error } = await query;
       if (error) throw error;
       return data as ApplicationType[];
+    },
+  });
+
+  const { data: applicantTypes } = useQuery({
+    queryKey: ["admin-applicant-types-for-docs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("applicant_types")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order");
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -1975,7 +2003,7 @@ function DocumentsTab() {
       // Only fetch global templates (company_id IS NULL)
       let query = supabase
         .from("document_checklist_templates")
-        .select("*, country:countries(*), document_template_applications(visa_type:visa_types(*))")
+        .select("*, country:countries(*), applicant_type:applicant_types(*), document_template_applications(visa_type:visa_types(*))")
         .is("company_id", null)
         .order("sort_order");
 
@@ -2092,6 +2120,8 @@ function DocumentsTab() {
         sort_order: rest.sort_order,
         company_id: null, // Global template
         visa_type_id: null, // No longer used, using junction table
+        applicant_type_id: rest.applicant_type_id || null,
+        age_condition: rest.age_condition || null,
       };
       
       let templateId: string;
@@ -2269,6 +2299,8 @@ function DocumentsTab() {
       visa_type_ids: [],
       is_required: true,
       sort_order: (documents?.length || 0) * 10,
+      applicant_type_id: "",
+      age_condition: "",
     });
     setDialogCategoryFilter("");
     setDialogSubcategoryFilter("");
@@ -2287,6 +2319,8 @@ function DocumentsTab() {
       visa_type_ids: visaTypeIds,
       is_required: doc.is_required,
       sort_order: doc.sort_order,
+      applicant_type_id: doc.applicant_type_id || "",
+      age_condition: doc.age_condition || "",
     });
     setDialogCategoryFilter("");
     setDialogSubcategoryFilter("");
@@ -2304,6 +2338,8 @@ function DocumentsTab() {
       visa_type_ids: visaTypeIds,
       is_required: doc.is_required,
       sort_order: (documents?.length || 0) * 10,
+      applicant_type_id: doc.applicant_type_id || "",
+      age_condition: doc.age_condition || "",
     });
     setDialogCategoryFilter("");
     setDialogSubcategoryFilter("");
@@ -2408,6 +2444,7 @@ function DocumentsTab() {
               <TableHead>Category</TableHead>
               <TableHead>Country</TableHead>
               <TableHead>Application Name</TableHead>
+              <TableHead>Applicant Type</TableHead>
               <TableHead>Required</TableHead>
               <TableHead className="w-32">Actions</TableHead>
             </TableRow>
@@ -2637,6 +2674,35 @@ function DocumentsTab() {
                 {form.visa_type_ids.length > 0 && (
                   <p className="text-xs text-muted-foreground">{form.visa_type_ids.length} selected</p>
                 )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Applicant Type</Label>
+                <Select
+                  value={form.applicant_type_id || "__none__"}
+                  onValueChange={(value) => setForm({ ...form, applicant_type_id: value === "__none__" ? "" : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select applicant type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No specific type</SelectItem>
+                    {applicantTypes?.map((at) => (
+                      <SelectItem key={at.id} value={at.id}>
+                        {at.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Age Condition</Label>
+                <Input
+                  value={form.age_condition}
+                  onChange={(e) => setForm({ ...form, age_condition: e.target.value })}
+                  placeholder="e.g., +16yrs, Under 18"
+                />
               </div>
             </div>
             <div className="flex items-center gap-2">
