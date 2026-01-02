@@ -92,7 +92,7 @@ const ALL_FIELDS: Record<WebhookEntityCategory, WebhookFieldDefinition[]> = {
   visa_application: [
     { id: "application_id", label: "Application ID", description: "Unique application identifier", default: true },
     { id: "application_name", label: "Application Name", description: "Name of the application", default: true },
-    { id: "visa_subclass", label: "Visa Subclass", description: "Visa type being applied for", default: true },
+    { id: "subclass", label: "Subclass", description: "Visa type being applied for", default: true },
     { id: "company_id", label: "Organization ID", description: "Your firm/agency identifier", default: true },
     { id: "client_id", label: "Client ID", description: "Associated client identifier", default: true },
     { id: "client_folder_id", label: "Client Folder ID", description: "Client's Google Drive folder", default: true },
@@ -367,7 +367,7 @@ export default function AdminWebhooks() {
       } : {
         application_id: "660e8400-e29b-41d4-a716-446655440001",
         application_name: "Test Visa Application",
-        visa_subclass: "820/801",
+        subclass: "820/801",
         client_id: "550e8400-e29b-41d4-a716-446655440000",
       };
       
