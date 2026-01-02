@@ -807,9 +807,6 @@ export default function ClientPortal() {
                                           ) : (
                                             <File className="w-4 h-4 text-muted-foreground" />
                                           )}
-                                          <span className="text-xs text-muted-foreground truncate">
-                                            {getFileName(doc.file_path)}
-                                          </span>
                                         </div>
                                       )}
                                     </div>
