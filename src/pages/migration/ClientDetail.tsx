@@ -325,7 +325,7 @@ const ClientDetail = () => {
 
         await supabase.functions.invoke("dispatch-webhook", {
           body: {
-            event_type: "visa_application.created",
+            event_type: "application.created",
             data: {
               // Essential fields (always sent)
               visa_application_id: data.id,
@@ -425,7 +425,7 @@ const ClientDetail = () => {
         try {
           const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
             body: {
-              event_type: "visa_application.deleted",
+              event_type: "application.deleted",
               data: {
                 visa_application_id: applicationData.id,
                 company_id: applicationData.company_id,

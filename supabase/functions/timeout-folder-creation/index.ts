@@ -32,10 +32,11 @@ Deno.serve(async (req) => {
       throw webhooksError;
     }
 
-    // Find webhooks that handle client.created or visa_application.created events
+    // Find webhooks that handle client.created or application.created events
     const folderCreationWebhooks = webhooks?.filter(w => 
       w.events?.includes("client.created") || 
-      w.events?.includes("visa_application.created") ||
+      w.events?.includes("application.created") ||
+      w.events?.includes("visa_application.created") || // Legacy support
       w.events?.includes("matter.created") // Legacy support
     ) || [];
 

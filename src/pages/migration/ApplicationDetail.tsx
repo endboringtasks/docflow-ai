@@ -675,11 +675,11 @@ const VisaApplicationDetail = () => {
       return data;
     },
     onSuccess: async (data) => {
-      // Dispatch webhook for visa_application.updated event
+      // Dispatch webhook for application.updated event
       try {
         const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
-            event_type: "visa_application.updated",
+            event_type: "application.updated",
             data: {
               visa_application_id: data.id,
               company_id: data.company_id,
@@ -725,11 +725,11 @@ const VisaApplicationDetail = () => {
       return data;
     },
     onSuccess: async (data) => {
-      // Dispatch webhook for visa_application.updated event
+      // Dispatch webhook for application.updated event
       try {
         const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
-            event_type: "visa_application.updated",
+            event_type: "application.updated",
             data: {
               visa_application_id: data.id,
               company_id: data.company_id,
@@ -783,11 +783,11 @@ const VisaApplicationDetail = () => {
       return applicationData;
     },
     onSuccess: async (applicationData) => {
-      // Dispatch webhook for visa_application.deleted event
+      // Dispatch webhook for application.deleted event
       try {
         const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
-            event_type: "visa_application.deleted",
+            event_type: "application.deleted",
             data: applicationData,
           },
         });

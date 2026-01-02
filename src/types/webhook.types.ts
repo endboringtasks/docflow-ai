@@ -13,14 +13,14 @@ export type ClientEventType =
   | "client.updated"
   | "client.deleted";
 
-/** Visa application lifecycle events */
-export type VisaApplicationEventType = 
-  | "visa_application.created"
-  | "visa_application.updated"
-  | "visa_application.deleted";
+/** Application lifecycle events */
+export type ApplicationEventType = 
+  | "application.created"
+  | "application.updated"
+  | "application.deleted";
 
 /** All supported webhook event types */
-export type WebhookEventType = ClientEventType | VisaApplicationEventType;
+export type WebhookEventType = ClientEventType | ApplicationEventType;
 
 // ============= Field Types =============
 
@@ -156,17 +156,17 @@ export const CLIENT_EVENTS: ClientEventType[] = [
   "client.deleted",
 ];
 
-/** All visa application events */
-export const VISA_APPLICATION_EVENTS: VisaApplicationEventType[] = [
-  "visa_application.created",
-  "visa_application.updated",
-  "visa_application.deleted",
+/** All application events */
+export const APPLICATION_EVENTS: ApplicationEventType[] = [
+  "application.created",
+  "application.updated",
+  "application.deleted",
 ];
 
 /** All webhook events */
 export const ALL_WEBHOOK_EVENTS: WebhookEventType[] = [
   ...CLIENT_EVENTS,
-  ...VISA_APPLICATION_EVENTS,
+  ...APPLICATION_EVENTS,
 ];
 
 // ============= Type Guards =============
@@ -176,9 +176,9 @@ export function isClientEvent(event: string): event is ClientEventType {
   return CLIENT_EVENTS.includes(event as ClientEventType);
 }
 
-/** Check if an event is a visa application event */
-export function isVisaApplicationEvent(event: string): event is VisaApplicationEventType {
-  return VISA_APPLICATION_EVENTS.includes(event as VisaApplicationEventType);
+/** Check if an event is an application event */
+export function isApplicationEvent(event: string): event is ApplicationEventType {
+  return APPLICATION_EVENTS.includes(event as ApplicationEventType);
 }
 
 /** Check if an event is a valid webhook event */
