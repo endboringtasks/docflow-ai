@@ -484,6 +484,7 @@ export type Database = {
           applicant_type: string | null
           company_id: string
           created_at: string
+          description: string | null
           document_name: string
           file_path: string | null
           id: string
@@ -504,6 +505,7 @@ export type Database = {
           applicant_type?: string | null
           company_id: string
           created_at?: string
+          description?: string | null
           document_name: string
           file_path?: string | null
           id?: string
@@ -524,6 +526,7 @@ export type Database = {
           applicant_type?: string | null
           company_id?: string
           created_at?: string
+          description?: string | null
           document_name?: string
           file_path?: string | null
           id?: string
@@ -571,6 +574,7 @@ export type Database = {
           company_id: string | null
           country_id: string | null
           created_at: string | null
+          description: string | null
           document_name: string
           id: string
           is_required: boolean | null
@@ -586,6 +590,7 @@ export type Database = {
           company_id?: string | null
           country_id?: string | null
           created_at?: string | null
+          description?: string | null
           document_name: string
           id?: string
           is_required?: boolean | null
@@ -601,6 +606,7 @@ export type Database = {
           company_id?: string | null
           country_id?: string | null
           created_at?: string | null
+          description?: string | null
           document_name?: string
           id?: string
           is_required?: boolean | null
@@ -1327,6 +1333,7 @@ export type Database = {
       get_portal_documents: {
         Args: { p_token: string }
         Returns: {
+          description: string
           document_name: string
           file_path: string
           id: string
