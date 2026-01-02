@@ -137,7 +137,7 @@ async function hydratePayloadData(
           company_id: applicationRow.company_id,
           client_id: applicationRow.client_id,
           application_name: applicationRow.application_name,
-          visa_subclass: applicationRow.visa_subclass,
+          subclass: applicationRow.visa_subclass,
           status: applicationRow.status,
           application_folder_id: applicationRow.visa_application_folder_id,
           folder_status: applicationRow.folder_status,

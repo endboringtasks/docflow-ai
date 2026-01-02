@@ -44,7 +44,7 @@ export type ClientFieldId =
 export type VisaApplicationFieldId = 
   | "application_id"
   | "application_name"
-  | "visa_subclass"
+  | "subclass"
   | "company_id"
   | "client_id"
   | "client_folder_id"
@@ -126,7 +126,7 @@ export interface ClientWebhookPayload {
 export interface VisaApplicationWebhookPayload {
   application_id: string;
   application_name: string;
-  visa_subclass: string | null;
+  subclass: string | null;
   company_id: string;
   client_id: string;
   client_folder_id: string | null;
