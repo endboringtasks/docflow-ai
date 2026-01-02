@@ -703,7 +703,7 @@ const MigrationVisaApplications = () => {
     setEditForm({
       countryId: application.country_id || "",
       categoryId: application.category_id || "",
-      subcategoryId: "",
+      subcategoryId: application.subcategory_id || "",
       applicationName: application.application_name,
       visaSubclass: application.visa_subclass || "",
     });
