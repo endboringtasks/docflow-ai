@@ -289,17 +289,27 @@ const ClientDetail = () => {
               .order("sort_order");
 
             if (templates && templates.length > 0) {
-              const documentsToInsert = templates.map((template: any) => ({
-                visa_application_id: data.id,
-                company_id: currentCompany.id,
-                document_name: template.document_name,
-                category: template.category,
-                description: template.description,
-                applicant_type: template.applicant_type?.name || null,
-                age_condition: template.age_condition,
-                is_completed: false,
-                is_standard_for_client: true,
-              }));
+              const documentsToInsert = templates.map((template: any) => {
+                const category = template.category || "General";
+                const required = !!template.is_required;
+                const rawName = String(template.document_name || "").trim();
+                const formattedName = rawName.startsWith("[")
+                  ? rawName
+                  : `[${category}:${required ? "required" : "optional"}] ${rawName}`;
+
+                return {
+                  visa_application_id: data.id,
+                  company_id: currentCompany.id,
+                  document_name: formattedName,
+                  category: template.category,
+                  description: template.description,
+                  applicant_type: template.applicant_type?.name || null,
+                  age_condition: template.age_condition,
+                  is_completed: false,
+                  is_standard_for_client: true,
+                  review_status: "pending_client",
+                };
+              });
 
               await supabase.from("document_checklist").insert(documentsToInsert);
             }
