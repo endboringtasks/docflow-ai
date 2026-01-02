@@ -678,7 +678,8 @@ export default function AdminWebhooks() {
                   {webhooks?.map((webhook) => {
                     // Group events by topic for display
                     const clientEvents = webhook.events.filter(e => e.startsWith("client."));
-                    const matterEvents = webhook.events.filter(e => e.startsWith("matter."));
+                    // Support both visa_application.* and legacy matter.* events
+                    const applicationEvents = webhook.events.filter(e => e.startsWith("visa_application.") || e.startsWith("matter."));
                     
                     return (
                     <TableRow key={webhook.id}>
@@ -690,7 +691,7 @@ export default function AdminWebhooks() {
                         <div className="flex flex-col gap-1.5">
                           {clientEvents.length > 0 && (
                             <div className="flex items-center gap-1 flex-wrap">
-                              <span className="text-xs font-medium text-muted-foreground w-12">Client:</span>
+                              <span className="text-xs font-medium text-muted-foreground w-16">Client:</span>
                               {clientEvents.map((event) => (
                                 <Badge key={event} variant="secondary" className="text-xs">
                                   {event.split(".")[1]}
@@ -698,10 +699,10 @@ export default function AdminWebhooks() {
                               ))}
                             </div>
                           )}
-                          {matterEvents.length > 0 && (
+                          {applicationEvents.length > 0 && (
                             <div className="flex items-center gap-1 flex-wrap">
-                              <span className="text-xs font-medium text-muted-foreground w-12">Matter:</span>
-                              {matterEvents.map((event) => (
+                              <span className="text-xs font-medium text-muted-foreground w-16">Application:</span>
+                              {applicationEvents.map((event) => (
                                 <Badge key={event} variant="secondary" className="text-xs">
                                   {event.split(".")[1]}
                                 </Badge>
