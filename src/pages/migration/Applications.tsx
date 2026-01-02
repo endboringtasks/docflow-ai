@@ -131,6 +131,7 @@ const MigrationVisaApplications = () => {
     subcategoryId: "",
     applicationName: "",
     visaSubclass: "",
+    visaTypeId: "",
   });
   const [newApplication, setNewApplication] = useState({
     clientId: "",
@@ -729,12 +730,21 @@ const MigrationVisaApplications = () => {
   };
 
   const handleEditApplication = (application: VisaApplication) => {
+    // Find the visa type that matches this application's name and filters
+    const matchingType = applicationTypes.find(t => 
+      t.name === application.application_name &&
+      (!application.country_id || t.country_id === application.country_id) &&
+      (!application.category_id || t.category_id === application.category_id) &&
+      (!application.subcategory_id || t.subcategory_id === application.subcategory_id)
+    );
+    
     setEditForm({
       countryId: application.country_id || "__all__",
       categoryId: application.category_id || "",
       subcategoryId: application.subcategory_id || "",
       applicationName: application.application_name,
       visaSubclass: application.visa_subclass || "",
+      visaTypeId: matchingType?.id || "",
     });
     setApplicationToEdit(application);
   };
@@ -956,14 +966,14 @@ const MigrationVisaApplications = () => {
                   <div className="space-y-2">
                     <Label htmlFor="applicationName">Application Name</Label>
                     <Select
-                      value={newApplication.applicationName}
+                      value={newApplication.visaTypeId}
                       onValueChange={(value) => {
-                        const selectedType = filteredApplicationTypes.find(t => t.name === value);
+                        const selectedType = filteredApplicationTypes.find(t => t.id === value);
                         setNewApplication(prev => ({ 
                           ...prev, 
-                          applicationName: value,
+                          applicationName: selectedType?.name || "",
                           visaSubclass: selectedType?.code || "",
-                          visaTypeId: selectedType?.id || ""
+                          visaTypeId: value
                         }));
                       }}
                       disabled={!newApplication.categoryId}
@@ -973,7 +983,7 @@ const MigrationVisaApplications = () => {
                       </SelectTrigger>
                       <SelectContent>
                         {filteredApplicationTypes.map((type) => (
-                          <SelectItem key={type.id} value={type.name}>
+                          <SelectItem key={type.id} value={type.id}>
                             {type.code ? `${type.code} - ${type.name}` : type.name}
                           </SelectItem>
                         ))}
@@ -1292,13 +1302,14 @@ const MigrationVisaApplications = () => {
               <div className="space-y-2">
                 <Label htmlFor="editApplicationName">Application Name</Label>
                 <Select
-                  value={editForm.applicationName}
+                  value={editForm.visaTypeId}
                   onValueChange={(value) => {
-                    const selectedType = editFilteredApplicationTypes.find(t => t.name === value);
+                    const selectedType = editFilteredApplicationTypes.find(t => t.id === value);
                     setEditForm(prev => ({ 
                       ...prev, 
-                      applicationName: value,
-                      visaSubclass: selectedType?.code || ""
+                      applicationName: selectedType?.name || "",
+                      visaSubclass: selectedType?.code || "",
+                      visaTypeId: value
                     }));
                   }}
                 >
@@ -1307,7 +1318,7 @@ const MigrationVisaApplications = () => {
                   </SelectTrigger>
                   <SelectContent>
                     {editFilteredApplicationTypes.map((type) => (
-                      <SelectItem key={type.id} value={type.name}>
+                      <SelectItem key={type.id} value={type.id}>
                         {type.code ? `${type.code} - ${type.name}` : type.name}
                       </SelectItem>
                     ))}
