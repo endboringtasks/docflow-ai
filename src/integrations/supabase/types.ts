@@ -585,13 +585,6 @@ export type Database = {
             referencedRelation: "countries"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "document_checklist_templates_visa_type_id_fkey"
-            columns: ["visa_type_id"]
-            isOneToOne: false
-            referencedRelation: "visa_types"
-            referencedColumns: ["id"]
-          },
         ]
       }
       document_template_applications: {
