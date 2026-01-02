@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { getFileTypeBadge } from "@/lib/fileUtils";
+import { DocumentThumbnail } from "@/components/documents/DocumentThumbnail";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -260,6 +261,7 @@ const VisaApplicationDetail = () => {
   const [documentsInitialized, setDocumentsInitialized] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
   const [reviewFilter, setReviewFilter] = useState<"all" | ReviewStatus>("all");
+  const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
   
   const [editForm, setEditForm] = useState({
     countryId: "",
@@ -1078,12 +1080,67 @@ const VisaApplicationDetail = () => {
     removeFileMutation.mutate({ docId, filePath });
   };
 
+  const isDriveFile = (filePath: string) => filePath.startsWith("drive://");
+  const getDriveFileId = (filePath: string) => filePath.replace("drive://", "");
+  
+  const isPreviewableFile = (filePath: string | null): boolean => {
+    if (!filePath) return false;
+    const ext = filePath.split('.').pop()?.toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'].includes(ext || '');
+  };
+
   const getFileDownloadUrl = (filePath: string) => {
     const { data } = supabase.storage
       .from("document-attachments")
       .getPublicUrl(filePath);
     return data.publicUrl;
   };
+
+  // Fetch thumbnail URL for a document
+  const fetchThumbnailUrl = async (filePath: string): Promise<string | null> => {
+    if (thumbnailUrls[filePath]) return thumbnailUrls[filePath];
+    
+    try {
+      if (isDriveFile(filePath)) {
+        if (!currentCompany?.id) return null;
+        const fileId = getDriveFileId(filePath);
+        const { data, error } = await supabase.functions.invoke("get-drive-file-url", {
+          body: { file_id: fileId, company_id: currentCompany.id },
+        });
+        if (error || !data?.success) return null;
+        const url = data.file.previewUrl || data.file.thumbnailLink;
+        if (url) {
+          setThumbnailUrls(prev => ({ ...prev, [filePath]: url }));
+          return url;
+        }
+      } else {
+        const { data, error } = await supabase.storage
+          .from("document-attachments")
+          .createSignedUrl(filePath, 3600);
+        if (error) return null;
+        setThumbnailUrls(prev => ({ ...prev, [filePath]: data.signedUrl }));
+        return data.signedUrl;
+      }
+    } catch (err) {
+      console.error("Failed to fetch thumbnail:", err);
+    }
+    return null;
+  };
+
+  // Load thumbnails for documents with files
+  useEffect(() => {
+    if (!documents.length) return;
+    
+    const loadThumbnails = async () => {
+      for (const doc of documents) {
+        if (doc.filePath && isPreviewableFile(doc.filePath) && !thumbnailUrls[doc.filePath]) {
+          await fetchThumbnailUrl(doc.filePath);
+        }
+      }
+    };
+    
+    loadThumbnails();
+  }, [documents, currentCompany?.id]);
 
   const handleDownloadFile = async (filePath: string, fileName: string) => {
     const { data, error } = await supabase.storage
@@ -1711,11 +1768,19 @@ const VisaApplicationDetail = () => {
                               )}
                             </div>
                           </div>
-                          {/* File indicator with review comment */}
+                          {/* File indicator with thumbnail and review comment */}
                           {doc.filePath && (
-                            <div className="mt-2 ml-8 space-y-1">
+                            <div className="mt-2 ml-8 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <DocumentThumbnail
+                                  filePath={doc.filePath}
+                                  fileUrl={thumbnailUrls[doc.filePath] || null}
+                                  onPreview={() => setPreviewDoc(doc)}
+                                  size={32}
+                                />
+                              </div>
                               {doc.reviewComment && (
-                                <p className="text-sm text-muted-foreground italic pl-5">
+                                <p className="text-sm text-muted-foreground italic pl-1">
                                   "{doc.reviewComment}"
                                 </p>
                               )}

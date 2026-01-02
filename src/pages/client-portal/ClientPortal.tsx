@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { getFileTypeBadge } from "@/lib/fileUtils";
+import { DocumentThumbnail } from "@/components/documents/DocumentThumbnail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -447,6 +448,16 @@ export default function ClientPortal() {
     return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '');
   };
 
+  const isPdfFile = (filePath: string | null): boolean => {
+    if (!filePath) return false;
+    const ext = filePath.split('.').pop()?.toLowerCase();
+    return ext === 'pdf';
+  };
+
+  const isPreviewableFile = (filePath: string | null): boolean => {
+    return isImageFile(filePath) || isPdfFile(filePath);
+  };
+
   const getPreviewUrl = async (filePath: string): Promise<string | null> => {
     if (!token || previewUrls[filePath]) return previewUrls[filePath] || null;
 
@@ -477,7 +488,7 @@ export default function ClientPortal() {
 
     const loadPreviews = async () => {
       for (const doc of documents) {
-        if (doc.is_completed && doc.file_path && isImageFile(doc.file_path) && !previewUrls[doc.file_path]) {
+        if (doc.is_completed && doc.file_path && isPreviewableFile(doc.file_path) && !previewUrls[doc.file_path]) {
           await getPreviewUrl(doc.file_path);
         }
       }
@@ -794,20 +805,12 @@ export default function ClientPortal() {
                                       )}
                                       {doc.is_completed && doc.file_path && (
                                         <div className="flex items-center gap-2 mt-1">
-                                          {isImageFile(doc.file_path) && previewUrls[doc.file_path] ? (
-                                            <button 
-                                              onClick={() => openPreview(doc.file_path!)}
-                                              className="hover:opacity-75 transition-opacity"
-                                            >
-                                              <img 
-                                                src={previewUrls[doc.file_path]} 
-                                                alt="Preview" 
-                                                className="w-8 h-8 object-cover rounded border"
-                                              />
-                                            </button>
-                                          ) : (
-                                            <File className="w-4 h-4 text-muted-foreground" />
-                                          )}
+                                          <DocumentThumbnail
+                                            filePath={doc.file_path}
+                                            fileUrl={previewUrls[doc.file_path] || null}
+                                            onPreview={() => openPreview(doc.file_path!)}
+                                            size={32}
+                                          />
                                           {(() => {
                                             const fileType = getFileTypeBadge(doc.file_path);
                                             return fileType ? (
