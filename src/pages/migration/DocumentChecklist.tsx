@@ -4,6 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { 
   Plus, 
   FileCheck,
@@ -17,7 +25,9 @@ import {
   Check,
   ChevronsUpDown,
   Search,
-  X
+  X,
+  Eye,
+  Settings
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -389,6 +399,61 @@ const DocumentTemplates = () => {
     );
   }, [templates, searchName]);
 
+  // Fetch all visa types with document counts for overview
+  const { data: applicationSummary = [], isLoading: isSummaryLoading } = useQuery({
+    queryKey: ["application-summary", selectedCountry, selectedCategory, selectedSubcategory],
+    queryFn: async () => {
+      // Build query based on filters
+      let query = supabase
+        .from("visa_types")
+        .select(`
+          id, 
+          name, 
+          code,
+          country_id,
+          category_id,
+          country:countries(name, code),
+          category:application_categories(name),
+          subcategory:application_subcategories(name)
+        `)
+        .eq("is_active", true)
+        .order("sort_order");
+      
+      if (selectedCountry) {
+        query = query.or(`country_id.eq.${selectedCountry},country_id.is.null`);
+      }
+      if (selectedCategory) {
+        query = query.eq("category_id", selectedCategory);
+      }
+      if (selectedSubcategory) {
+        query = query.eq("subcategory_id", selectedSubcategory);
+      }
+      
+      const { data: visaTypesData, error } = await query;
+      if (error) throw error;
+      
+      // Get document counts via junction table
+      const { data: counts, error: countError } = await supabase
+        .from("document_template_applications")
+        .select("visa_type_id");
+      
+      if (countError) throw countError;
+      
+      // Count documents per visa type
+      const countMap = (counts || []).reduce((acc, item) => {
+        acc[item.visa_type_id] = (acc[item.visa_type_id] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      // Combine data
+      return (visaTypesData || []).map(vt => ({
+        ...vt,
+        document_count: countMap[vt.id] || 0
+      }));
+    },
+    enabled: !selectedApplicationType, // Only fetch when no app type selected
+  });
+
   // Get unique categories from templates
   const docCategories = [...new Set([
     ...defaultCategories,
@@ -758,12 +823,93 @@ const DocumentTemplates = () => {
 
         {/* Content Area */}
         {!selectedApplicationType ? (
-          <div className="card-gradient rounded-xl border border-border/50 p-12 text-center">
-            <FileCheck className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Select an Application Type</h3>
-            <p className="text-muted-foreground max-w-md mx-auto">
-              Choose a country, category, and application type from the filters above to view and manage the document checklist.
-            </p>
+          <div className="card-gradient rounded-xl border border-border/50 overflow-hidden">
+            <div className="p-4 border-b border-border/50">
+              <h3 className="text-lg font-semibold">Application Types Overview</h3>
+              <p className="text-sm text-muted-foreground">
+                {applicationSummary.length} application type{applicationSummary.length !== 1 ? "s" : ""} found
+                {(selectedCountry || selectedCategory) && " (filtered)"}
+              </p>
+            </div>
+            {isSummaryLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : applicationSummary.length === 0 ? (
+              <div className="p-12 text-center">
+                <FileCheck className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Application Types Found</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  {selectedCountry || selectedCategory 
+                    ? "Try adjusting your filters to see more application types."
+                    : "No application types have been configured yet."}
+                </p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Application Name</TableHead>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Country</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead className="text-center">Documents</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {applicationSummary.map((app) => (
+                    <TableRow key={app.id} className="cursor-pointer hover:bg-muted/50" onClick={() => {
+                      if (app.country_id && app.country_id !== selectedCountry) {
+                        setSelectedCountry(app.country_id);
+                      }
+                      if (app.category_id && app.category_id !== selectedCategory) {
+                        setSelectedCategory(app.category_id);
+                      }
+                      setSelectedApplicationType(app.id);
+                    }}>
+                      <TableCell className="font-medium">{app.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{app.code}</TableCell>
+                      <TableCell>{app.country?.name || <span className="text-muted-foreground">-</span>}</TableCell>
+                      <TableCell>{app.category?.name || <span className="text-muted-foreground">-</span>}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={app.document_count > 0 ? "default" : "secondary"}>
+                          {app.document_count}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (app.country_id && app.country_id !== selectedCountry) {
+                              setSelectedCountry(app.country_id);
+                            }
+                            if (app.category_id && app.category_id !== selectedCategory) {
+                              setSelectedCategory(app.category_id);
+                            }
+                            setSelectedApplicationType(app.id);
+                          }}
+                        >
+                          {app.document_count > 0 ? (
+                            <>
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </>
+                          ) : (
+                            <>
+                              <Settings className="w-4 h-4 mr-1" />
+                              Configure
+                            </>
+                          )}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
