@@ -116,39 +116,39 @@ async function hydratePayloadData(
 
   let hydrated: Record<string, unknown> = { ...data };
 
-  // Support both visa_application_id and legacy matter_id
-  const visaApplicationId = (data.visa_application_id ?? data.matter_id ?? data.id) as string | undefined;
-  if (visaApplicationId) {
+  // Support application_id, visa_application_id and legacy matter_id
+  const applicationId = (data.application_id ?? data.visa_application_id ?? data.matter_id ?? data.id) as string | undefined;
+  if (applicationId) {
     try {
       const { data: applicationRow, error } = await supabase
         .from("visa_applications")
         .select(
           "id, company_id, client_id, application_name, visa_subclass, status, visa_application_folder_id, folder_status, folder_status_updated_at, created_at"
         )
-        .eq("id", visaApplicationId)
+        .eq("id", applicationId)
         .maybeSingle();
 
       if (error) {
-        console.log("Hydration: failed to load visa application", { visa_application_id: visaApplicationId, error: error.message });
+        console.log("Hydration: failed to load visa application", { application_id: applicationId, error: error.message });
       } else if (applicationRow) {
         hydrated = {
           ...hydrated,
-          visa_application_id: applicationRow.id,
+          application_id: applicationRow.id,
           company_id: applicationRow.company_id,
           client_id: applicationRow.client_id,
           application_name: applicationRow.application_name,
           visa_subclass: applicationRow.visa_subclass,
           status: applicationRow.status,
-          visa_application_folder_id: applicationRow.visa_application_folder_id,
+          application_folder_id: applicationRow.visa_application_folder_id,
           folder_status: applicationRow.folder_status,
           folder_status_updated_at: applicationRow.folder_status_updated_at,
           created_at: applicationRow.created_at,
         };
       } else {
-        hydrated = { ...hydrated, visa_application_id: (hydrated as any).visa_application_id ?? visaApplicationId };
+        hydrated = { ...hydrated, application_id: (hydrated as any).application_id ?? applicationId };
       }
     } catch (e) {
-      console.log("Hydration: exception loading visa application", { visa_application_id: visaApplicationId, error: String(e) });
+      console.log("Hydration: exception loading visa application", { application_id: applicationId, error: String(e) });
     }
   }
 
@@ -294,7 +294,7 @@ Deno.serve(async (req) => {
       entityType = "client";
     } else if (payload.event_type === "application.created" || payload.event_type === "visa_application.created" || payload.event_type === "matter.created") {
       // Support application., visa_application. and legacy matter. event names
-      entityId = (payload.data.visa_application_id || payload.data.matter_id) as string;
+      entityId = (payload.data.application_id || payload.data.visa_application_id || payload.data.matter_id) as string;
       entityType = "visa_application";
     }
 
@@ -373,7 +373,7 @@ Deno.serve(async (req) => {
       return filteredData;
     };
 
-    const contextSnippet = `event=${payload.event_type} visa_application_id=${String((hydratedData as any).visa_application_id ?? "")}`;
+    const contextSnippet = `event=${payload.event_type} application_id=${String((hydratedData as any).application_id ?? "")}`;
 
     // Dispatch to all matching webhooks with retry logic
     const results = await Promise.allSettled(
@@ -464,11 +464,13 @@ Deno.serve(async (req) => {
                 responseData.folder_id ||
                 responseData.folderId;
             } else {
-              // Visa application - look for visa_application_folder_id specifically
+              // Visa application - look for application_folder_id specifically (also support legacy visa_application_folder_id)
               folderId =
+                (dataObj as any).application_folder_id ||
                 (dataObj as any).visa_application_folder_id ||
                 (dataObj as any).folder_id ||
                 (dataObj as any).folderId ||
+                (responseData as any).application_folder_id ||
                 (responseData as any).visa_application_folder_id ||
                 responseData.folder_id ||
                 responseData.folderId;

@@ -42,14 +42,14 @@ export type ClientFieldId =
 
 /** Fields available for visa application payloads */
 export type VisaApplicationFieldId = 
-  | "visa_application_id"
+  | "application_id"
   | "application_name"
   | "visa_subclass"
   | "company_id"
   | "client_id"
   | "client_folder_id"
   | "status"
-  | "visa_application_folder_id"
+  | "application_folder_id"
   | "folder_status"
   | "folder_status_updated_at"
   | "created_at";
@@ -124,14 +124,14 @@ export interface ClientWebhookPayload {
 
 /** Visa application webhook payload data */
 export interface VisaApplicationWebhookPayload {
-  visa_application_id: string;
+  application_id: string;
   application_name: string;
   visa_subclass: string | null;
   company_id: string;
   client_id: string;
   client_folder_id: string | null;
   status: "draft" | "active" | "done";
-  visa_application_folder_id: string | null;
+  application_folder_id: string | null;
   folder_status: string;
   folder_status_updated_at: string | null;
   created_at: string;
