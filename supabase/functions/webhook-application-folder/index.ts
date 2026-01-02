@@ -43,11 +43,11 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   const clientIp = getClientIdentifier(req);
-  const ctx = createRequestContext(req, "webhook-visa-application-folder", clientIp);
+  const ctx = createRequestContext(req, "webhook-application-folder", clientIp);
   
   logRequestStart(ctx);
 
-  const rateLimitResult = await checkRateLimit(supabase, clientIp, "webhook-visa-application-folder", RATE_LIMIT_CONFIG);
+  const rateLimitResult = await checkRateLimit(supabase, clientIp, "webhook-application-folder", RATE_LIMIT_CONFIG);
 
   if (!rateLimitResult.allowed) {
     logRequestEnd(ctx, 429, { reason: "rate_limit_exceeded" });
