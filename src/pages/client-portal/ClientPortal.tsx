@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { getFileTypeBadge } from "@/lib/fileUtils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -807,6 +808,14 @@ export default function ClientPortal() {
                                           ) : (
                                             <File className="w-4 h-4 text-muted-foreground" />
                                           )}
+                                          {(() => {
+                                            const fileType = getFileTypeBadge(doc.file_path);
+                                            return fileType ? (
+                                              <Badge variant="outline" className={`text-xs ${fileType.color}`}>
+                                                {fileType.label}
+                                              </Badge>
+                                            ) : null;
+                                          })()}
                                         </div>
                                       )}
                                     </div>
