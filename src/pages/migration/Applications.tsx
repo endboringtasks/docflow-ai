@@ -851,31 +851,40 @@ const MigrationVisaApplications = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Select
-                    value={newApplication.categoryId}
-                    onValueChange={(value) => setNewApplication(prev => ({ 
-                      ...prev, 
-                      categoryId: value,
-                      subcategoryId: "",
-                      applicationName: "",
-                      visaSubclass: ""
-                    }))}
-                    disabled={!newApplication.countryId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={newApplication.countryId ? "Select category" : "Select a country first"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredCategories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {newApplication.countryId && filteredCategories.length === 0 && (
+                  <div className="p-3 bg-muted/50 rounded-md border border-border">
+                    <p className="text-sm text-muted-foreground">
+                      No categories available for this selection.
+                    </p>
+                  </div>
+                )}
+                {(!newApplication.countryId || filteredCategories.length > 0) && (
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Category</Label>
+                    <Select
+                      value={newApplication.categoryId}
+                      onValueChange={(value) => setNewApplication(prev => ({ 
+                        ...prev, 
+                        categoryId: value,
+                        subcategoryId: "",
+                        applicationName: "",
+                        visaSubclass: ""
+                      }))}
+                      disabled={!newApplication.countryId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={newApplication.countryId ? "Select category" : "Select a country first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredCategories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 {newApplication.categoryId && filteredSubcategories.length === 0 && (
                   <div className="p-3 bg-muted/50 rounded-md border border-border">
                     <p className="text-sm text-muted-foreground">
