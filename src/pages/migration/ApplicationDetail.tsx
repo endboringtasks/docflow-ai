@@ -112,6 +112,8 @@ interface DocumentItem {
   reviewedBy: string | null;
   reviewedByName: string | null;
   isStandardForClient: boolean;
+  applicantType: string | null;
+  ageCondition: string | null;
 }
 
 interface DbDocumentItem {
@@ -129,6 +131,8 @@ interface DbDocumentItem {
   uploaded_by: string | null;
   uploaded_by_client: string | null;
   is_standard_for_client: boolean | null;
+  applicant_type: string | null;
+  age_condition: string | null;
   uploader_profile?: { display_name: string | null; email: string | null } | null;
   uploader_client?: { first_name: string | null; last_name: string | null; email: string | null } | null;
   reviewer_profile?: { display_name: string | null; email: string | null } | null;
@@ -168,7 +172,7 @@ const statusOptions = [
 ];
 
 // Default document checklist based on visa subclass (excluding DB-only fields)
-type DefaultDocFields = Omit<DocumentItem, "id" | "filePath" | "reviewStatus" | "reviewComment" | "uploadedAt" | "uploadedBy" | "uploadedByName" | "uploadedByClient" | "uploadedByClientName" | "reviewedAt" | "reviewedBy" | "reviewedByName" | "isStandardForClient">;
+type DefaultDocFields = Omit<DocumentItem, "id" | "filePath" | "reviewStatus" | "reviewComment" | "uploadedAt" | "uploadedBy" | "uploadedByName" | "uploadedByClient" | "uploadedByClientName" | "reviewedAt" | "reviewedBy" | "reviewedByName" | "isStandardForClient" | "applicantType" | "ageCondition">;
 
 const getDefaultDocuments = (visaSubclass: string | null): DefaultDocFields[] => {
   const baseDocuments: DefaultDocFields[] = [
@@ -472,6 +476,8 @@ const VisaApplicationDetail = () => {
       reviewedBy: doc.reviewed_by,
       reviewedByName: reviewerName,
       isStandardForClient: doc.is_standard_for_client ?? false,
+      applicantType: doc.applicant_type,
+      ageCondition: doc.age_condition,
     };
   });
 

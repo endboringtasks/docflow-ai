@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      applicant_types: {
+        Row: {
+          code: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          sort_order: number | null
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          sort_order?: number | null
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          sort_order?: number | null
+        }
+        Relationships: []
+      }
       application_categories: {
         Row: {
           code: string
@@ -453,6 +480,8 @@ export type Database = {
       }
       document_checklist: {
         Row: {
+          age_condition: string | null
+          applicant_type: string | null
           company_id: string
           created_at: string
           document_name: string
@@ -471,6 +500,8 @@ export type Database = {
           visa_application_id: string
         }
         Insert: {
+          age_condition?: string | null
+          applicant_type?: string | null
           company_id: string
           created_at?: string
           document_name: string
@@ -489,6 +520,8 @@ export type Database = {
           visa_application_id: string
         }
         Update: {
+          age_condition?: string | null
+          applicant_type?: string | null
           company_id?: string
           created_at?: string
           document_name?: string
@@ -532,6 +565,8 @@ export type Database = {
       }
       document_checklist_templates: {
         Row: {
+          age_condition: string | null
+          applicant_type_id: string | null
           category: string | null
           company_id: string | null
           country_id: string | null
@@ -545,6 +580,8 @@ export type Database = {
           visa_type_id: string | null
         }
         Insert: {
+          age_condition?: string | null
+          applicant_type_id?: string | null
           category?: string | null
           company_id?: string | null
           country_id?: string | null
@@ -558,6 +595,8 @@ export type Database = {
           visa_type_id?: string | null
         }
         Update: {
+          age_condition?: string | null
+          applicant_type_id?: string | null
           category?: string | null
           company_id?: string | null
           country_id?: string | null
@@ -571,6 +610,13 @@ export type Database = {
           visa_type_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "document_checklist_templates_applicant_type_id_fkey"
+            columns: ["applicant_type_id"]
+            isOneToOne: false
+            referencedRelation: "applicant_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "document_checklist_templates_company_id_fkey"
             columns: ["company_id"]
