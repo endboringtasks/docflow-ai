@@ -906,15 +906,43 @@ const VisaApplicationDetail = () => {
     return documents.filter(d => d.filePath && d.reviewStatus === reviewFilter);
   }, [documents, reviewFilter]);
 
-  const groupedDocuments = useMemo(() => {
-    return filteredDocuments.reduce((acc, doc) => {
-      if (!acc[doc.category]) {
-        acc[doc.category] = [];
+  // Group documents by applicant type, then by category
+  const groupedByApplicantType = useMemo(() => {
+    const grouped: Record<string, Record<string, DocumentItem[]>> = {};
+    
+    filteredDocuments.forEach(doc => {
+      const applicantType = doc.applicantType || "General";
+      const category = doc.category;
+      
+      if (!grouped[applicantType]) {
+        grouped[applicantType] = {};
       }
-      acc[doc.category].push(doc);
-      return acc;
-    }, {} as Record<string, DocumentItem[]>);
+      if (!grouped[applicantType][category]) {
+        grouped[applicantType][category] = [];
+      }
+      grouped[applicantType][category].push(doc);
+    });
+    
+    return grouped;
   }, [filteredDocuments]);
+
+  // Get ordered applicant types (General last if present)
+  const orderedApplicantTypes = useMemo(() => {
+    const types = Object.keys(groupedByApplicantType);
+    // Define preferred order
+    const preferredOrder = ["Primary Applicant", "Partner", "Dependant", "Sponsor"];
+    
+    return types.sort((a, b) => {
+      if (a === "General") return 1;
+      if (b === "General") return -1;
+      const aIndex = preferredOrder.indexOf(a);
+      const bIndex = preferredOrder.indexOf(b);
+      if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+      if (aIndex === -1) return 1;
+      if (bIndex === -1) return -1;
+      return aIndex - bIndex;
+    });
+  }, [groupedByApplicantType]);
 
   const isLoading = isLoadingApplication || isLoadingClient || isLoadingDocuments;
 
@@ -1279,161 +1307,183 @@ const VisaApplicationDetail = () => {
               </div>
             )}
 
-            {/* Document Categories */}
-            {Object.entries(groupedDocuments).map(([category, docs]) => (
-              <div key={category} className="card-gradient rounded-xl border border-border/50 p-6">
-                <h3 className="font-semibold mb-4 flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  {category}
-                  <Badge variant="outline" className="ml-2">
-                    {docs.filter(d => d.completed).length}/{docs.length}
+            {/* Documents grouped by Applicant Type, then by Category */}
+            {orderedApplicantTypes.map((applicantType) => (
+              <div key={applicantType} className="space-y-4">
+                {/* Applicant Type Header */}
+                <div className="flex items-center gap-3 pt-2">
+                  <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center">
+                    <User className="w-4 h-4 text-primary-foreground" />
+                  </div>
+                  <h2 className="text-lg font-semibold">{applicantType}</h2>
+                  <Badge variant="outline">
+                    {Object.values(groupedByApplicantType[applicantType]).flat().filter(d => d.completed).length}/
+                    {Object.values(groupedByApplicantType[applicantType]).flat().length}
                   </Badge>
-                </h3>
-                <div className="space-y-3">
-                  {docs.map((doc) => (
-                    <motion.div
-                      key={doc.id}
-                      className={`p-3 rounded-lg border transition-colors ${
-                        doc.reviewStatus === "approved" 
-                          ? "bg-green-500/5 border-green-500/20"
-                          : doc.reviewStatus === "rejected"
-                          ? "bg-destructive/5 border-destructive/20"
-                          : doc.reviewStatus === "in_review"
-                          ? "bg-blue-500/5 border-blue-500/20"
-                          : doc.completed 
-                          ? "bg-primary/5 border-primary/20" 
-                          : "bg-secondary/50 border-border/50"
-                      }`}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <Checkbox
-                            checked={doc.completed}
-                            onCheckedChange={() => handleToggleDocument(doc.id, doc.completed)}
-                            disabled={toggleDocumentMutation.isPending}
-                          />
-                          <span className={doc.completed ? "line-through text-muted-foreground" : ""}>
-                            {doc.name}
-                          </span>
-                          {/* Review Status Badge */}
-                          {doc.isStandardForClient && (
-                            <Badge variant="outline" className="text-xs border-primary/50 text-primary">
-                              Client Portal
-                            </Badge>
-                          )}
-                          {!doc.filePath && (
-                            <Badge variant="outline" className="text-xs text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30">
-                              <Clock className="w-3 h-3 mr-1" />
-                              Pending Client
-                            </Badge>
-                          )}
-                          {doc.filePath && doc.reviewStatus === "approved" && (
-                            <Badge variant="default" className="text-xs bg-green-600">
-                              <CheckCircle2 className="w-3 h-3 mr-1" />
-                              Approved
-                            </Badge>
-                          )}
-                          {doc.filePath && doc.reviewStatus === "rejected" && (
-                            <Badge variant="destructive" className="text-xs">
-                              <XCircle className="w-3 h-3 mr-1" />
-                              Rejected
-                            </Badge>
-                          )}
-                          {doc.filePath && doc.reviewStatus !== "approved" && doc.reviewStatus !== "rejected" && (
-                            <Badge variant="outline" className="text-xs text-blue-600 border-blue-400 bg-blue-50 dark:bg-blue-950/30">
-                              <AlertCircle className="w-3 h-3 mr-1" />
-                              Ready to Review
-                            </Badge>
-                          )}
-                        </div>
-                        {/* Document Timeline */}
-                        {(doc.uploadedAt || doc.reviewedAt) && (
-                          <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-muted-foreground">
-                            {doc.uploadedAt && (
-                              <span className="flex items-center gap-1">
-                                <Upload className="w-3 h-3" />
-                                Uploaded {new Date(doc.uploadedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
-                                {doc.uploadedByClientName && <span className="text-muted-foreground">by {doc.uploadedByClientName} (Client)</span>}
-                                {!doc.uploadedByClientName && doc.uploadedByName && <span className="text-muted-foreground">by {doc.uploadedByName}</span>}
-                              </span>
-                            )}
-                            {doc.reviewedAt && (
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                Reviewed {new Date(doc.reviewedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
-                                {doc.reviewedByName && <span className="text-muted-foreground">by {doc.reviewedByName}</span>}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2">
-                          {/* File actions */}
-                          {doc.filePath ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-primary"
-                                onClick={() => setPreviewDoc(doc)}
-                                title="Preview & Review"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground"
-                                onClick={() => handleDownloadFile(doc.filePath!, doc.name)}
-                                title="Download file"
-                              >
-                                <Download className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                onClick={() => handleFileRemove(doc.id, doc.filePath!)}
-                                disabled={removeFileMutation.isPending}
-                                title="Remove file"
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </>
-                          ) : null}
-                          {doc.category === "Custom" && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              onClick={() => handleRemoveDocument(doc.id)}
-                              disabled={removeDocumentMutation.isPending}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                      {/* File indicator with review comment */}
-                      {doc.filePath && (
-                        <div className="mt-2 ml-8 space-y-1">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <File className="w-3 h-3" />
-                            <span className="truncate max-w-[200px]">
-                              {doc.filePath.split('/').pop()}
-                            </span>
-                          </div>
-                          {doc.reviewComment && (
-                            <p className="text-sm text-muted-foreground italic pl-5">
-                              "{doc.reviewComment}"
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </motion.div>
-                  ))}
                 </div>
+                
+                {/* Categories within this Applicant Type */}
+                {Object.entries(groupedByApplicantType[applicantType]).map(([category, docs]) => (
+                  <div key={`${applicantType}-${category}`} className="card-gradient rounded-xl border border-border/50 p-6 ml-4">
+                    <h3 className="font-semibold mb-4 flex items-center gap-2">
+                      <FileText className="w-4 h-4" />
+                      {category}
+                      <Badge variant="outline" className="ml-2">
+                        {docs.filter(d => d.completed).length}/{docs.length}
+                      </Badge>
+                    </h3>
+                    <div className="space-y-3">
+                      {docs.map((doc) => (
+                        <motion.div
+                          key={doc.id}
+                          className={`p-3 rounded-lg border transition-colors ${
+                            doc.reviewStatus === "approved" 
+                              ? "bg-green-500/5 border-green-500/20"
+                              : doc.reviewStatus === "rejected"
+                              ? "bg-destructive/5 border-destructive/20"
+                              : doc.reviewStatus === "in_review"
+                              ? "bg-blue-500/5 border-blue-500/20"
+                              : doc.completed 
+                              ? "bg-primary/5 border-primary/20" 
+                              : "bg-secondary/50 border-border/50"
+                          }`}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <Checkbox
+                                checked={doc.completed}
+                                onCheckedChange={() => handleToggleDocument(doc.id, doc.completed)}
+                                disabled={toggleDocumentMutation.isPending}
+                              />
+                              <span className={doc.completed ? "line-through text-muted-foreground" : ""}>
+                                {doc.name}
+                              </span>
+                              {doc.ageCondition && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {doc.ageCondition}
+                                </Badge>
+                              )}
+                              {/* Review Status Badge */}
+                              {doc.isStandardForClient && (
+                                <Badge variant="outline" className="text-xs border-primary/50 text-primary">
+                                  Client Portal
+                                </Badge>
+                              )}
+                              {!doc.filePath && (
+                                <Badge variant="outline" className="text-xs text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30">
+                                  <Clock className="w-3 h-3 mr-1" />
+                                  Pending Client
+                                </Badge>
+                              )}
+                              {doc.filePath && doc.reviewStatus === "approved" && (
+                                <Badge variant="default" className="text-xs bg-green-600">
+                                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                                  Approved
+                                </Badge>
+                              )}
+                              {doc.filePath && doc.reviewStatus === "rejected" && (
+                                <Badge variant="destructive" className="text-xs">
+                                  <XCircle className="w-3 h-3 mr-1" />
+                                  Rejected
+                                </Badge>
+                              )}
+                              {doc.filePath && doc.reviewStatus !== "approved" && doc.reviewStatus !== "rejected" && (
+                                <Badge variant="outline" className="text-xs text-blue-600 border-blue-400 bg-blue-50 dark:bg-blue-950/30">
+                                  <AlertCircle className="w-3 h-3 mr-1" />
+                                  Ready to Review
+                                </Badge>
+                              )}
+                            </div>
+                            {/* Document Timeline */}
+                            {(doc.uploadedAt || doc.reviewedAt) && (
+                              <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-muted-foreground">
+                                {doc.uploadedAt && (
+                                  <span className="flex items-center gap-1">
+                                    <Upload className="w-3 h-3" />
+                                    Uploaded {new Date(doc.uploadedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                                    {doc.uploadedByClientName && <span className="text-muted-foreground">by {doc.uploadedByClientName} (Client)</span>}
+                                    {!doc.uploadedByClientName && doc.uploadedByName && <span className="text-muted-foreground">by {doc.uploadedByName}</span>}
+                                  </span>
+                                )}
+                                {doc.reviewedAt && (
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    Reviewed {new Date(doc.reviewedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                                    {doc.reviewedByName && <span className="text-muted-foreground">by {doc.reviewedByName}</span>}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2">
+                              {/* File actions */}
+                              {doc.filePath ? (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-primary"
+                                    onClick={() => setPreviewDoc(doc)}
+                                    title="Preview & Review"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground"
+                                    onClick={() => handleDownloadFile(doc.filePath!, doc.name)}
+                                    title="Download file"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                    onClick={() => handleFileRemove(doc.id, doc.filePath!)}
+                                    disabled={removeFileMutation.isPending}
+                                    title="Remove file"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
+                                </>
+                              ) : null}
+                              {doc.category === "Custom" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  onClick={() => handleRemoveDocument(doc.id)}
+                                  disabled={removeDocumentMutation.isPending}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          {/* File indicator with review comment */}
+                          {doc.filePath && (
+                            <div className="mt-2 ml-8 space-y-1">
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <File className="w-3 h-3" />
+                                <span className="truncate max-w-[200px]">
+                                  {doc.filePath.split('/').pop()}
+                                </span>
+                              </div>
+                              {doc.reviewComment && (
+                                <p className="text-sm text-muted-foreground italic pl-5">
+                                  "{doc.reviewComment}"
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
 
