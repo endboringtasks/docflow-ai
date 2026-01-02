@@ -26,6 +26,7 @@ import {
   AlertCircle,
   XCircle,
   Filter,
+  RefreshCw,
   Clock,
   Calendar,
 } from "lucide-react";
@@ -253,6 +254,7 @@ const VisaApplicationDetail = () => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isRegenerateOpen, setIsRegenerateOpen] = useState(false);
   const [newDocName, setNewDocName] = useState("");
   const [documentsInitialized, setDocumentsInitialized] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
@@ -617,6 +619,126 @@ const VisaApplicationDetail = () => {
     },
     onError: (error) => {
       toast.error("Failed to add document", { description: error.message });
+    },
+  });
+
+  // Regenerate checklist from templates (deletes all existing and re-initializes)
+  const regenerateChecklistMutation = useMutation({
+    mutationFn: async () => {
+      if (!visaApplicationId || !visaApplication?.company_id) throw new Error("Missing IDs");
+
+      // 1) Delete all existing documents for this application
+      const { error: deleteError } = await supabase
+        .from("document_checklist")
+        .delete()
+        .eq("visa_application_id", visaApplicationId);
+
+      if (deleteError) throw deleteError;
+
+      // 2) Re-initialize from templates (same logic as initializeDocumentsMutation)
+      const visaTypeQuery = supabase
+        .from("visa_types")
+        .select("id")
+        .eq("is_active", true)
+        .eq("name", visaApplication.application_name)
+        .limit(1);
+
+      const { data: matchingVisaType, error: visaTypeError } = await (visaApplication.visa_subclass
+        ? visaTypeQuery.eq("code", visaApplication.visa_subclass).maybeSingle()
+        : visaTypeQuery.maybeSingle());
+
+      if (visaTypeError) throw visaTypeError;
+
+      const visaTypeId = matchingVisaType?.id;
+
+      if (visaTypeId) {
+        const { data: linkedTemplates, error: linkedError } = await supabase
+          .from("document_template_applications")
+          .select("document_template_id")
+          .eq("visa_type_id", visaTypeId);
+
+        if (linkedError) throw linkedError;
+
+        const templateIds = (linkedTemplates || [])
+          .map((t) => t.document_template_id)
+          .filter(Boolean);
+
+        if (templateIds.length > 0) {
+          const { data: templates, error: templatesError } = await supabase
+            .from("document_checklist_templates")
+            .select(`
+              document_name, 
+              category, 
+              description,
+              age_condition,
+              is_required, 
+              sort_order,
+              applicant_type:applicant_types(name)
+            `)
+            .in("id", templateIds)
+            .order("sort_order");
+
+          if (templatesError) throw templatesError;
+
+          if (templates && templates.length > 0) {
+            const documentsToInsert = templates.map((template: any) => {
+              const category = template.category || "General";
+              const required = !!template.is_required;
+              const rawName = String(template.document_name || "").trim();
+              const formattedName = rawName.startsWith("[")
+                ? rawName
+                : `[${category}:${required ? "required" : "optional"}] ${rawName}`;
+
+              return {
+                visa_application_id: visaApplicationId,
+                company_id: visaApplication.company_id,
+                document_name: formattedName,
+                category: template.category,
+                description: template.description,
+                applicant_type: template.applicant_type?.name || null,
+                age_condition: template.age_condition,
+                is_completed: false,
+                is_standard_for_client: true,
+                review_status: "pending_client",
+              };
+            });
+
+            const { error: insertError } = await supabase
+              .from("document_checklist")
+              .insert(documentsToInsert);
+
+            if (insertError) throw insertError;
+            return { count: documentsToInsert.length, source: "templates" };
+          }
+        }
+      }
+
+      // Fallback: initialize with generic default docs
+      const defaultDocs = getDefaultDocuments(visaApplication.visa_subclass);
+      const documentsToInsert = defaultDocs.map((doc) => ({
+        visa_application_id: visaApplicationId,
+        company_id: visaApplication.company_id,
+        document_name: formatDocumentForStorage(doc),
+        is_completed: false,
+        review_status: "pending_client",
+      }));
+
+      const { error: fallbackError } = await supabase
+        .from("document_checklist")
+        .insert(documentsToInsert);
+
+      if (fallbackError) throw fallbackError;
+      return { count: documentsToInsert.length, source: "defaults" };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
+      setIsRegenerateOpen(false);
+      toast.success(`Checklist regenerated with ${result.count} documents`, {
+        description: result.source === "templates" ? "Loaded from configured templates" : "Using default documents",
+      });
+    },
+    onError: (error) => {
+      toast.error("Failed to regenerate checklist", { description: error instanceof Error ? error.message : "Please try again" });
     },
   });
 
@@ -1205,6 +1327,22 @@ const VisaApplicationDetail = () => {
           </TabsList>
 
           <TabsContent value="documents" className="space-y-6">
+            {/* Regenerate Checklist Button */}
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsRegenerateOpen(true)}
+                disabled={regenerateChecklistMutation.isPending}
+              >
+                {regenerateChecklistMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Regenerate Checklist
+              </Button>
+            </div>
 
             {/* Review Status Summary */}
             {documents.some(d => d.filePath) && (
@@ -1799,6 +1937,34 @@ const VisaApplicationDetail = () => {
                   </>
                 ) : (
                   "Delete"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Regenerate Checklist Confirmation */}
+        <AlertDialog open={isRegenerateOpen} onOpenChange={setIsRegenerateOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Regenerate Document Checklist</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will delete all existing documents in the checklist (including any uploaded files) and rebuild it from the configured templates. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => regenerateChecklistMutation.mutate()}
+                disabled={regenerateChecklistMutation.isPending}
+              >
+                {regenerateChecklistMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Regenerating...
+                  </>
+                ) : (
+                  "Regenerate"
                 )}
               </AlertDialogAction>
             </AlertDialogFooter>
