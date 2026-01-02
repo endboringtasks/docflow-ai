@@ -681,13 +681,13 @@ const VisaApplicationDetail = () => {
           body: {
             event_type: "application.updated",
             data: {
-              visa_application_id: data.id,
+              application_id: data.id,
               company_id: data.company_id,
               client_id: data.client_id,
               application_name: data.application_name,
               visa_subclass: data.visa_subclass,
               status: data.status,
-              visa_application_folder_id: data.visa_application_folder_id,
+              application_folder_id: data.visa_application_folder_id,
             },
           },
         });

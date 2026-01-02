@@ -443,7 +443,7 @@ const MigrationVisaApplications = () => {
             event_type: "application.created",
             data: {
               // Essential fields (always sent)
-              visa_application_id: data.id,
+              application_id: data.id,
               application_name: data.application_name,
               visa_subclass: data.visa_subclass,
               client_folder_id: clientResult.data?.client_folder_id || null,
