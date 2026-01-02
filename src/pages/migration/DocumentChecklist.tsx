@@ -3,6 +3,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Plus, 
   FileCheck,
@@ -76,6 +77,7 @@ interface DocumentTemplate {
   country_id: string | null;
   applicant_type_id: string | null;
   age_condition: string | null;
+  description: string | null;
   applicant_type?: ApplicantType | null;
 }
 
@@ -243,6 +245,7 @@ const DocumentTemplates = () => {
     isRequired: true,
     applicantTypeId: "",
     ageCondition: "",
+    description: "",
   });
   
   const [docNameOpen, setDocNameOpen] = useState(false);
@@ -406,7 +409,7 @@ const DocumentTemplates = () => {
 
   // Add document mutation
   const addDocMutation = useMutation({
-    mutationFn: async (doc: { category: string; document_name: string; is_required: boolean; applicant_type_id: string | null; age_condition: string | null }) => {
+    mutationFn: async (doc: { category: string; document_name: string; is_required: boolean; applicant_type_id: string | null; age_condition: string | null; description: string | null }) => {
       if (!currentCompany?.id || !selectedApplicationType) throw new Error("No company or application type selected");
       
       const maxOrder = templates
@@ -424,6 +427,7 @@ const DocumentTemplates = () => {
           is_required: doc.is_required,
           applicant_type_id: doc.applicant_type_id || null,
           age_condition: doc.age_condition || null,
+          description: doc.description || null,
           sort_order: maxOrder + 1,
         })
         .select("*, applicant_type:applicant_types(*)")
@@ -435,7 +439,7 @@ const DocumentTemplates = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-templates", currentCompany?.id, selectedApplicationType] });
       setIsAddDocOpen(false);
-      setNewDoc({ category: "", documentName: "", isRequired: true, applicantTypeId: "", ageCondition: "" });
+      setNewDoc({ category: "", documentName: "", isRequired: true, applicantTypeId: "", ageCondition: "", description: "" });
       toast.success("Document added to template");
     },
     onError: (error) => {
@@ -445,7 +449,7 @@ const DocumentTemplates = () => {
 
   // Update document mutation
   const updateDocMutation = useMutation({
-    mutationFn: async (doc: { id: string; document_name: string; is_required: boolean; category: string; applicant_type_id: string | null; age_condition: string | null }) => {
+    mutationFn: async (doc: { id: string; document_name: string; is_required: boolean; category: string; applicant_type_id: string | null; age_condition: string | null; description: string | null }) => {
       const { data, error } = await supabase
         .from("document_checklist_templates")
         .update({
@@ -454,6 +458,7 @@ const DocumentTemplates = () => {
           category: doc.category,
           applicant_type_id: doc.applicant_type_id || null,
           age_condition: doc.age_condition || null,
+          description: doc.description || null,
         })
         .eq("id", doc.id)
         .select("*, applicant_type:applicant_types(*)")
@@ -500,6 +505,7 @@ const DocumentTemplates = () => {
       is_required: newDoc.isRequired,
       applicant_type_id: newDoc.applicantTypeId || null,
       age_condition: newDoc.ageCondition || null,
+      description: newDoc.description || null,
     });
   };
 
@@ -512,6 +518,7 @@ const DocumentTemplates = () => {
       category: editingDoc.category,
       applicant_type_id: editingDoc.applicant_type_id || null,
       age_condition: editingDoc.age_condition || null,
+      description: editingDoc.description || null,
     });
   };
 
@@ -1018,6 +1025,18 @@ const DocumentTemplates = () => {
                 placeholder="e.g., +16yrs, Under 18"
               />
             </div>
+            <div className="space-y-2">
+              <Label>Description / Instructions</Label>
+              <Textarea
+                value={newDoc.description}
+                onChange={(e) => setNewDoc({ ...newDoc, description: e.target.value })}
+                placeholder="e.g., A copy of the biographical details page of your current valid passport..."
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">
+                This instruction will be shown to clients in the portal.
+              </p>
+            </div>
             <div className="flex items-center justify-between">
               <Label>Required Document</Label>
               <Switch
@@ -1181,6 +1200,18 @@ const DocumentTemplates = () => {
                   onChange={(e) => setEditingDoc({ ...editingDoc, age_condition: e.target.value || null })}
                   placeholder="e.g., +16yrs, Under 18"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Description / Instructions</Label>
+                <Textarea
+                  value={editingDoc.description || ""}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, description: e.target.value || null })}
+                  placeholder="e.g., A copy of the biographical details page of your current valid passport..."
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  This instruction will be shown to clients in the portal.
+                </p>
               </div>
               <div className="flex items-center justify-between">
                 <Label>Required Document</Label>

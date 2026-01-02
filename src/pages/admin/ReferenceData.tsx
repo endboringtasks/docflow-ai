@@ -140,6 +140,7 @@ interface DocumentTemplate {
   sort_order: number;
   applicant_type_id: string | null;
   age_condition: string | null;
+  description: string | null;
   country?: Country;
   visa_type?: ApplicationType;
   applicant_type?: { id: string; name: string; code: string } | null;
@@ -1915,6 +1916,7 @@ function DocumentsTab() {
     sort_order: 0,
     applicant_type_id: "",
     age_condition: "",
+    description: "",
   });
   const [dialogCategoryFilter, setDialogCategoryFilter] = useState<string>("");
   const [dialogSubcategoryFilter, setDialogSubcategoryFilter] = useState<string>("");
@@ -2122,6 +2124,7 @@ function DocumentsTab() {
         visa_type_id: null, // No longer used, using junction table
         applicant_type_id: rest.applicant_type_id || null,
         age_condition: rest.age_condition || null,
+        description: rest.description || null,
       };
       
       let templateId: string;
@@ -2301,6 +2304,7 @@ function DocumentsTab() {
       sort_order: (documents?.length || 0) * 10,
       applicant_type_id: "",
       age_condition: "",
+      description: "",
     });
     setDialogCategoryFilter("");
     setDialogSubcategoryFilter("");
@@ -2321,6 +2325,7 @@ function DocumentsTab() {
       sort_order: doc.sort_order,
       applicant_type_id: doc.applicant_type_id || "",
       age_condition: doc.age_condition || "",
+      description: doc.description || "",
     });
     setDialogCategoryFilter("");
     setDialogSubcategoryFilter("");
@@ -2340,6 +2345,7 @@ function DocumentsTab() {
       sort_order: (documents?.length || 0) * 10,
       applicant_type_id: doc.applicant_type_id || "",
       age_condition: doc.age_condition || "",
+      description: doc.description || "",
     });
     setDialogCategoryFilter("");
     setDialogSubcategoryFilter("");
@@ -2704,6 +2710,18 @@ function DocumentsTab() {
                   placeholder="e.g., +16yrs, Under 18"
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Description / Instructions</Label>
+              <Textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="e.g., A copy of the biographical details page of your current valid passport. This page must include photograph, name, date of birth and passport number."
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">
+                This instruction will be shown to clients in the portal when uploading this document.
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <Switch

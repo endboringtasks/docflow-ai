@@ -76,6 +76,7 @@ interface DocumentItem {
   document_name: string;
   is_completed: boolean;
   file_path: string | null;
+  description: string | null;
 }
 
 interface FormData {
@@ -822,9 +823,14 @@ export default function ClientPortal() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`font-medium truncate ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
+                        <p className={`font-medium ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
                           {doc.document_name}
                         </p>
+                        {doc.description && !doc.is_completed && (
+                          <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">
+                            {doc.description}
+                          </p>
+                        )}
                         {doc.is_completed && doc.file_path && (
                           <div className="flex items-center gap-2 mt-1">
                             {isImageFile(doc.file_path) && previewUrls[doc.file_path] ? (
