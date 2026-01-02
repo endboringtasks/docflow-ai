@@ -67,7 +67,7 @@ const WEBHOOK_TOPICS: WebhookTopic[] = [
   {
     id: "applications",
     label: "Application",
-    description: "All application lifecycle events",
+    description: "All Application lifecycle events",
     events: ["application.created", "application.updated", "application.deleted"],
   },
 ];
