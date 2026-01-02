@@ -918,40 +918,39 @@ const MigrationVisaApplications = () => {
                     </Select>
                   </div>
                 )}
-                {newApplication.categoryId && (filteredSubcategories.length > 0 || filteredApplicationTypes.length > 0) && (
+                {newApplication.categoryId && filteredApplicationTypes.length === 0 && (
+                  <div className="p-3 bg-muted/50 rounded-md border border-border">
+                    <p className="text-sm text-muted-foreground">
+                      No application types available for this selection.
+                    </p>
+                  </div>
+                )}
+                {newApplication.categoryId && filteredApplicationTypes.length > 0 && (
                   <div className="space-y-2">
                     <Label htmlFor="applicationName">Application Name</Label>
-                    {filteredApplicationTypes.length > 0 ? (
-                      <Select
-                        value={newApplication.applicationName}
-                        onValueChange={(value) => {
-                          const selectedType = filteredApplicationTypes.find(t => t.name === value);
-                          setNewApplication(prev => ({ 
-                            ...prev, 
-                            applicationName: value,
-                            visaSubclass: selectedType?.code || ""
-                          }));
-                        }}
-                        disabled={!newApplication.categoryId}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select application name" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {filteredApplicationTypes.map((type) => (
-                            <SelectItem key={type.id} value={type.name}>
-                              {type.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input
-                        placeholder="Enter application name"
-                        value={newApplication.applicationName}
-                        onChange={(e) => setNewApplication(prev => ({ ...prev, applicationName: e.target.value }))}
-                      />
-                    )}
+                    <Select
+                      value={newApplication.applicationName}
+                      onValueChange={(value) => {
+                        const selectedType = filteredApplicationTypes.find(t => t.name === value);
+                        setNewApplication(prev => ({ 
+                          ...prev, 
+                          applicationName: value,
+                          visaSubclass: selectedType?.code || ""
+                        }));
+                      }}
+                      disabled={!newApplication.categoryId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select application name" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredApplicationTypes.map((type) => (
+                          <SelectItem key={type.id} value={type.name}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
               </div>
