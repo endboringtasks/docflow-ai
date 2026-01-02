@@ -459,6 +459,7 @@ export type Database = {
           file_path: string | null
           id: string
           is_completed: boolean
+          is_standard_for_client: boolean | null
           review_comment: string | null
           review_status: string | null
           reviewed_at: string | null
@@ -476,6 +477,7 @@ export type Database = {
           file_path?: string | null
           id?: string
           is_completed?: boolean
+          is_standard_for_client?: boolean | null
           review_comment?: string | null
           review_status?: string | null
           reviewed_at?: string | null
@@ -493,6 +495,7 @@ export type Database = {
           file_path?: string | null
           id?: string
           is_completed?: boolean
+          is_standard_for_client?: boolean | null
           review_comment?: string | null
           review_status?: string | null
           reviewed_at?: string | null
