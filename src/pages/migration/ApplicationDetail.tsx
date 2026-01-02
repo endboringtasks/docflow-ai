@@ -111,6 +111,7 @@ interface DocumentItem {
   reviewedAt: string | null;
   reviewedBy: string | null;
   reviewedByName: string | null;
+  isStandardForClient: boolean;
 }
 
 interface DbDocumentItem {
@@ -127,6 +128,7 @@ interface DbDocumentItem {
   uploaded_at: string | null;
   uploaded_by: string | null;
   uploaded_by_client: string | null;
+  is_standard_for_client: boolean | null;
   uploader_profile?: { display_name: string | null; email: string | null } | null;
   uploader_client?: { first_name: string | null; last_name: string | null; email: string | null } | null;
   reviewer_profile?: { display_name: string | null; email: string | null } | null;
@@ -166,7 +168,7 @@ const statusOptions = [
 ];
 
 // Default document checklist based on visa subclass (excluding DB-only fields)
-type DefaultDocFields = Omit<DocumentItem, "id" | "filePath" | "reviewStatus" | "reviewComment" | "uploadedAt" | "uploadedBy" | "uploadedByName" | "uploadedByClient" | "uploadedByClientName" | "reviewedAt" | "reviewedBy" | "reviewedByName">;
+type DefaultDocFields = Omit<DocumentItem, "id" | "filePath" | "reviewStatus" | "reviewComment" | "uploadedAt" | "uploadedBy" | "uploadedByName" | "uploadedByClient" | "uploadedByClientName" | "reviewedAt" | "reviewedBy" | "reviewedByName" | "isStandardForClient">;
 
 const getDefaultDocuments = (visaSubclass: string | null): DefaultDocFields[] => {
   const baseDocuments: DefaultDocFields[] = [
@@ -469,6 +471,7 @@ const VisaApplicationDetail = () => {
       reviewedAt: doc.reviewed_at,
       reviewedBy: doc.reviewed_by,
       reviewedByName: reviewerName,
+      isStandardForClient: doc.is_standard_for_client ?? false,
     };
   });
 
@@ -1309,6 +1312,11 @@ const VisaApplicationDetail = () => {
                             {doc.name}
                           </span>
                           {/* Review Status Badge */}
+                          {doc.isStandardForClient && (
+                            <Badge variant="outline" className="text-xs border-primary/50 text-primary">
+                              Client Portal
+                            </Badge>
+                          )}
                           {!doc.filePath && (
                             <Badge variant="outline" className="text-xs text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30">
                               <Clock className="w-3 h-3 mr-1" />
