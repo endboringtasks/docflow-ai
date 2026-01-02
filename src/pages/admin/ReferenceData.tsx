@@ -1417,7 +1417,7 @@ function TypesTab() {
                     <SelectValue placeholder="Select subcategory" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">None</SelectItem>
+                    <SelectItem value="__none__">All Subcategories</SelectItem>
                     {subcategories?.filter(s => s.category_id === form.category_id).map((sub) => (
                       <SelectItem key={sub.id} value={sub.id}>
                         {sub.name}
