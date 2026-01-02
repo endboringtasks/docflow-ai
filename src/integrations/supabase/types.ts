@@ -482,6 +482,7 @@ export type Database = {
         Row: {
           age_condition: string | null
           applicant_type: string | null
+          category: string | null
           company_id: string
           created_at: string
           description: string | null
@@ -503,6 +504,7 @@ export type Database = {
         Insert: {
           age_condition?: string | null
           applicant_type?: string | null
+          category?: string | null
           company_id: string
           created_at?: string
           description?: string | null
@@ -524,6 +526,7 @@ export type Database = {
         Update: {
           age_condition?: string | null
           applicant_type?: string | null
+          category?: string | null
           company_id?: string
           created_at?: string
           description?: string | null
@@ -1333,6 +1336,7 @@ export type Database = {
       get_portal_documents: {
         Args: { p_token: string }
         Returns: {
+          category: string
           description: string
           document_name: string
           file_path: string

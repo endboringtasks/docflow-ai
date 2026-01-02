@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,9 +28,12 @@ import {
   AlertCircle,
   Clock,
   X,
-  File
+  File,
+  ChevronDown,
+  ChevronRight,
+  FolderOpen
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -77,6 +80,7 @@ interface DocumentItem {
   is_completed: boolean;
   file_path: string | null;
   description: string | null;
+  category: string | null;
 }
 
 interface FormData {
@@ -547,6 +551,47 @@ export default function ClientPortal() {
   const totalDocs = documents.length;
   const progress = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
 
+  // Group documents by category
+  const groupedDocuments = useMemo(() => {
+    const groups: Record<string, DocumentItem[]> = {};
+    documents.forEach(doc => {
+      const category = doc.category || "Other Documents";
+      if (!groups[category]) {
+        groups[category] = [];
+      }
+      groups[category].push(doc);
+    });
+    return groups;
+  }, [documents]);
+
+  const categoryNames = useMemo(() => Object.keys(groupedDocuments).sort(), [groupedDocuments]);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  // Auto-expand all categories on first load
+  useEffect(() => {
+    if (categoryNames.length > 0 && expandedCategories.size === 0) {
+      setExpandedCategories(new Set(categoryNames));
+    }
+  }, [categoryNames]);
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
+  };
+
+  const getCategoryProgress = (category: string) => {
+    const docs = groupedDocuments[category] || [];
+    const completed = docs.filter(d => d.is_completed).length;
+    return { completed, total: docs.length };
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center">
@@ -798,111 +843,160 @@ export default function ClientPortal() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {documents.map((doc) => (
-                    <motion.div
-                      key={doc.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${
-                        doc.is_completed 
-                          ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
-                          : dragOverDocId === doc.id
-                            ? "bg-primary/10 border-primary border-dashed"
-                            : "bg-muted/50 border-transparent hover:border-border"
-                      }`}
-                      onDragOver={(e) => handleDragOver(e, doc.id)}
-                      onDragLeave={handleDragLeave}
-                      onDrop={(e) => handleDrop(e, doc.id)}
-                    >
-                      <div className="flex-shrink-0">
-                        {doc.is_completed ? (
-                          <CheckCircle2 className="w-6 h-6 text-green-600" />
-                        ) : (
-                          <Circle className="w-6 h-6 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`font-medium ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
-                          {doc.document_name}
-                        </p>
-                        {doc.description && !doc.is_completed && (
-                          <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">
-                            {doc.description}
-                          </p>
-                        )}
-                        {doc.is_completed && doc.file_path && (
-                          <div className="flex items-center gap-2 mt-1">
-                            {isImageFile(doc.file_path) && previewUrls[doc.file_path] ? (
-                              <button 
-                                onClick={() => openPreview(doc.file_path!)}
-                                className="hover:opacity-75 transition-opacity"
-                              >
-                                <img 
-                                  src={previewUrls[doc.file_path]} 
-                                  alt="Preview" 
-                                  className="w-10 h-10 object-cover rounded border"
-                                />
-                              </button>
+                <div className="space-y-4">
+                  {categoryNames.map((category) => {
+                    const { completed, total } = getCategoryProgress(category);
+                    const isExpanded = expandedCategories.has(category);
+                    const categoryDocs = groupedDocuments[category] || [];
+
+                    return (
+                      <div key={category} className="border rounded-lg overflow-hidden">
+                        {/* Category Header */}
+                        <button
+                          onClick={() => toggleCategory(category)}
+                          className="w-full flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            {isExpanded ? (
+                              <ChevronDown className="w-5 h-5 text-muted-foreground" />
                             ) : (
-                              <File className="w-4 h-4 text-muted-foreground" />
+                              <ChevronRight className="w-5 h-5 text-muted-foreground" />
                             )}
-                            <span className="text-sm text-muted-foreground truncate">
-                              {getFileName(doc.file_path)}
-                            </span>
+                            <FolderOpen className="w-5 h-5 text-primary" />
+                            <span className="font-semibold">{category}</span>
                           </div>
-                        )}
-                      </div>
-                      <div className="flex-shrink-0 flex items-center gap-2">
-                        {doc.is_completed ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveDocument(doc.id)}
-                            disabled={removingDocId === doc.id}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            {removingDocId === doc.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <X className="w-4 h-4" />
-                            )}
-                          </Button>
-                        ) : (
-                          <label className="cursor-pointer">
-                            <input
-                              type="file"
-                              className="hidden"
-                              accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleFileUpload(doc.id, file);
-                                e.target.value = "";
-                              }}
-                              disabled={uploadingDocId === doc.id}
-                            />
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              asChild
-                              disabled={uploadingDocId === doc.id}
+                          <div className="flex items-center gap-2">
+                            <Badge 
+                              variant={completed === total ? "default" : "secondary"}
+                              className={completed === total ? "bg-green-600" : ""}
                             >
-                              <span>
-                                {uploadingDocId === doc.id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <>
-                                    <Upload className="w-4 h-4 mr-2" />
-                                    Upload
-                                  </>
-                                )}
-                              </span>
-                            </Button>
-                          </label>
-                        )}
+                              {completed}/{total}
+                            </Badge>
+                          </div>
+                        </button>
+
+                        {/* Category Documents */}
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <div className="p-3 space-y-2">
+                                {categoryDocs.map((doc) => (
+                                  <motion.div
+                                    key={doc.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className={`flex items-center gap-4 p-3 rounded-lg border transition-all ${
+                                      doc.is_completed 
+                                        ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
+                                        : dragOverDocId === doc.id
+                                          ? "bg-primary/10 border-primary border-dashed"
+                                          : "bg-background border-border/50 hover:border-border"
+                                    }`}
+                                    onDragOver={(e) => handleDragOver(e, doc.id)}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={(e) => handleDrop(e, doc.id)}
+                                  >
+                                    <div className="flex-shrink-0">
+                                      {doc.is_completed ? (
+                                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                                      ) : (
+                                        <Circle className="w-5 h-5 text-muted-foreground" />
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className={`font-medium text-sm ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
+                                        {doc.document_name}
+                                      </p>
+                                      {doc.description && !doc.is_completed && (
+                                        <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
+                                          {doc.description}
+                                        </p>
+                                      )}
+                                      {doc.is_completed && doc.file_path && (
+                                        <div className="flex items-center gap-2 mt-1">
+                                          {isImageFile(doc.file_path) && previewUrls[doc.file_path] ? (
+                                            <button 
+                                              onClick={() => openPreview(doc.file_path!)}
+                                              className="hover:opacity-75 transition-opacity"
+                                            >
+                                              <img 
+                                                src={previewUrls[doc.file_path]} 
+                                                alt="Preview" 
+                                                className="w-8 h-8 object-cover rounded border"
+                                              />
+                                            </button>
+                                          ) : (
+                                            <File className="w-4 h-4 text-muted-foreground" />
+                                          )}
+                                          <span className="text-xs text-muted-foreground truncate">
+                                            {getFileName(doc.file_path)}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex-shrink-0 flex items-center gap-2">
+                                      {doc.is_completed ? (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleRemoveDocument(doc.id)}
+                                          disabled={removingDocId === doc.id}
+                                          className="text-destructive hover:text-destructive h-8 w-8 p-0"
+                                        >
+                                          {removingDocId === doc.id ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                          ) : (
+                                            <X className="w-4 h-4" />
+                                          )}
+                                        </Button>
+                                      ) : (
+                                        <label className="cursor-pointer">
+                                          <input
+                                            type="file"
+                                            className="hidden"
+                                            accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) handleFileUpload(doc.id, file);
+                                              e.target.value = "";
+                                            }}
+                                            disabled={uploadingDocId === doc.id}
+                                          />
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            asChild
+                                            disabled={uploadingDocId === doc.id}
+                                            className="h-8"
+                                          >
+                                            <span>
+                                              {uploadingDocId === doc.id ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                              ) : (
+                                                <>
+                                                  <Upload className="w-4 h-4 mr-1" />
+                                                  Upload
+                                                </>
+                                              )}
+                                            </span>
+                                          </Button>
+                                        </label>
+                                      )}
+                                    </div>
+                                  </motion.div>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
-                    </motion.div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
