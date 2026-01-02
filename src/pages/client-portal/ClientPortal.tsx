@@ -902,13 +902,18 @@ export default function ClientPortal() {
                                                   </div>
                                                   <div className="flex-1 min-w-0">
                                                     <p className={`font-medium text-sm ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
-                                                      {doc.document_name}
+                                                      {doc.document_name.replace(/\s*\[[^\]]*:required\]\s*/gi, " ").trim()}
                                                     </p>
-                                                    {doc.description && !doc.is_completed && !doc.description.match(/^\[.*:required\]$/) && (
-                                                      <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
-                                                        {doc.description}
-                                                      </p>
-                                                    )}
+                                                    {!doc.is_completed && (() => {
+                                                      const cleaned = doc.description
+                                                        ?.replace(/\s*\[[^\]]*:required\]\s*/gi, " ")
+                                                        .trim();
+                                                      return cleaned ? (
+                                                        <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
+                                                          {cleaned}
+                                                        </p>
+                                                      ) : null;
+                                                    })()}
                                                   </div>
                                                   <div className="flex-shrink-0 flex items-center gap-2">
                                                     {doc.is_completed ? (
