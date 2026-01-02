@@ -27,6 +27,7 @@ import {
   XCircle,
   Filter,
   RefreshCw,
+  Merge,
   Clock,
   Calendar,
 } from "lucide-react";
@@ -255,6 +256,7 @@ const VisaApplicationDetail = () => {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isRegenerateOpen, setIsRegenerateOpen] = useState(false);
+  const [isMergeOpen, setIsMergeOpen] = useState(false);
   const [newDocName, setNewDocName] = useState("");
   const [documentsInitialized, setDocumentsInitialized] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
@@ -739,6 +741,140 @@ const VisaApplicationDetail = () => {
     },
     onError: (error) => {
       toast.error("Failed to regenerate checklist", { description: error instanceof Error ? error.message : "Please try again" });
+    },
+  });
+
+  // Merge templates into existing checklist (only adds missing documents)
+  const mergeTemplatesMutation = useMutation({
+    mutationFn: async () => {
+      if (!visaApplicationId || !visaApplication?.company_id) throw new Error("Missing IDs");
+
+      // Get existing document names for comparison
+      const existingDocNames = new Set(
+        (dbDocuments || []).map(d => {
+          const parsed = parseDocumentName(d.document_name);
+          return parsed.displayName.toLowerCase().trim();
+        })
+      );
+
+      // Fetch templates
+      const visaTypeQuery = supabase
+        .from("visa_types")
+        .select("id")
+        .eq("is_active", true)
+        .eq("name", visaApplication.application_name)
+        .limit(1);
+
+      const { data: matchingVisaType, error: visaTypeError } = await (visaApplication.visa_subclass
+        ? visaTypeQuery.eq("code", visaApplication.visa_subclass).maybeSingle()
+        : visaTypeQuery.maybeSingle());
+
+      if (visaTypeError) throw visaTypeError;
+
+      const visaTypeId = matchingVisaType?.id;
+      let newDocs: any[] = [];
+
+      if (visaTypeId) {
+        const { data: linkedTemplates, error: linkedError } = await supabase
+          .from("document_template_applications")
+          .select("document_template_id")
+          .eq("visa_type_id", visaTypeId);
+
+        if (linkedError) throw linkedError;
+
+        const templateIds = (linkedTemplates || [])
+          .map((t) => t.document_template_id)
+          .filter(Boolean);
+
+        if (templateIds.length > 0) {
+          const { data: templates, error: templatesError } = await supabase
+            .from("document_checklist_templates")
+            .select(`
+              document_name, 
+              category, 
+              description,
+              age_condition,
+              is_required, 
+              sort_order,
+              applicant_type:applicant_types(name)
+            `)
+            .in("id", templateIds)
+            .order("sort_order");
+
+          if (templatesError) throw templatesError;
+
+          if (templates && templates.length > 0) {
+            // Filter to only templates that don't already exist
+            newDocs = templates
+              .filter((template: any) => {
+                const templateName = String(template.document_name || "").trim().toLowerCase();
+                return !existingDocNames.has(templateName);
+              })
+              .map((template: any) => {
+                const category = template.category || "General";
+                const required = !!template.is_required;
+                const rawName = String(template.document_name || "").trim();
+                const formattedName = rawName.startsWith("[")
+                  ? rawName
+                  : `[${category}:${required ? "required" : "optional"}] ${rawName}`;
+
+                return {
+                  visa_application_id: visaApplicationId,
+                  company_id: visaApplication.company_id,
+                  document_name: formattedName,
+                  category: template.category,
+                  description: template.description,
+                  applicant_type: template.applicant_type?.name || null,
+                  age_condition: template.age_condition,
+                  is_completed: false,
+                  is_standard_for_client: true,
+                  review_status: "pending_client",
+                };
+              });
+          }
+        }
+      }
+
+      // Fallback to default docs if no templates found
+      if (newDocs.length === 0 && !visaTypeId) {
+        const defaultDocs = getDefaultDocuments(visaApplication.visa_subclass);
+        newDocs = defaultDocs
+          .filter(doc => !existingDocNames.has(doc.name.toLowerCase().trim()))
+          .map((doc) => ({
+            visa_application_id: visaApplicationId,
+            company_id: visaApplication.company_id,
+            document_name: formatDocumentForStorage(doc),
+            is_completed: false,
+            review_status: "pending_client",
+          }));
+      }
+
+      if (newDocs.length === 0) {
+        return { added: 0, skipped: existingDocNames.size };
+      }
+
+      const { error: insertError } = await supabase
+        .from("document_checklist")
+        .insert(newDocs);
+
+      if (insertError) throw insertError;
+      return { added: newDocs.length, skipped: existingDocNames.size };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
+      setIsMergeOpen(false);
+      if (result.added > 0) {
+        toast.success(`Added ${result.added} new document${result.added > 1 ? "s" : ""}`, {
+          description: `${result.skipped} existing documents preserved`,
+        });
+      } else {
+        toast.info("No new documents to add", {
+          description: "All template documents already exist in the checklist",
+        });
+      }
+    },
+    onError: (error) => {
+      toast.error("Failed to merge templates", { description: error instanceof Error ? error.message : "Please try again" });
     },
   });
 
@@ -1327,8 +1463,21 @@ const VisaApplicationDetail = () => {
           </TabsList>
 
           <TabsContent value="documents" className="space-y-6">
-            {/* Regenerate Checklist Button */}
-            <div className="flex justify-end">
+            {/* Checklist Actions */}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsMergeOpen(true)}
+                disabled={mergeTemplatesMutation.isPending}
+              >
+                {mergeTemplatesMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Merge className="w-4 h-4 mr-2" />
+                )}
+                Merge Templates
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -1965,6 +2114,34 @@ const VisaApplicationDetail = () => {
                   </>
                 ) : (
                   "Regenerate"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Merge Templates Confirmation */}
+        <AlertDialog open={isMergeOpen} onOpenChange={setIsMergeOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Merge Template Documents</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will add any missing documents from the configured templates to the checklist. Existing documents and uploaded files will be preserved.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => mergeTemplatesMutation.mutate()}
+                disabled={mergeTemplatesMutation.isPending}
+              >
+                {mergeTemplatesMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Merging...
+                  </>
+                ) : (
+                  "Merge"
                 )}
               </AlertDialogAction>
             </AlertDialogFooter>
