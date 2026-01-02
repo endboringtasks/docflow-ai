@@ -319,24 +319,36 @@ const DocumentTemplates = () => {
     enabled: !!selectedCountry && !!selectedCategory,
   });
 
-  // Fetch templates for selected application type
+  // Fetch templates for selected application type via junction table
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["document-templates", currentCompany?.id, selectedApplicationType],
     queryFn: async () => {
-      if (!currentCompany?.id || !selectedApplicationType) return [];
+      if (!selectedApplicationType) return [];
       
+      // First get template IDs linked to this application type via junction table
+      const { data: linkedTemplates, error: linkError } = await supabase
+        .from("document_template_applications")
+        .select("document_template_id")
+        .eq("visa_type_id", selectedApplicationType);
+      
+      if (linkError) throw linkError;
+      
+      const templateIds = linkedTemplates?.map(t => t.document_template_id) || [];
+      
+      if (templateIds.length === 0) return [];
+      
+      // Fetch the actual templates
       const { data, error } = await supabase
         .from("document_checklist_templates")
         .select("*")
-        .eq("company_id", currentCompany.id)
-        .eq("visa_type_id", selectedApplicationType)
+        .in("id", templateIds)
         .order("category", { ascending: true })
         .order("sort_order", { ascending: true });
       
       if (error) throw error;
       return data as DocumentTemplate[];
     },
-    enabled: !!currentCompany?.id && !!selectedApplicationType,
+    enabled: !!selectedApplicationType,
   });
 
   // Filter templates by search name
