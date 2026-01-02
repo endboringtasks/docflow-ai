@@ -119,6 +119,7 @@ const ClientDetail = () => {
     categoryId: "",
     applicationName: "",
     visaSubclass: "",
+    visaTypeId: "",
   });
   
   const [editForm, setEditForm] = useState({
@@ -239,6 +240,7 @@ const ClientDetail = () => {
       visa_subclass: string;
       country_id: string;
       category_id: string;
+      visa_type_id?: string;
     }) => {
       if (!currentCompany?.id || !clientId) throw new Error("Missing required data");
       
@@ -257,29 +259,38 @@ const ClientDetail = () => {
         .single();
       
       if (error) throw error;
-      return data;
+      return { ...data, visa_type_id: applicationData.visa_type_id };
     },
     onSuccess: async (data) => {
-      // Copy document templates to document_checklist
+      // Copy document templates to document_checklist based on linked application types
       try {
-        if (data.visa_subclass && currentCompany?.id) {
-          const { data: templates } = await supabase
-            .from("document_checklist_templates")
-            .select("document_name, category, is_required, is_standard_for_client, sort_order")
-            .eq("company_id", currentCompany.id)
-            .eq("visa_subclass", data.visa_subclass)
-            .order("sort_order");
+        if (data.visa_type_id && currentCompany?.id) {
+          // Fetch template IDs linked to this application type via junction table
+          const { data: linkedTemplates } = await supabase
+            .from("document_template_applications")
+            .select("document_template_id")
+            .eq("visa_type_id", data.visa_type_id);
 
-          if (templates && templates.length > 0) {
-            const documentsToInsert = templates.map((template) => ({
-              visa_application_id: data.id,
-              company_id: currentCompany.id,
-              document_name: `[${template.category}:${template.is_required ? 'required' : 'optional'}] ${template.document_name}`,
-              is_completed: false,
-              is_standard_for_client: template.is_standard_for_client ?? false,
-            }));
+          const templateIds = linkedTemplates?.map(t => t.document_template_id) || [];
 
-            await supabase.from("document_checklist").insert(documentsToInsert);
+          if (templateIds.length > 0) {
+            const { data: templates } = await supabase
+              .from("document_checklist_templates")
+              .select("document_name, category, is_required, sort_order")
+              .in("id", templateIds)
+              .order("sort_order");
+
+            if (templates && templates.length > 0) {
+              const documentsToInsert = templates.map((template) => ({
+                visa_application_id: data.id,
+                company_id: currentCompany.id,
+                document_name: `[${template.category}:${template.is_required ? 'required' : 'optional'}] ${template.document_name}`,
+                is_completed: false,
+                is_standard_for_client: true, // All linked templates are standard for client
+              }));
+
+              await supabase.from("document_checklist").insert(documentsToInsert);
+            }
           }
         }
       } catch (templateError) {
@@ -326,7 +337,7 @@ const ClientDetail = () => {
       queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
       setIsCreateApplicationOpen(false);
-      setNewApplication({ countryId: "", categoryId: "", applicationName: "", visaSubclass: "" });
+      setNewApplication({ countryId: "", categoryId: "", applicationName: "", visaSubclass: "", visaTypeId: "" });
       toast.success("Application created!");
     },
     onError: (error) => {
@@ -442,6 +453,7 @@ const ClientDetail = () => {
       visa_subclass: newApplication.visaSubclass,
       country_id: newApplication.countryId,
       category_id: newApplication.categoryId,
+      visa_type_id: newApplication.visaTypeId || undefined,
     });
   };
 
@@ -794,7 +806,8 @@ const ClientDetail = () => {
                     setNewApplication(prev => ({ 
                       ...prev, 
                       applicationName: value,
-                      visaSubclass: selectedType?.code || ""
+                      visaSubclass: selectedType?.code || "",
+                      visaTypeId: selectedType?.id || ""
                     }));
                   }}
                   disabled={!newApplication.categoryId}
