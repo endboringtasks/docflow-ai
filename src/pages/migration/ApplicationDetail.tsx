@@ -1610,11 +1610,6 @@ const VisaApplicationDetail = () => {
                                 </Badge>
                               )}
                               {/* Review Status Badge */}
-                              {doc.isStandardForClient && (
-                                <Badge variant="outline" className="text-xs border-primary/50 text-primary">
-                                  Client Portal
-                                </Badge>
-                              )}
                               {!doc.filePath && (
                                 <Badge variant="outline" className="text-xs text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30">
                                   <Clock className="w-3 h-3 mr-1" />
