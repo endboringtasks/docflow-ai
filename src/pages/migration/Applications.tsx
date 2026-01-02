@@ -66,6 +66,7 @@ interface VisaApplication {
   visa_subclass: string | null;
   country_id: string | null;
   category_id: string | null;
+  subcategory_id: string | null;
   status: "draft" | "active" | "done";
   visa_application_folder_id: string | null;
   folder_status: string;
@@ -277,6 +278,7 @@ const MigrationVisaApplications = () => {
           visa_subclass,
           country_id,
           category_id,
+          subcategory_id,
           status,
           visa_application_folder_id,
           folder_status,
@@ -313,6 +315,7 @@ const MigrationVisaApplications = () => {
           visa_subclass: application.visa_subclass,
           country_id: application.country_id,
           category_id: application.category_id,
+          subcategory_id: application.subcategory_id,
           status: application.status as "draft" | "active" | "done",
           visa_application_folder_id: application.visa_application_folder_id,
           folder_status: application.folder_status,
@@ -751,6 +754,12 @@ const MigrationVisaApplications = () => {
     return category?.name || null;
   };
 
+  const getSubcategoryName = (subcategoryId: string | null) => {
+    if (!subcategoryId) return null;
+    const subcategory = subcategories.find(s => s.id === subcategoryId);
+    return subcategory?.name || null;
+  };
+
   const getCategoryBadgeColor = (code: string | null) => {
     if (!code) return "secondary";
     switch (code) {
@@ -1017,6 +1026,11 @@ const MigrationVisaApplications = () => {
                       {application.category_id && (
                         <Badge variant={getCategoryBadgeColor(categories.find(c => c.id === application.category_id)?.code || null)}>
                           {getCategoryName(application.category_id)}
+                        </Badge>
+                      )}
+                      {application.subcategory_id && (
+                        <Badge variant="outline">
+                          {getSubcategoryName(application.subcategory_id)}
                         </Badge>
                       )}
                       <h3 className="font-semibold truncate">{application.application_name}</h3>
