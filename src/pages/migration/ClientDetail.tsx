@@ -276,17 +276,29 @@ const ClientDetail = () => {
           if (templateIds.length > 0) {
             const { data: templates } = await supabase
               .from("document_checklist_templates")
-              .select("document_name, category, is_required, sort_order")
+              .select(`
+                document_name, 
+                category, 
+                description,
+                age_condition,
+                is_required, 
+                sort_order,
+                applicant_type:applicant_types(name)
+              `)
               .in("id", templateIds)
               .order("sort_order");
 
             if (templates && templates.length > 0) {
-              const documentsToInsert = templates.map((template) => ({
+              const documentsToInsert = templates.map((template: any) => ({
                 visa_application_id: data.id,
                 company_id: currentCompany.id,
-                document_name: `[${template.category}:${template.is_required ? 'required' : 'optional'}] ${template.document_name}`,
+                document_name: template.document_name,
+                category: template.category,
+                description: template.description,
+                applicant_type: template.applicant_type?.name || null,
+                age_condition: template.age_condition,
                 is_completed: false,
-                is_standard_for_client: true, // All linked templates are standard for client
+                is_standard_for_client: true,
               }));
 
               await supabase.from("document_checklist").insert(documentsToInsert);
