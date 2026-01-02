@@ -904,28 +904,10 @@ export default function ClientPortal() {
                                                     <p className={`font-medium text-sm ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
                                                       {doc.document_name}
                                                     </p>
-                                                    {doc.description && !doc.is_completed && (
+                                                    {doc.description && !doc.is_completed && !doc.description.match(/^\[.*:required\]$/) && (
                                                       <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
                                                         {doc.description}
                                                       </p>
-                                                    )}
-                                                    {doc.is_completed && doc.file_path && (
-                                                      <div className="flex items-center gap-2 mt-1">
-                                                        <DocumentThumbnail
-                                                          filePath={doc.file_path}
-                                                          fileUrl={previewUrls[doc.file_path] || null}
-                                                          onPreview={() => openPreview(doc.file_path!)}
-                                                          size={32}
-                                                        />
-                                                        {(() => {
-                                                          const fileType = getFileTypeBadge(doc.file_path);
-                                                          return fileType ? (
-                                                            <Badge variant="outline" className={`text-xs ${fileType.color}`}>
-                                                              {fileType.label}
-                                                            </Badge>
-                                                          ) : null;
-                                                        })()}
-                                                      </div>
                                                     )}
                                                   </div>
                                                   <div className="flex-shrink-0 flex items-center gap-2">
