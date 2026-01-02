@@ -33,7 +33,8 @@ import {
   File,
   ChevronDown,
   ChevronRight,
-  FolderOpen
+  FolderOpen,
+  User
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -83,6 +84,7 @@ interface DocumentItem {
   file_path: string | null;
   description: string | null;
   category: string | null;
+  applicant_type: string | null;
 }
 
 interface FormData {
@@ -563,43 +565,106 @@ export default function ClientPortal() {
   const totalDocs = documents.length;
   const progress = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
 
-  // Group documents by category
-  const groupedDocuments = useMemo(() => {
-    const groups: Record<string, DocumentItem[]> = {};
+  // Group documents by applicant type, then by category
+  const groupedByApplicantType = useMemo(() => {
+    const groups: Record<string, Record<string, DocumentItem[]>> = {};
     documents.forEach(doc => {
+      const applicantType = doc.applicant_type || "General";
       const category = doc.category || "Other Documents";
-      if (!groups[category]) {
-        groups[category] = [];
+      
+      if (!groups[applicantType]) {
+        groups[applicantType] = {};
       }
-      groups[category].push(doc);
+      if (!groups[applicantType][category]) {
+        groups[applicantType][category] = [];
+      }
+      groups[applicantType][category].push(doc);
     });
     return groups;
   }, [documents]);
 
-  const categoryNames = useMemo(() => Object.keys(groupedDocuments).sort(), [groupedDocuments]);
+  // Ordered applicant types with preferred ordering
+  const orderedApplicantTypes = useMemo(() => {
+    const preferredOrder = ["Primary Applicant", "Partner", "Dependant", "Sponsor"];
+    const types = Object.keys(groupedByApplicantType);
+    
+    return types.sort((a, b) => {
+      // "General" always comes last
+      if (a === "General") return 1;
+      if (b === "General") return -1;
+      
+      const aIndex = preferredOrder.indexOf(a);
+      const bIndex = preferredOrder.indexOf(b);
+      
+      // If both are in preferred order, sort by that
+      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+      // If only a is in preferred order, a comes first
+      if (aIndex !== -1) return -1;
+      // If only b is in preferred order, b comes first
+      if (bIndex !== -1) return 1;
+      // Otherwise alphabetical
+      return a.localeCompare(b);
+    });
+  }, [groupedByApplicantType]);
+
+  const [expandedApplicantTypes, setExpandedApplicantTypes] = useState<Set<string>>(new Set());
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
-  // Auto-expand all categories on first load
+  // Auto-expand all applicant types and categories on first load
   useEffect(() => {
-    if (categoryNames.length > 0 && expandedCategories.size === 0) {
-      setExpandedCategories(new Set(categoryNames));
+    if (orderedApplicantTypes.length > 0 && expandedApplicantTypes.size === 0) {
+      setExpandedApplicantTypes(new Set(orderedApplicantTypes));
+      // Expand all categories within each applicant type
+      const allCategories = new Set<string>();
+      Object.entries(groupedByApplicantType).forEach(([applicantType, categories]) => {
+        Object.keys(categories).forEach(category => {
+          allCategories.add(`${applicantType}::${category}`);
+        });
+      });
+      setExpandedCategories(allCategories);
     }
-  }, [categoryNames]);
+  }, [orderedApplicantTypes, groupedByApplicantType]);
 
-  const toggleCategory = (category: string) => {
-    setExpandedCategories(prev => {
+  const toggleApplicantType = (applicantType: string) => {
+    setExpandedApplicantTypes(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(category)) {
-        newSet.delete(category);
+      if (newSet.has(applicantType)) {
+        newSet.delete(applicantType);
       } else {
-        newSet.add(category);
+        newSet.add(applicantType);
       }
       return newSet;
     });
   };
 
-  const getCategoryProgress = (category: string) => {
-    const docs = groupedDocuments[category] || [];
+  const toggleCategory = (applicantType: string, category: string) => {
+    const key = `${applicantType}::${category}`;
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
+
+  const getApplicantTypeProgress = (applicantType: string) => {
+    const categories = groupedByApplicantType[applicantType] || {};
+    let completed = 0;
+    let total = 0;
+    Object.values(categories).forEach(docs => {
+      docs.forEach(doc => {
+        total++;
+        if (doc.is_completed) completed++;
+      });
+    });
+    return { completed, total };
+  };
+
+  const getCategoryProgress = (applicantType: string, category: string) => {
+    const docs = groupedByApplicantType[applicantType]?.[category] || [];
     const completed = docs.filter(d => d.is_completed).length;
     return { completed, total: docs.length };
   };
@@ -729,150 +794,198 @@ export default function ClientPortal() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {categoryNames.map((category) => {
-                    const { completed, total } = getCategoryProgress(category);
-                    const isExpanded = expandedCategories.has(category);
-                    const categoryDocs = groupedDocuments[category] || [];
+                <div className="space-y-6">
+                  {orderedApplicantTypes.map((applicantType) => {
+                    const applicantProgress = getApplicantTypeProgress(applicantType);
+                    const isApplicantTypeExpanded = expandedApplicantTypes.has(applicantType);
+                    const categories = groupedByApplicantType[applicantType] || {};
+                    const sortedCategories = Object.keys(categories).sort();
 
                     return (
-                      <div key={category} className="border rounded-lg overflow-hidden">
-                        {/* Category Header */}
+                      <div key={applicantType} className="border rounded-lg overflow-hidden">
+                        {/* Applicant Type Header */}
                         <button
-                          onClick={() => toggleCategory(category)}
-                          className="w-full flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 transition-colors"
+                          onClick={() => toggleApplicantType(applicantType)}
+                          className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-primary/10 to-primary/5 hover:from-primary/15 hover:to-primary/10 transition-colors"
                         >
                           <div className="flex items-center gap-3">
-                            {isExpanded ? (
-                              <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                            {isApplicantTypeExpanded ? (
+                              <ChevronDown className="w-5 h-5 text-primary" />
                             ) : (
-                              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                              <ChevronRight className="w-5 h-5 text-primary" />
                             )}
-                            <FolderOpen className="w-5 h-5 text-primary" />
-                            <span className="font-semibold">{category}</span>
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
+                              <User className="w-4 h-4 text-primary-foreground" />
+                            </div>
+                            <span className="font-semibold text-lg">{applicantType}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Badge 
-                              variant={completed === total ? "default" : "secondary"}
-                              className={completed === total ? "bg-green-600" : ""}
-                            >
-                              {completed}/{total}
-                            </Badge>
-                          </div>
+                          <Badge 
+                            variant={applicantProgress.completed === applicantProgress.total ? "default" : "secondary"}
+                            className={applicantProgress.completed === applicantProgress.total ? "bg-green-600" : ""}
+                          >
+                            {applicantProgress.completed}/{applicantProgress.total}
+                          </Badge>
                         </button>
 
-                        {/* Category Documents */}
+                        {/* Categories within Applicant Type */}
                         <AnimatePresence>
-                          {isExpanded && (
+                          {isApplicantTypeExpanded && (
                             <motion.div
                               initial={{ height: 0, opacity: 0 }}
                               animate={{ height: "auto", opacity: 1 }}
                               exit={{ height: 0, opacity: 0 }}
                               transition={{ duration: 0.2 }}
                             >
-                              <div className="p-3 space-y-2">
-                                {categoryDocs.map((doc) => (
-                                  <motion.div
-                                    key={doc.id}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className={`flex items-center gap-4 p-3 rounded-lg border transition-all ${
-                                      doc.is_completed 
-                                        ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
-                                        : dragOverDocId === doc.id
-                                          ? "bg-primary/10 border-primary border-dashed"
-                                          : "bg-background border-border/50 hover:border-border"
-                                    }`}
-                                    onDragOver={(e) => handleDragOver(e, doc.id)}
-                                    onDragLeave={handleDragLeave}
-                                    onDrop={(e) => handleDrop(e, doc.id)}
-                                  >
-                                    <div className="flex-shrink-0">
-                                      {doc.is_completed ? (
-                                        <CheckCircle2 className="w-5 h-5 text-green-600" />
-                                      ) : (
-                                        <Circle className="w-5 h-5 text-muted-foreground" />
-                                      )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className={`font-medium text-sm ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
-                                        {doc.document_name}
-                                      </p>
-                                      {doc.description && !doc.is_completed && (
-                                        <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
-                                          {doc.description}
-                                        </p>
-                                      )}
-                                      {doc.is_completed && doc.file_path && (
-                                        <div className="flex items-center gap-2 mt-1">
-                                          <DocumentThumbnail
-                                            filePath={doc.file_path}
-                                            fileUrl={previewUrls[doc.file_path] || null}
-                                            onPreview={() => openPreview(doc.file_path!)}
-                                            size={32}
-                                          />
-                                          {(() => {
-                                            const fileType = getFileTypeBadge(doc.file_path);
-                                            return fileType ? (
-                                              <Badge variant="outline" className={`text-xs ${fileType.color}`}>
-                                                {fileType.label}
-                                              </Badge>
-                                            ) : null;
-                                          })()}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="flex-shrink-0 flex items-center gap-2">
-                                      {doc.is_completed ? (
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => handleRemoveDocument(doc.id)}
-                                          disabled={removingDocId === doc.id}
-                                          className="text-destructive hover:text-destructive h-8 w-8 p-0"
-                                        >
-                                          {removingDocId === doc.id ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
+                              <div className="p-3 space-y-3">
+                                {sortedCategories.map((category) => {
+                                  const categoryKey = `${applicantType}::${category}`;
+                                  const { completed, total } = getCategoryProgress(applicantType, category);
+                                  const isCategoryExpanded = expandedCategories.has(categoryKey);
+                                  const categoryDocs = categories[category] || [];
+
+                                  return (
+                                    <div key={categoryKey} className="border rounded-lg overflow-hidden">
+                                      {/* Category Header */}
+                                      <button
+                                        onClick={() => toggleCategory(applicantType, category)}
+                                        className="w-full flex items-center justify-between p-3 bg-muted/30 hover:bg-muted/50 transition-colors"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          {isCategoryExpanded ? (
+                                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
                                           ) : (
-                                            <X className="w-4 h-4" />
+                                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
                                           )}
-                                        </Button>
-                                      ) : (
-                                        <label className="cursor-pointer">
-                                          <input
-                                            type="file"
-                                            className="hidden"
-                                            accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic"
-                                            onChange={(e) => {
-                                              const file = e.target.files?.[0];
-                                              if (file) handleFileUpload(doc.id, file);
-                                              e.target.value = "";
-                                            }}
-                                            disabled={uploadingDocId === doc.id}
-                                          />
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            asChild
-                                            disabled={uploadingDocId === doc.id}
-                                            className="h-8"
+                                          <FolderOpen className="w-4 h-4 text-primary" />
+                                          <span className="font-medium text-sm">{category}</span>
+                                        </div>
+                                        <Badge 
+                                          variant={completed === total ? "default" : "outline"}
+                                          className={`text-xs ${completed === total ? "bg-green-600" : ""}`}
+                                        >
+                                          {completed}/{total}
+                                        </Badge>
+                                      </button>
+
+                                      {/* Documents in Category */}
+                                      <AnimatePresence>
+                                        {isCategoryExpanded && (
+                                          <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: "auto", opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            transition={{ duration: 0.2 }}
                                           >
-                                            <span>
-                                              {uploadingDocId === doc.id ? (
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                              ) : (
-                                                <>
-                                                  <Upload className="w-4 h-4 mr-1" />
-                                                  Upload
-                                                </>
-                                              )}
-                                            </span>
-                                          </Button>
-                                        </label>
-                                      )}
+                                            <div className="p-2 space-y-2">
+                                              {categoryDocs.map((doc) => (
+                                                <motion.div
+                                                  key={doc.id}
+                                                  initial={{ opacity: 0, y: 10 }}
+                                                  animate={{ opacity: 1, y: 0 }}
+                                                  className={`flex items-center gap-4 p-3 rounded-lg border transition-all ${
+                                                    doc.is_completed 
+                                                      ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
+                                                      : dragOverDocId === doc.id
+                                                        ? "bg-primary/10 border-primary border-dashed"
+                                                        : "bg-background border-border/50 hover:border-border"
+                                                  }`}
+                                                  onDragOver={(e) => handleDragOver(e, doc.id)}
+                                                  onDragLeave={handleDragLeave}
+                                                  onDrop={(e) => handleDrop(e, doc.id)}
+                                                >
+                                                  <div className="flex-shrink-0">
+                                                    {doc.is_completed ? (
+                                                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                                                    ) : (
+                                                      <Circle className="w-5 h-5 text-muted-foreground" />
+                                                    )}
+                                                  </div>
+                                                  <div className="flex-1 min-w-0">
+                                                    <p className={`font-medium text-sm ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
+                                                      {doc.document_name}
+                                                    </p>
+                                                    {doc.description && !doc.is_completed && (
+                                                      <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
+                                                        {doc.description}
+                                                      </p>
+                                                    )}
+                                                    {doc.is_completed && doc.file_path && (
+                                                      <div className="flex items-center gap-2 mt-1">
+                                                        <DocumentThumbnail
+                                                          filePath={doc.file_path}
+                                                          fileUrl={previewUrls[doc.file_path] || null}
+                                                          onPreview={() => openPreview(doc.file_path!)}
+                                                          size={32}
+                                                        />
+                                                        {(() => {
+                                                          const fileType = getFileTypeBadge(doc.file_path);
+                                                          return fileType ? (
+                                                            <Badge variant="outline" className={`text-xs ${fileType.color}`}>
+                                                              {fileType.label}
+                                                            </Badge>
+                                                          ) : null;
+                                                        })()}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                  <div className="flex-shrink-0 flex items-center gap-2">
+                                                    {doc.is_completed ? (
+                                                      <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleRemoveDocument(doc.id)}
+                                                        disabled={removingDocId === doc.id}
+                                                        className="text-destructive hover:text-destructive h-8 w-8 p-0"
+                                                      >
+                                                        {removingDocId === doc.id ? (
+                                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                          <X className="w-4 h-4" />
+                                                        )}
+                                                      </Button>
+                                                    ) : (
+                                                      <label className="cursor-pointer">
+                                                        <input
+                                                          type="file"
+                                                          className="hidden"
+                                                          accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic"
+                                                          onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) handleFileUpload(doc.id, file);
+                                                            e.target.value = "";
+                                                          }}
+                                                          disabled={uploadingDocId === doc.id}
+                                                        />
+                                                        <Button
+                                                          variant="outline"
+                                                          size="sm"
+                                                          asChild
+                                                          disabled={uploadingDocId === doc.id}
+                                                          className="h-8"
+                                                        >
+                                                          <span>
+                                                            {uploadingDocId === doc.id ? (
+                                                              <Loader2 className="w-4 h-4 animate-spin" />
+                                                            ) : (
+                                                              <>
+                                                                <Upload className="w-4 h-4 mr-1" />
+                                                                Upload
+                                                              </>
+                                                            )}
+                                                          </span>
+                                                        </Button>
+                                                      </label>
+                                                    )}
+                                                  </div>
+                                                </motion.div>
+                                              ))}
+                                            </div>
+                                          </motion.div>
+                                        )}
+                                      </AnimatePresence>
                                     </div>
-                                  </motion.div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </motion.div>
                           )}

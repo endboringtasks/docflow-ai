@@ -1336,6 +1336,7 @@ export type Database = {
       get_portal_documents: {
         Args: { p_token: string }
         Returns: {
+          applicant_type: string
           category: string
           description: string
           document_name: string
