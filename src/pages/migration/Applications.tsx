@@ -220,14 +220,14 @@ const MigrationVisaApplications = () => {
   // Filter categories by selected country
   const filteredCategories = newApplication.countryId
     ? newApplication.countryId === "__all__"
-      ? categories
+      ? categories.filter(cat => cat.country_id === null)
       : categories.filter(cat => cat.country_id === newApplication.countryId)
     : [];
 
   // Filter subcategories by selected country and category
   const filteredSubcategories = newApplication.countryId && newApplication.categoryId
     ? subcategories.filter(sub => 
-        (newApplication.countryId === "__all__" || sub.country_id === newApplication.countryId) && 
+        (newApplication.countryId === "__all__" ? sub.country_id === null : sub.country_id === newApplication.countryId) && 
         sub.category_id === newApplication.categoryId
       )
     : [];
@@ -235,7 +235,7 @@ const MigrationVisaApplications = () => {
   // Filter application types by selected country, category, and optionally subcategory
   const filteredApplicationTypes = newApplication.countryId && newApplication.categoryId
     ? applicationTypes.filter(type => {
-        const matchesCountry = newApplication.countryId === "__all__" || type.country_id === newApplication.countryId;
+        const matchesCountry = newApplication.countryId === "__all__" ? type.country_id === null : type.country_id === newApplication.countryId;
         const matchesCategory = type.category_id === newApplication.categoryId;
         const matchesSubcategory = !newApplication.subcategoryId || type.subcategory_id === newApplication.subcategoryId;
         return matchesCountry && matchesCategory && matchesSubcategory;
