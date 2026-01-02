@@ -374,7 +374,7 @@ const MigrationVisaApplications = () => {
         if (data.visa_subclass && currentCompany?.id) {
           const { data: templates } = await supabase
             .from("document_checklist_templates")
-            .select("document_name, category, is_required, sort_order")
+            .select("document_name, category, is_required, is_standard_for_client, sort_order")
             .eq("company_id", currentCompany.id)
             .eq("visa_subclass", data.visa_subclass)
             .order("sort_order");
@@ -385,6 +385,7 @@ const MigrationVisaApplications = () => {
               company_id: currentCompany.id,
               document_name: `[${template.category}:${template.is_required ? 'required' : 'optional'}] ${template.document_name}`,
               is_completed: false,
+              is_standard_for_client: template.is_standard_for_client ?? false,
             }));
 
             await supabase.from("document_checklist").insert(documentsToInsert);
