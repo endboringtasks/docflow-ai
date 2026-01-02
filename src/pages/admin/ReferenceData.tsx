@@ -57,6 +57,7 @@ import {
   Layers,
   Copy,
   CheckSquare,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCountryFlag } from "@/lib/countryFlags";
@@ -1028,6 +1029,226 @@ function SubcategoriesTab() {
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleteSubcategory && deleteMutation.mutate(deleteSubcategory.id)}
+            >
+              {deleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+// Applicant Types Tab Component
+function ApplicantTypesTab() {
+  const queryClient = useQueryClient();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingType, setEditingType] = useState<{ id: string; name: string; code: string; sort_order: number; is_active: boolean } | null>(null);
+  const [deleteType, setDeleteType] = useState<{ id: string; name: string; code: string; sort_order: number; is_active: boolean } | null>(null);
+  const [form, setForm] = useState({ code: "", name: "", is_active: true, sort_order: 0 });
+
+  const { data: applicantTypes, isLoading } = useQuery({
+    queryKey: ["admin-applicant-types"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("applicant_types")
+        .select("*")
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: { code: string; name: string; is_active: boolean; sort_order: number }) => {
+      if (editingType) {
+        const { error } = await supabase
+          .from("applicant_types")
+          .update(data)
+          .eq("id", editingType.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("applicant_types").insert([data]);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-applicant-types"] });
+      toast.success(editingType ? "Applicant type updated" : "Applicant type created");
+      closeDialog();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("applicant_types").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-applicant-types"] });
+      toast.success("Applicant type deleted");
+      setDeleteType(null);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const openCreate = () => {
+    setEditingType(null);
+    setForm({ code: "", name: "", is_active: true, sort_order: (applicantTypes?.length || 0) * 10 });
+    setIsDialogOpen(true);
+  };
+
+  const openEdit = (type: { id: string; name: string; code: string; sort_order: number; is_active: boolean }) => {
+    setEditingType(type);
+    setForm({
+      code: type.code,
+      name: type.name,
+      is_active: type.is_active,
+      sort_order: type.sort_order,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingType(null);
+  };
+
+  const handleSave = () => {
+    if (!form.code || !form.name) {
+      toast.error("Code and name are required");
+      return;
+    }
+    saveMutation.mutate(form);
+  };
+
+  if (isLoading) {
+    return <Skeleton className="h-64 w-full" />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <p className="text-sm text-muted-foreground">
+          Manage applicant types (Primary Applicant, Partner, Dependant, Sponsor)
+        </p>
+        <Button onClick={openCreate} size="sm">
+          <Plus className="w-4 h-4 mr-2" />
+          Add Applicant Type
+        </Button>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-12">Order</TableHead>
+            <TableHead>Code</TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="w-24">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {applicantTypes?.map((type) => (
+            <TableRow key={type.id}>
+              <TableCell className="text-muted-foreground">{type.sort_order}</TableCell>
+              <TableCell className="font-mono">{type.code}</TableCell>
+              <TableCell>{type.name}</TableCell>
+              <TableCell>
+                <Badge variant={type.is_active ? "default" : "secondary"}>
+                  {type.is_active ? "Active" : "Inactive"}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(type)}>
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive"
+                    onClick={() => setDeleteType(type)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingType ? "Edit Applicant Type" : "Add Applicant Type"}</DialogTitle>
+            <DialogDescription>
+              {editingType ? "Update applicant type details" : "Add a new applicant type"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Code</Label>
+                <Input
+                  value={form.code}
+                  onChange={(e) => setForm({ ...form, code: e.target.value.toLowerCase() })}
+                  placeholder="primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Sort Order</Label>
+                <Input
+                  type="number"
+                  value={form.sort_order}
+                  onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Primary Applicant"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={form.is_active}
+                onCheckedChange={(checked) => setForm({ ...form, is_active: checked })}
+              />
+              <Label>Active</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saveMutation.isPending}>
+              {saveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteType} onOpenChange={() => setDeleteType(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Applicant Type</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteType?.name}"? This may affect existing document templates.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteType && deleteMutation.mutate(deleteType.id)}
             >
               {deleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Delete
@@ -2597,6 +2818,10 @@ export default function AdminReferenceData() {
               <FileType className="w-4 h-4" />
               Application Names
             </TabsTrigger>
+            <TabsTrigger value="applicant-types" className="gap-2">
+              <Users className="w-4 h-4" />
+              Applicant Types
+            </TabsTrigger>
             <TabsTrigger value="documents" className="gap-2">
               <FileText className="w-4 h-4" />
               Document Checklist
@@ -2619,6 +2844,10 @@ export default function AdminReferenceData() {
 
               <TabsContent value="types" className="mt-0">
                 <TypesTab />
+              </TabsContent>
+
+              <TabsContent value="applicant-types" className="mt-0">
+                <ApplicantTypesTab />
               </TabsContent>
 
               <TabsContent value="documents" className="mt-0">

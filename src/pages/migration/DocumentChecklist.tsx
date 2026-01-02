@@ -74,6 +74,16 @@ interface DocumentTemplate {
   is_required: boolean;
   sort_order: number;
   country_id: string | null;
+  applicant_type_id: string | null;
+  age_condition: string | null;
+  applicant_type?: ApplicantType | null;
+}
+
+interface ApplicantType {
+  id: string;
+  name: string;
+  code: string;
+  sort_order: number;
 }
 
 interface Country {
@@ -231,6 +241,8 @@ const DocumentTemplates = () => {
     category: "",
     documentName: "",
     isRequired: true,
+    applicantTypeId: "",
+    ageCondition: "",
   });
   
   const [docNameOpen, setDocNameOpen] = useState(false);
@@ -319,6 +331,21 @@ const DocumentTemplates = () => {
     enabled: !!selectedCountry && !!selectedCategory,
   });
 
+  // Fetch applicant types
+  const { data: applicantTypes = [] } = useQuery({
+    queryKey: ["applicant-types"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("applicant_types")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      
+      if (error) throw error;
+      return data as ApplicantType[];
+    },
+  });
+
   // Fetch templates for selected application type via junction table
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["document-templates", currentCompany?.id, selectedApplicationType],
@@ -337,10 +364,10 @@ const DocumentTemplates = () => {
       
       if (templateIds.length === 0) return [];
       
-      // Fetch the actual templates
+      // Fetch the actual templates with applicant type
       const { data, error } = await supabase
         .from("document_checklist_templates")
-        .select("*")
+        .select("*, applicant_type:applicant_types(*)")
         .in("id", templateIds)
         .order("category", { ascending: true })
         .order("sort_order", { ascending: true });
@@ -379,7 +406,7 @@ const DocumentTemplates = () => {
 
   // Add document mutation
   const addDocMutation = useMutation({
-    mutationFn: async (doc: { category: string; document_name: string; is_required: boolean }) => {
+    mutationFn: async (doc: { category: string; document_name: string; is_required: boolean; applicant_type_id: string | null; age_condition: string | null }) => {
       if (!currentCompany?.id || !selectedApplicationType) throw new Error("No company or application type selected");
       
       const maxOrder = templates
@@ -395,9 +422,11 @@ const DocumentTemplates = () => {
           category: doc.category,
           document_name: doc.document_name,
           is_required: doc.is_required,
+          applicant_type_id: doc.applicant_type_id || null,
+          age_condition: doc.age_condition || null,
           sort_order: maxOrder + 1,
         })
-        .select()
+        .select("*, applicant_type:applicant_types(*)")
         .single();
       
       if (error) throw error;
@@ -406,7 +435,7 @@ const DocumentTemplates = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-templates", currentCompany?.id, selectedApplicationType] });
       setIsAddDocOpen(false);
-      setNewDoc({ category: "", documentName: "", isRequired: true });
+      setNewDoc({ category: "", documentName: "", isRequired: true, applicantTypeId: "", ageCondition: "" });
       toast.success("Document added to template");
     },
     onError: (error) => {
@@ -416,16 +445,18 @@ const DocumentTemplates = () => {
 
   // Update document mutation
   const updateDocMutation = useMutation({
-    mutationFn: async (doc: { id: string; document_name: string; is_required: boolean; category: string }) => {
+    mutationFn: async (doc: { id: string; document_name: string; is_required: boolean; category: string; applicant_type_id: string | null; age_condition: string | null }) => {
       const { data, error } = await supabase
         .from("document_checklist_templates")
         .update({
           document_name: doc.document_name,
           is_required: doc.is_required,
           category: doc.category,
+          applicant_type_id: doc.applicant_type_id || null,
+          age_condition: doc.age_condition || null,
         })
         .eq("id", doc.id)
-        .select()
+        .select("*, applicant_type:applicant_types(*)")
         .single();
       
       if (error) throw error;
@@ -467,6 +498,8 @@ const DocumentTemplates = () => {
       category: newDoc.category,
       document_name: newDoc.documentName.trim(),
       is_required: newDoc.isRequired,
+      applicant_type_id: newDoc.applicantTypeId || null,
+      age_condition: newDoc.ageCondition || null,
     });
   };
 
@@ -477,6 +510,8 @@ const DocumentTemplates = () => {
       document_name: editingDoc.document_name.trim(),
       is_required: editingDoc.is_required,
       category: editingDoc.category,
+      applicant_type_id: editingDoc.applicant_type_id || null,
+      age_condition: editingDoc.age_condition || null,
     });
   };
 
@@ -799,9 +834,19 @@ const DocumentTemplates = () => {
                                   key={doc.id}
                                   className="flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors"
                                 >
-                                  <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-3 flex-wrap">
                                     <GripVertical className="w-4 h-4 text-muted-foreground/50" />
                                     <span className="font-medium">{doc.document_name}</span>
+                                    {doc.applicant_type && (
+                                      <Badge variant="default" className="text-xs">
+                                        {doc.applicant_type.name}
+                                      </Badge>
+                                    )}
+                                    {doc.age_condition && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {doc.age_condition}
+                                      </Badge>
+                                    )}
                                     {!doc.is_required && (
                                       <Badge variant="secondary" className="text-xs">Optional</Badge>
                                     )}
@@ -949,6 +994,30 @@ const DocumentTemplates = () => {
                 </PopoverContent>
               </Popover>
             </div>
+            <div className="space-y-2">
+              <Label>Applicant Type</Label>
+              <Select
+                value={newDoc.applicantTypeId}
+                onValueChange={(value) => setNewDoc({ ...newDoc, applicantTypeId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select applicant type (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {applicantTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Age Condition (optional)</Label>
+              <Input
+                value={newDoc.ageCondition}
+                onChange={(e) => setNewDoc({ ...newDoc, ageCondition: e.target.value })}
+                placeholder="e.g., +16yrs, Under 18"
+              />
+            </div>
             <div className="flex items-center justify-between">
               <Label>Required Document</Label>
               <Switch
@@ -1088,6 +1157,30 @@ const DocumentTemplates = () => {
                     </Command>
                   </PopoverContent>
                 </Popover>
+              </div>
+              <div className="space-y-2">
+                <Label>Applicant Type</Label>
+                <Select
+                  value={editingDoc.applicant_type_id || ""}
+                  onValueChange={(value) => setEditingDoc({ ...editingDoc, applicant_type_id: value || null })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select applicant type (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {applicantTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Age Condition (optional)</Label>
+                <Input
+                  value={editingDoc.age_condition || ""}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, age_condition: e.target.value || null })}
+                  placeholder="e.g., +16yrs, Under 18"
+                />
               </div>
               <div className="flex items-center justify-between">
                 <Label>Required Document</Label>
