@@ -72,7 +72,6 @@ interface DocumentTemplate {
   category: string;
   document_name: string;
   is_required: boolean;
-  is_standard_for_client: boolean;
   sort_order: number;
   country_id: string | null;
 }
@@ -232,7 +231,6 @@ const DocumentTemplates = () => {
     category: "",
     documentName: "",
     isRequired: true,
-    isStandardForClient: false,
   });
   
   const [docNameOpen, setDocNameOpen] = useState(false);
@@ -369,7 +367,7 @@ const DocumentTemplates = () => {
 
   // Add document mutation
   const addDocMutation = useMutation({
-    mutationFn: async (doc: { category: string; document_name: string; is_required: boolean; is_standard_for_client: boolean }) => {
+    mutationFn: async (doc: { category: string; document_name: string; is_required: boolean }) => {
       if (!currentCompany?.id || !selectedApplicationType) throw new Error("No company or application type selected");
       
       const maxOrder = templates
@@ -385,7 +383,6 @@ const DocumentTemplates = () => {
           category: doc.category,
           document_name: doc.document_name,
           is_required: doc.is_required,
-          is_standard_for_client: doc.is_standard_for_client,
           sort_order: maxOrder + 1,
         })
         .select()
@@ -397,7 +394,7 @@ const DocumentTemplates = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-templates", currentCompany?.id, selectedApplicationType] });
       setIsAddDocOpen(false);
-      setNewDoc({ category: "", documentName: "", isRequired: true, isStandardForClient: false });
+      setNewDoc({ category: "", documentName: "", isRequired: true });
       toast.success("Document added to template");
     },
     onError: (error) => {
@@ -407,13 +404,12 @@ const DocumentTemplates = () => {
 
   // Update document mutation
   const updateDocMutation = useMutation({
-    mutationFn: async (doc: { id: string; document_name: string; is_required: boolean; is_standard_for_client: boolean; category: string }) => {
+    mutationFn: async (doc: { id: string; document_name: string; is_required: boolean; category: string }) => {
       const { data, error } = await supabase
         .from("document_checklist_templates")
         .update({
           document_name: doc.document_name,
           is_required: doc.is_required,
-          is_standard_for_client: doc.is_standard_for_client,
           category: doc.category,
         })
         .eq("id", doc.id)
@@ -459,7 +455,6 @@ const DocumentTemplates = () => {
       category: newDoc.category,
       document_name: newDoc.documentName.trim(),
       is_required: newDoc.isRequired,
-      is_standard_for_client: newDoc.isStandardForClient,
     });
   };
 
@@ -469,7 +464,6 @@ const DocumentTemplates = () => {
       id: editingDoc.id,
       document_name: editingDoc.document_name.trim(),
       is_required: editingDoc.is_required,
-      is_standard_for_client: editingDoc.is_standard_for_client,
       category: editingDoc.category,
     });
   };
@@ -799,9 +793,6 @@ const DocumentTemplates = () => {
                                     {!doc.is_required && (
                                       <Badge variant="secondary" className="text-xs">Optional</Badge>
                                     )}
-                                    {doc.is_standard_for_client && (
-                                      <Badge variant="outline" className="text-xs border-primary/50 text-primary">Client Standard</Badge>
-                                    )}
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <Button
@@ -953,16 +944,6 @@ const DocumentTemplates = () => {
                 onCheckedChange={(checked) => setNewDoc({ ...newDoc, isRequired: checked })}
               />
             </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <Label>Standard for Client</Label>
-                <p className="text-xs text-muted-foreground">Show this document to clients in their portal</p>
-              </div>
-              <Switch
-                checked={newDoc.isStandardForClient}
-                onCheckedChange={(checked) => setNewDoc({ ...newDoc, isStandardForClient: checked })}
-              />
-            </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button variant="outline" onClick={() => setIsAddDocOpen(false)}>
                 Cancel
@@ -1101,16 +1082,6 @@ const DocumentTemplates = () => {
                 <Switch
                   checked={editingDoc.is_required}
                   onCheckedChange={(checked) => setEditingDoc({ ...editingDoc, is_required: checked })}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <Label>Standard for Client</Label>
-                  <p className="text-xs text-muted-foreground">Show this document to clients in their portal</p>
-                </div>
-                <Switch
-                  checked={editingDoc.is_standard_for_client}
-                  onCheckedChange={(checked) => setEditingDoc({ ...editingDoc, is_standard_for_client: checked })}
                 />
               </div>
               <div className="flex justify-end gap-2 pt-4">
