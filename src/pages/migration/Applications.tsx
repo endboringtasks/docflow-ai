@@ -139,6 +139,7 @@ const MigrationVisaApplications = () => {
     subcategoryId: "",
     applicationName: "",
     visaSubclass: "",
+    visaTypeId: "",
   });
 
   // Fetch clients for the dropdown
@@ -347,6 +348,7 @@ const MigrationVisaApplications = () => {
       country_id: string | null;
       category_id: string;
       subcategory_id: string | null;
+      visa_type_id?: string;
     }) => {
       if (!currentCompany?.id) throw new Error("No company selected");
       
@@ -366,29 +368,38 @@ const MigrationVisaApplications = () => {
         .single();
       
       if (error) throw error;
-      return data;
+      return { ...data, visa_type_id: applicationData.visa_type_id };
     },
     onSuccess: async (data) => {
-      // Copy document templates to document_checklist
+      // Copy document templates to document_checklist based on linked application types
       try {
-        if (data.visa_subclass && currentCompany?.id) {
-          const { data: templates } = await supabase
-            .from("document_checklist_templates")
-            .select("document_name, category, is_required, is_standard_for_client, sort_order")
-            .eq("company_id", currentCompany.id)
-            .eq("visa_subclass", data.visa_subclass)
-            .order("sort_order");
+        if (data.visa_type_id && currentCompany?.id) {
+          // Fetch template IDs linked to this application type via junction table
+          const { data: linkedTemplates } = await supabase
+            .from("document_template_applications")
+            .select("document_template_id")
+            .eq("visa_type_id", data.visa_type_id);
 
-          if (templates && templates.length > 0) {
-            const documentsToInsert = templates.map((template) => ({
-              visa_application_id: data.id,
-              company_id: currentCompany.id,
-              document_name: `[${template.category}:${template.is_required ? 'required' : 'optional'}] ${template.document_name}`,
-              is_completed: false,
-              is_standard_for_client: template.is_standard_for_client ?? false,
-            }));
+          const templateIds = linkedTemplates?.map(t => t.document_template_id) || [];
 
-            await supabase.from("document_checklist").insert(documentsToInsert);
+          if (templateIds.length > 0) {
+            const { data: templates } = await supabase
+              .from("document_checklist_templates")
+              .select("document_name, category, is_required, sort_order")
+              .in("id", templateIds)
+              .order("sort_order");
+
+            if (templates && templates.length > 0) {
+              const documentsToInsert = templates.map((template) => ({
+                visa_application_id: data.id,
+                company_id: currentCompany.id,
+                document_name: `[${template.category}:${template.is_required ? 'required' : 'optional'}] ${template.document_name}`,
+                is_completed: false,
+                is_standard_for_client: true, // All linked templates are standard for client
+              }));
+
+              await supabase.from("document_checklist").insert(documentsToInsert);
+            }
           }
         }
       } catch (templateError) {
@@ -441,7 +452,7 @@ const MigrationVisaApplications = () => {
       queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
       setIsCreateOpen(false);
-      setNewApplication({ clientId: "", countryId: "", categoryId: "", subcategoryId: "", applicationName: "", visaSubclass: "" });
+      setNewApplication({ clientId: "", countryId: "", categoryId: "", subcategoryId: "", applicationName: "", visaSubclass: "", visaTypeId: "" });
       toast.success("Application created!", {
         description: "A webhook can be configured to create the application folder.",
       });
@@ -701,6 +712,7 @@ const MigrationVisaApplications = () => {
       country_id: newApplication.countryId === "__all__" ? null : newApplication.countryId,
       category_id: newApplication.categoryId,
       subcategory_id: newApplication.subcategoryId || null,
+      visa_type_id: newApplication.visaTypeId || undefined,
     });
   };
 
@@ -938,7 +950,8 @@ const MigrationVisaApplications = () => {
                         setNewApplication(prev => ({ 
                           ...prev, 
                           applicationName: value,
-                          visaSubclass: selectedType?.code || ""
+                          visaSubclass: selectedType?.code || "",
+                          visaTypeId: selectedType?.id || ""
                         }));
                       }}
                       disabled={!newApplication.categoryId}
