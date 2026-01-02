@@ -53,7 +53,7 @@ import type {
   WebhookEntityCategory,
   FieldCategory,
   CLIENT_EVENTS,
-  VISA_APPLICATION_EVENTS,
+  APPLICATION_EVENTS,
 } from "@/types/webhook.types";
 
 // Topic-based event configuration with strict typing
@@ -65,10 +65,10 @@ const WEBHOOK_TOPICS: WebhookTopic[] = [
     events: ["client.created", "client.updated", "client.deleted"],
   },
   {
-    id: "visa_applications",
+    id: "applications",
     label: "Application",
     description: "All application lifecycle events",
-    events: ["visa_application.created", "visa_application.updated", "visa_application.deleted"],
+    events: ["application.created", "application.updated", "application.deleted"],
   },
 ];
 
@@ -339,10 +339,10 @@ export default function AdminWebhooks() {
   // Determine which optional field categories to show based on selected events
   const getRelevantFieldCategories = () => {
     const hasClientEvents = newWebhook.events.some(e => e.startsWith("client."));
-    const hasVisaApplicationEvents = newWebhook.events.some(e => e.startsWith("visa_application."));
+    const hasApplicationEvents = newWebhook.events.some(e => e.startsWith("application."));
     const categories: Array<{ key: "client" | "visa_application"; label: string }> = [];
     if (hasClientEvents) categories.push({ key: "client", label: "Client Fields" });
-    if (hasVisaApplicationEvents) categories.push({ key: "visa_application", label: "Application Fields" });
+    if (hasApplicationEvents) categories.push({ key: "visa_application", label: "Application Fields" });
     return categories;
   };
 
@@ -678,8 +678,8 @@ export default function AdminWebhooks() {
                   {webhooks?.map((webhook) => {
                     // Group events by topic for display
                     const clientEvents = webhook.events.filter(e => e.startsWith("client."));
-                    // Support both visa_application.* and legacy matter.* events
-                    const applicationEvents = webhook.events.filter(e => e.startsWith("visa_application.") || e.startsWith("matter."));
+                    // Support application.*, visa_application.* and legacy matter.* events
+                    const applicationEvents = webhook.events.filter(e => e.startsWith("application.") || e.startsWith("visa_application.") || e.startsWith("matter."));
                     
                     return (
                     <TableRow key={webhook.id}>

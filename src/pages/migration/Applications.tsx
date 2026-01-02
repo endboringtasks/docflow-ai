@@ -440,7 +440,7 @@ const MigrationVisaApplications = () => {
 
         await supabase.functions.invoke("dispatch-webhook", {
           body: {
-            event_type: "visa_application.created",
+            event_type: "application.created",
             data: {
               // Essential fields (always sent)
               visa_application_id: data.id,
@@ -492,7 +492,7 @@ const MigrationVisaApplications = () => {
       try {
         const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
-            event_type: "visa_application.updated",
+            event_type: "application.updated",
             data: {
               visa_application_id: data.id,
               company_id: currentCompany?.id,
@@ -550,7 +550,7 @@ const MigrationVisaApplications = () => {
       try {
         const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
-            event_type: "visa_application.deleted",
+            event_type: "application.deleted",
             data: {
               visa_application_id: application.id,
               company_id: currentCompany?.id,
@@ -611,7 +611,7 @@ const MigrationVisaApplications = () => {
       try {
         const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
           body: {
-            event_type: "visa_application.updated",
+            event_type: "application.updated",
             data: {
               visa_application_id: data.id,
               company_id: currentCompany?.id,
@@ -679,7 +679,7 @@ const MigrationVisaApplications = () => {
       // Dispatch webhook again
       await supabase.functions.invoke("dispatch-webhook", {
         body: {
-          event_type: "visa_application.created",
+          event_type: "application.created",
           data: {
             visa_application_id: application.id,
             application_name: application.application_name,

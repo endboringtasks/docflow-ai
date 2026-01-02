@@ -111,8 +111,8 @@ async function hydratePayloadData(
   data: Record<string, unknown>,
   supabase: any
 ): Promise<Record<string, unknown>> {
-  // Support both visa_application. and legacy matter. event prefixes
-  if (!eventType.startsWith("visa_application.") && !eventType.startsWith("matter.")) return data;
+  // Support application., visa_application. and legacy matter. event prefixes
+  if (!eventType.startsWith("application.") && !eventType.startsWith("visa_application.") && !eventType.startsWith("matter.")) return data;
 
   let hydrated: Record<string, unknown> = { ...data };
 
@@ -292,8 +292,8 @@ Deno.serve(async (req) => {
     if (payload.event_type === "client.created") {
       entityId = payload.data.client_id as string;
       entityType = "client";
-    } else if (payload.event_type === "visa_application.created" || payload.event_type === "matter.created") {
-      // Support both new and legacy event names
+    } else if (payload.event_type === "application.created" || payload.event_type === "visa_application.created" || payload.event_type === "matter.created") {
+      // Support application., visa_application. and legacy matter. event names
       entityId = (payload.data.visa_application_id || payload.data.matter_id) as string;
       entityType = "visa_application";
     }
