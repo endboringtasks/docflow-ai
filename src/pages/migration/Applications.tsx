@@ -974,7 +974,7 @@ const MigrationVisaApplications = () => {
                       <SelectContent>
                         {filteredApplicationTypes.map((type) => (
                           <SelectItem key={type.id} value={type.name}>
-                            {type.name}
+                            {type.code ? `${type.code} - ${type.name}` : type.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1308,7 +1308,7 @@ const MigrationVisaApplications = () => {
                   <SelectContent>
                     {editFilteredApplicationTypes.map((type) => (
                       <SelectItem key={type.id} value={type.name}>
-                        {type.name}
+                        {type.code ? `${type.code} - ${type.name}` : type.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
