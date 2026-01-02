@@ -445,9 +445,12 @@ Deno.serve(async (req) => {
           }
 
           // If we got a folder_id in the response, update the entity
+          console.log(`Folder update check - entityType: ${entityType}, entityId: ${entityId}, responseData:`, JSON.stringify(responseData));
+          
           if (responseData && entityType && entityId) {
             // Handle nested data structure from Make
             const dataObj = responseData.data || responseData;
+            console.log(`Extracted dataObj:`, JSON.stringify(dataObj));
             
             // For clients, look for client_folder_id or folder_id
             // For visa_applications, look for visa_application_folder_id or folder_id
@@ -471,23 +474,27 @@ Deno.serve(async (req) => {
                 responseData.folderId;
             }
 
+            console.log(`Extracted folderId: ${folderId}`);
+
             if (folderId) {
               const table = entityType === "client" ? "clients" : "visa_applications";
               console.log(`Updating ${table} ${entityId} with folder_id: ${folderId}`);
 
               const folderColumn = entityType === "client" ? "client_folder_id" : "visa_application_folder_id";
-              const { error: updateError } = await supabase
+              const { data: updateData, error: updateError } = await supabase
                 .from(table)
                 .update({
                   [folderColumn]: folderId,
                   folder_status: "created",
+                  folder_status_updated_at: new Date().toISOString(),
                 })
-                .eq("id", entityId);
+                .eq("id", entityId)
+                .select();
 
               if (updateError) {
                 console.error(`Failed to update ${table} with folder_id:`, updateError);
               } else {
-                console.log(`Successfully updated ${table} ${entityId} with folder_id`);
+                console.log(`Successfully updated ${table} ${entityId} with folder_id. Updated rows:`, updateData?.length ?? 0);
 
                 // Log automation event
                 const eventType = entityType === "client" ? "client_folder_created" : "visa_application_folder_created";
@@ -509,7 +516,11 @@ Deno.serve(async (req) => {
               await supabase.from(table).update({ folder_status: "failed" }).eq("id", entityId);
 
               console.error(`Make returned error for ${table} ${entityId}:`, responseData.error);
+            } else {
+              console.log(`No folder_id found in response for ${entityType} ${entityId}`);
             }
+          } else {
+            console.log(`Skipping folder update - missing: responseData=${!!responseData}, entityType=${entityType}, entityId=${entityId}`);
           }
 
           console.log(`Webhook ${webhook.name} succeeded after ${attempts} attempt(s):`, response.status);
