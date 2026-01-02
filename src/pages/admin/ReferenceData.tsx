@@ -1670,7 +1670,7 @@ function DocumentsTab() {
       // Only fetch global templates (company_id IS NULL)
       let query = supabase
         .from("document_checklist_templates")
-        .select("*, country:countries(*), visa_type:visa_types(*), document_template_applications(visa_type:visa_types(*))")
+        .select("*, country:countries(*), document_template_applications(visa_type:visa_types(*))")
         .is("company_id", null)
         .order("sort_order");
 
