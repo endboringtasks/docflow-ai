@@ -3,7 +3,7 @@ project_id = "wevdjmdlsrljanttykzu"
 [functions.webhook-client-folder]
 verify_jwt = false
 
-[functions.webhook-visa-application-folder]
+[functions.webhook-application-folder]
 verify_jwt = false
 
 [functions.webhook-automation-event]
