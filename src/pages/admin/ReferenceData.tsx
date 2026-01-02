@@ -56,6 +56,7 @@ import {
   GripVertical,
   Layers,
   Copy,
+  CheckSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCountryFlag } from "@/lib/countryFlags";
@@ -1047,6 +1048,8 @@ function TypesTab() {
   const [filterCountry, setFilterCountry] = useState<string>("");
   const [filterCategory, setFilterCategory] = useState<string>("");
   const [filterSubcategory, setFilterSubcategory] = useState<string>("");
+  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [form, setForm] = useState({
     code: "",
     name: "",
@@ -1158,6 +1161,38 @@ function TypesTab() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from("visa_types").delete().in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-types"] });
+      toast.success(`${selectedTypes.size} application names deleted`);
+      setSelectedTypes(new Set());
+      setShowBulkDeleteDialog(false);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const toggleSelectType = (id: string) => {
+    const newSelected = new Set(selectedTypes);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedTypes(newSelected);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedTypes.size === (types?.length || 0)) {
+      setSelectedTypes(new Set());
+    } else {
+      setSelectedTypes(new Set(types?.map(t => t.id) || []));
+    }
+  };
+
   const openCreate = () => {
     setEditingType(null);
     setForm({
@@ -1251,15 +1286,35 @@ function TypesTab() {
             </Select>
           )}
         </div>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Application Name
-        </Button>
+        <div className="flex gap-2">
+          {selectedTypes.size > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowBulkDeleteDialog(true)}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete {selectedTypes.size} Selected
+            </Button>
+          )}
+          <Button onClick={openCreate} size="sm">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Application Name
+          </Button>
+        </div>
       </div>
 
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-12">
+              <input
+                type="checkbox"
+                checked={types && types.length > 0 && selectedTypes.size === types.length}
+                onChange={toggleSelectAll}
+                className="h-4 w-4 rounded border-input"
+              />
+            </TableHead>
             <TableHead className="w-12">Order</TableHead>
             <TableHead>Code</TableHead>
             <TableHead>Name</TableHead>
@@ -1272,7 +1327,15 @@ function TypesTab() {
         </TableHeader>
         <TableBody>
           {types?.map((type) => (
-            <TableRow key={type.id}>
+            <TableRow key={type.id} className={selectedTypes.has(type.id) ? "bg-muted/50" : ""}>
+              <TableCell>
+                <input
+                  type="checkbox"
+                  checked={selectedTypes.has(type.id)}
+                  onChange={() => toggleSelectType(type.id)}
+                  className="h-4 w-4 rounded border-input"
+                />
+              </TableCell>
               <TableCell className="text-muted-foreground">{type.sort_order}</TableCell>
               <TableCell className="font-mono">{type.code}</TableCell>
               <TableCell className="font-medium">{type.name}</TableCell>
@@ -1323,7 +1386,7 @@ function TypesTab() {
           ))}
           {types?.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                 No application names found. Add one to get started.
               </TableCell>
             </TableRow>
@@ -1472,6 +1535,27 @@ function TypesTab() {
             >
               {deleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Multiple Application Names</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedTypes.size} application names? This action cannot be undone and may affect existing applications.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => bulkDeleteMutation.mutate(Array.from(selectedTypes))}
+            >
+              {bulkDeleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Delete {selectedTypes.size} Items
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
