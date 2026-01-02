@@ -859,24 +859,6 @@ const ClientDetail = () => {
                   />
                 )}
               </div>
-                <Input
-                  placeholder={newApplication.categoryId ? "Enter application name" : "Select a category first"}
-                  value={newApplication.applicationName}
-                  onChange={(e) => setNewApplication(prev => ({ ...prev, applicationName: e.target.value }))}
-                  disabled={!newApplication.categoryId}
-                />
-              )}
-            </div>
-            {filteredApplicationTypes.length === 0 && newApplication.categoryId && (
-              <div className="space-y-2">
-                <Label htmlFor="visaSubclass">Code/Subclass (Optional)</Label>
-                <Input
-                  placeholder="Enter code or subclass"
-                  value={newApplication.visaSubclass}
-                  onChange={(e) => setNewApplication(prev => ({ ...prev, visaSubclass: e.target.value }))}
-                />
-              </div>
-            )}
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setIsCreateApplicationOpen(false)}>
