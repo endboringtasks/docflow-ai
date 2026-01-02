@@ -219,13 +219,15 @@ const MigrationVisaApplications = () => {
 
   // Filter categories by selected country
   const filteredCategories = newApplication.countryId
-    ? categories.filter(cat => cat.country_id === newApplication.countryId)
+    ? newApplication.countryId === "__all__"
+      ? categories
+      : categories.filter(cat => cat.country_id === newApplication.countryId)
     : [];
 
   // Filter subcategories by selected country and category
   const filteredSubcategories = newApplication.countryId && newApplication.categoryId
     ? subcategories.filter(sub => 
-        sub.country_id === newApplication.countryId && 
+        (newApplication.countryId === "__all__" || sub.country_id === newApplication.countryId) && 
         sub.category_id === newApplication.categoryId
       )
     : [];
@@ -233,7 +235,7 @@ const MigrationVisaApplications = () => {
   // Filter application types by selected country, category, and optionally subcategory
   const filteredApplicationTypes = newApplication.countryId && newApplication.categoryId
     ? applicationTypes.filter(type => {
-        const matchesCountry = type.country_id === newApplication.countryId;
+        const matchesCountry = newApplication.countryId === "__all__" || type.country_id === newApplication.countryId;
         const matchesCategory = type.category_id === newApplication.categoryId;
         const matchesSubcategory = !newApplication.subcategoryId || type.subcategory_id === newApplication.subcategoryId;
         return matchesCountry && matchesCategory && matchesSubcategory;
@@ -340,7 +342,7 @@ const MigrationVisaApplications = () => {
       client_id: string;
       application_name: string;
       visa_subclass: string;
-      country_id: string;
+      country_id: string | null;
       category_id: string;
       subcategory_id: string | null;
     }) => {
@@ -693,7 +695,7 @@ const MigrationVisaApplications = () => {
       client_id: newApplication.clientId,
       application_name: newApplication.applicationName.trim(),
       visa_subclass: newApplication.visaSubclass,
-      country_id: newApplication.countryId,
+      country_id: newApplication.countryId === "__all__" ? null : newApplication.countryId,
       category_id: newApplication.categoryId,
       subcategory_id: newApplication.subcategoryId || null,
     });
@@ -832,6 +834,12 @@ const MigrationVisaApplications = () => {
                       <SelectValue placeholder="Select country" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="__all__">
+                        <span className="flex items-center gap-2">
+                          <span className="text-lg">🌍</span>
+                          All Countries
+                        </span>
+                      </SelectItem>
                       {countries.map((country) => (
                         <SelectItem key={country.id} value={country.id}>
                           <span className="flex items-center gap-2">
