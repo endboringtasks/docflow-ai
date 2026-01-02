@@ -66,8 +66,8 @@ const WEBHOOK_TOPICS: WebhookTopic[] = [
   },
   {
     id: "visa_applications",
-    label: "Visa Application",
-    description: "All visa application lifecycle events",
+    label: "Application",
+    description: "All application lifecycle events",
     events: ["visa_application.created", "visa_application.updated", "visa_application.deleted"],
   },
 ];
@@ -90,8 +90,8 @@ const ALL_FIELDS: Record<WebhookEntityCategory, WebhookFieldDefinition[]> = {
     { id: "created_at", label: "Created At", description: "Timestamp when client was created", default: true },
   ],
   visa_application: [
-    { id: "visa_application_id", label: "Application ID", description: "Unique visa application identifier", default: true },
-    { id: "application_name", label: "Application Name", description: "Name of the visa application", default: true },
+    { id: "visa_application_id", label: "Application ID", description: "Unique application identifier", default: true },
+    { id: "application_name", label: "Application Name", description: "Name of the application", default: true },
     { id: "visa_subclass", label: "Visa Subclass", description: "Visa type being applied for", default: true },
     { id: "company_id", label: "Organization ID", description: "Your firm/agency identifier", default: true },
     { id: "client_id", label: "Client ID", description: "Associated client identifier", default: true },
@@ -342,7 +342,7 @@ export default function AdminWebhooks() {
     const hasVisaApplicationEvents = newWebhook.events.some(e => e.startsWith("visa_application."));
     const categories: Array<{ key: "client" | "visa_application"; label: string }> = [];
     if (hasClientEvents) categories.push({ key: "client", label: "Client Fields" });
-    if (hasVisaApplicationEvents) categories.push({ key: "visa_application", label: "Visa Application Fields" });
+    if (hasVisaApplicationEvents) categories.push({ key: "visa_application", label: "Application Fields" });
     return categories;
   };
 
