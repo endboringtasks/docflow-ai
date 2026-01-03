@@ -478,6 +478,60 @@ export type Database = {
           },
         ]
       }
+      document_attachments: {
+        Row: {
+          created_at: string
+          document_checklist_id: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string | null
+          id: string
+          uploaded_at: string
+          uploaded_by: string | null
+          uploaded_by_client: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_checklist_id: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          uploaded_by_client?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_checklist_id?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+          uploaded_by_client?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_attachments_document_checklist_id_fkey"
+            columns: ["document_checklist_id"]
+            isOneToOne: false
+            referencedRelation: "document_checklist"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_attachments_uploaded_by_client_fkey"
+            columns: ["uploaded_by_client"]
+            isOneToOne: false
+            referencedRelation: "client_portal_access"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_checklist: {
         Row: {
           age_condition: string | null
@@ -491,6 +545,8 @@ export type Database = {
           id: string
           is_completed: boolean
           is_standard_for_client: boolean | null
+          max_files: number | null
+          min_files: number
           review_comment: string | null
           review_status: string | null
           reviewed_at: string | null
@@ -513,6 +569,8 @@ export type Database = {
           id?: string
           is_completed?: boolean
           is_standard_for_client?: boolean | null
+          max_files?: number | null
+          min_files?: number
           review_comment?: string | null
           review_status?: string | null
           reviewed_at?: string | null
@@ -535,6 +593,8 @@ export type Database = {
           id?: string
           is_completed?: boolean
           is_standard_for_client?: boolean | null
+          max_files?: number | null
+          min_files?: number
           review_comment?: string | null
           review_status?: string | null
           reviewed_at?: string | null
@@ -582,6 +642,8 @@ export type Database = {
           id: string
           is_required: boolean | null
           is_standard_for_client: boolean | null
+          max_files: number | null
+          min_files: number
           sort_order: number | null
           visa_subclass: string | null
           visa_type_id: string | null
@@ -598,6 +660,8 @@ export type Database = {
           id?: string
           is_required?: boolean | null
           is_standard_for_client?: boolean | null
+          max_files?: number | null
+          min_files?: number
           sort_order?: number | null
           visa_subclass?: string | null
           visa_type_id?: string | null
@@ -614,6 +678,8 @@ export type Database = {
           id?: string
           is_required?: boolean | null
           is_standard_for_client?: boolean | null
+          max_files?: number | null
+          min_files?: number
           sort_order?: number | null
           visa_subclass?: string | null
           visa_type_id?: string | null
@@ -1310,6 +1376,17 @@ export type Database = {
           phone: string
         }[]
       }
+      get_document_attachments: {
+        Args: { p_document_id: string; p_token: string }
+        Returns: {
+          file_name: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id: string
+          uploaded_at: string
+        }[]
+      }
       get_drive_connection_status: {
         Args: { p_company_id: string }
         Returns: {
@@ -1337,12 +1414,15 @@ export type Database = {
         Args: { p_token: string }
         Returns: {
           applicant_type: string
+          attachment_count: number
           category: string
           description: string
           document_name: string
           file_path: string
           id: string
           is_completed: boolean
+          max_files: number
+          min_files: number
         }[]
       }
       get_portal_visa_application_details: {

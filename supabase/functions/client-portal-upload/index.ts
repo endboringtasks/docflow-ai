@@ -365,10 +365,10 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Verify the document belongs to this visa application and get details
+    // Verify the document belongs to this visa application and get details including min_files/max_files
     const { data: docData, error: docError } = await supabase
       .from('document_checklist')
-      .select('id, visa_application_id, company_id, document_name')
+      .select('id, visa_application_id, company_id, document_name, min_files, max_files')
       .eq('id', docId)
       .eq('visa_application_id', visaApplicationId)
       .single()
@@ -376,6 +376,25 @@ Deno.serve(async (req) => {
     if (docError || !docData) {
       return new Response(JSON.stringify({ error: 'Document not found or does not belong to this application' }), {
         status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Check current attachment count against max_files
+    const { count: currentAttachmentCount } = await supabase
+      .from('document_attachments')
+      .select('id', { count: 'exact', head: true })
+      .eq('document_checklist_id', docId)
+
+    const attachmentCount = currentAttachmentCount || 0
+    const maxFiles = docData.max_files ?? null
+    const minFiles = docData.min_files ?? 1
+
+    if (maxFiles !== null && attachmentCount >= maxFiles) {
+      return new Response(JSON.stringify({ 
+        error: `Maximum of ${maxFiles} file(s) allowed. Remove an existing file first.` 
+      }), {
+        status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -525,6 +544,7 @@ Deno.serve(async (req) => {
     } else {
       console.log('No Google Drive folders configured, using Supabase storage')
     }
+    
     // Fallback to Supabase storage if Google Drive upload failed or not available
     if (!filePath) {
       const fileExt = file.name.split('.').pop()
@@ -548,34 +568,78 @@ Deno.serve(async (req) => {
       console.log('File uploaded to Supabase storage:', filePath)
     }
 
-    // Update the document checklist - track client upload source and set status to in_review
-    const { error: updateError } = await supabase
-      .from('document_checklist')
-      .update({ 
-        file_path: filePath, 
-        is_completed: true, 
-        uploaded_at: new Date().toISOString(),
-        uploaded_by_client: portalAccess.client_id,
-        review_status: 'in_review'  // Set to Ready to Review when client uploads
+    // Insert into document_attachments table
+    const { data: attachmentData, error: attachmentError } = await supabase
+      .from('document_attachments')
+      .insert({
+        document_checklist_id: docId,
+        file_path: filePath,
+        file_name: file.name,
+        file_type: file.type || null,
+        file_size: file.size,
+        uploaded_by_client: portalAccess.id,
       })
-      .eq('id', docId)
+      .select('id')
+      .single()
 
-    if (updateError) {
-      console.error('Update error:', updateError)
+    if (attachmentError) {
+      console.error('Failed to insert attachment:', attachmentError)
       // Try to clean up if we used Supabase storage
       if (!driveFileId) {
         await supabase.storage.from('document-attachments').remove([filePath])
       }
       return new Response(
-        JSON.stringify({ error: 'Failed to update document status' }),
+        JSON.stringify({ error: 'Failed to save attachment record' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    console.log('Attachment record created:', attachmentData.id)
+
+    // Count attachments after insert to determine completion status
+    const { count: newAttachmentCount } = await supabase
+      .from('document_attachments')
+      .select('id', { count: 'exact', head: true })
+      .eq('document_checklist_id', docId)
+
+    const finalCount = newAttachmentCount || 0
+    const isCompleted = finalCount >= minFiles
+
+    // Update the document checklist - set is_completed based on min_files threshold
+    // Also update file_path for backward compatibility (use first attachment)
+    const { error: updateError } = await supabase
+      .from('document_checklist')
+      .update({ 
+        file_path: filePath, 
+        is_completed: isCompleted, 
+        uploaded_at: new Date().toISOString(),
+        uploaded_by_client: portalAccess.client_id,
+        review_status: 'in_review'
+      })
+      .eq('id', docId)
+
+    if (updateError) {
+      console.error('Update error:', updateError)
+      // Don't clean up - attachment was created successfully
+    }
+
+    console.log('Upload complete:', { 
+      attachmentId: attachmentData.id, 
+      filePath, 
+      isCompleted, 
+      attachmentCount: finalCount, 
+      minFiles 
+    })
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         file_path: filePath,
+        attachment_id: attachmentData.id,
+        attachment_count: finalCount,
+        min_files: minFiles,
+        max_files: maxFiles,
+        is_completed: isCompleted,
         uploaded_to: driveFileId ? 'google_drive' : 'supabase_storage'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
