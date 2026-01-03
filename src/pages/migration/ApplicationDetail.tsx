@@ -97,6 +97,17 @@ interface Client {
   client_type: "personal" | "corporate";
 }
 
+interface DocumentAttachment {
+  id: string;
+  file_path: string;
+  file_name: string;
+  file_type: string | null;
+  file_size: number | null;
+  uploaded_at: string;
+  uploaded_by: string | null;
+  uploaded_by_client: string | null;
+}
+
 interface DocumentItem {
   id: string;
   name: string;
@@ -117,6 +128,10 @@ interface DocumentItem {
   isStandardForClient: boolean;
   applicantType: string | null;
   ageCondition: string | null;
+  minFiles: number;
+  maxFiles: number | null;
+  attachmentCount: number;
+  attachments: DocumentAttachment[];
 }
 
 interface DbDocumentItem {
@@ -136,11 +151,15 @@ interface DbDocumentItem {
   is_standard_for_client: boolean | null;
   applicant_type: string | null;
   age_condition: string | null;
+  min_files: number | null;
+  max_files: number | null;
   uploader_profile?: { display_name: string | null; email: string | null } | null;
   uploader_client?: { first_name: string | null; last_name: string | null; email: string | null } | null;
   reviewer_profile?: { display_name: string | null; email: string | null } | null;
   created_at: string;
   updated_at: string;
+  attachment_count?: number;
+  attachments?: DocumentAttachment[];
 }
 
 interface VisaType {
@@ -175,7 +194,7 @@ const statusOptions = [
 ];
 
 // Default document checklist based on visa subclass (excluding DB-only fields)
-type DefaultDocFields = Omit<DocumentItem, "id" | "filePath" | "reviewStatus" | "reviewComment" | "uploadedAt" | "uploadedBy" | "uploadedByName" | "uploadedByClient" | "uploadedByClientName" | "reviewedAt" | "reviewedBy" | "reviewedByName" | "isStandardForClient" | "applicantType" | "ageCondition">;
+type DefaultDocFields = Pick<DocumentItem, "name" | "category" | "required" | "completed">;
 
 const getDefaultDocuments = (visaSubclass: string | null): DefaultDocFields[] => {
   const baseDocuments: DefaultDocFields[] = [
@@ -338,20 +357,53 @@ const VisaApplicationDetail = () => {
     enabled: !!visaApplication?.client_id,
   });
 
-  // Fetch document checklist from database
+  // Fetch document checklist from database with attachments
   const { data: dbDocumentsRaw, isLoading: isLoadingDocuments } = useQuery({
     queryKey: ["document-checklist", visaApplicationId],
     queryFn: async () => {
       if (!visaApplicationId) return [];
       
-      const { data, error } = await supabase
+      // Fetch documents with min_files, max_files
+      const { data: docs, error } = await supabase
         .from("document_checklist")
-        .select("*")
+        .select("*, min_files, max_files")
         .eq("visa_application_id", visaApplicationId)
         .order("created_at", { ascending: true });
       
       if (error) throw error;
-      return data;
+      
+      // Fetch attachments for all documents
+      const docIds = (docs || []).map(d => d.id);
+      const { data: attachments } = await supabase
+        .from("document_attachments")
+        .select("id, document_checklist_id, file_path, file_name, file_type, file_size, uploaded_at, uploaded_by, uploaded_by_client")
+        .in("document_checklist_id", docIds)
+        .order("uploaded_at", { ascending: true });
+      
+      // Group attachments by document
+      const attachmentsByDoc: Record<string, DocumentAttachment[]> = {};
+      (attachments || []).forEach(a => {
+        if (!attachmentsByDoc[a.document_checklist_id]) {
+          attachmentsByDoc[a.document_checklist_id] = [];
+        }
+        attachmentsByDoc[a.document_checklist_id].push({
+          id: a.id,
+          file_path: a.file_path,
+          file_name: a.file_name,
+          file_type: a.file_type,
+          file_size: a.file_size,
+          uploaded_at: a.uploaded_at,
+          uploaded_by: a.uploaded_by,
+          uploaded_by_client: a.uploaded_by_client,
+        });
+      });
+      
+      // Merge documents with attachments
+      return (docs || []).map(doc => ({
+        ...doc,
+        attachment_count: attachmentsByDoc[doc.id]?.length || 0,
+        attachments: attachmentsByDoc[doc.id] || [],
+      }));
     },
     enabled: !!visaApplicationId,
   });
@@ -574,6 +626,10 @@ const VisaApplicationDetail = () => {
       isStandardForClient: doc.is_standard_for_client ?? false,
       applicantType: doc.applicant_type,
       ageCondition: doc.age_condition,
+      minFiles: doc.min_files ?? 1,
+      maxFiles: doc.max_files ?? 1,
+      attachmentCount: doc.attachment_count ?? 0,
+      attachments: doc.attachments ?? [],
     };
   });
 
@@ -823,21 +879,98 @@ const VisaApplicationDetail = () => {
     },
   });
 
-  // Remove file from a document
+  // Remove file from a document (legacy - removes all)
   const removeFileMutation = useMutation({
     mutationFn: async ({ docId, filePath }: { docId: string; filePath: string }) => {
-      const { error: removeError } = await supabase.storage
-        .from("document-attachments")
-        .remove([filePath]);
+      // First delete from attachments table
+      const { error: attachmentError } = await supabase
+        .from("document_attachments")
+        .delete()
+        .eq("document_checklist_id", docId);
       
-      if (removeError) throw removeError;
+      if (attachmentError) console.warn("Error deleting attachments:", attachmentError);
+      
+      // Then remove from storage if not a Drive file
+      if (!filePath.startsWith("drive://")) {
+        const { error: removeError } = await supabase.storage
+          .from("document-attachments")
+          .remove([filePath]);
+        
+        if (removeError) console.warn("Error removing from storage:", removeError);
+      }
       
       const { error: updateError } = await supabase
         .from("document_checklist")
-        .update({ file_path: null })
+        .update({ file_path: null, is_completed: false })
         .eq("id", docId);
       
       if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
+      toast.success("File removed");
+    },
+    onError: (error) => {
+      toast.error("Failed to remove file", { description: error.message });
+    },
+  });
+
+  // Remove individual attachment
+  const removeAttachmentMutation = useMutation({
+    mutationFn: async ({ attachmentId, docId, filePath }: { attachmentId: string; docId: string; filePath: string }) => {
+      // Delete the attachment record
+      const { error: deleteError } = await supabase
+        .from("document_attachments")
+        .delete()
+        .eq("id", attachmentId);
+      
+      if (deleteError) throw deleteError;
+      
+      // Remove from storage if not a Drive file
+      if (!filePath.startsWith("drive://")) {
+        await supabase.storage
+          .from("document-attachments")
+          .remove([filePath]);
+      }
+      
+      // Count remaining attachments
+      const { count } = await supabase
+        .from("document_attachments")
+        .select("id", { count: "exact", head: true })
+        .eq("document_checklist_id", docId);
+      
+      // Get document's min_files
+      const { data: docData } = await supabase
+        .from("document_checklist")
+        .select("min_files")
+        .eq("id", docId)
+        .single();
+      
+      const minFiles = docData?.min_files ?? 1;
+      const isCompleted = (count || 0) >= minFiles;
+      
+      // Update the first remaining file as file_path for backward compatibility
+      let newFilePath: string | null = null;
+      if (count && count > 0) {
+        const { data: firstAttachment } = await supabase
+          .from("document_attachments")
+          .select("file_path")
+          .eq("document_checklist_id", docId)
+          .order("uploaded_at", { ascending: true })
+          .limit(1)
+          .single();
+        
+        newFilePath = firstAttachment?.file_path || null;
+      }
+      
+      // Update document checklist
+      await supabase
+        .from("document_checklist")
+        .update({ 
+          file_path: newFilePath, 
+          is_completed: isCompleted,
+        })
+        .eq("id", docId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
@@ -1128,13 +1261,23 @@ const VisaApplicationDetail = () => {
   };
 
   // Load thumbnails for documents with files
+  // Load thumbnail URLs for documents and their attachments
   useEffect(() => {
     if (!documents.length) return;
     
     const loadThumbnails = async () => {
       for (const doc of documents) {
+        // Load thumbnail for legacy filePath
         if (doc.filePath && isPreviewableFile(doc.filePath) && !thumbnailUrls[doc.filePath]) {
           await fetchThumbnailUrl(doc.filePath);
+        }
+        // Load thumbnails for all attachments
+        if (doc.attachments) {
+          for (const attachment of doc.attachments) {
+            if (isPreviewableFile(attachment.file_path) && !thumbnailUrls[attachment.file_path]) {
+              await fetchThumbnailUrl(attachment.file_path);
+            }
+          }
         }
       }
     };
@@ -1662,44 +1805,42 @@ const VisaApplicationDetail = () => {
                               <span className={doc.completed ? "line-through text-muted-foreground" : ""}>
                                 {doc.name}
                               </span>
+                              {/* Multi-file indicator */}
+                              {(doc.maxFiles === null || doc.maxFiles > 1) && (
+                                <Badge variant="outline" className="text-xs">
+                                  {doc.attachmentCount}/{doc.maxFiles ?? "∞"} files
+                                </Badge>
+                              )}
                               {doc.ageCondition && (
                                 <Badge variant="secondary" className="text-xs">
                                   {doc.ageCondition}
                                 </Badge>
                               )}
                               {/* Review Status Badge */}
-                              {!doc.filePath && (
+                              {doc.attachmentCount === 0 && (
                                 <Badge variant="outline" className="text-xs text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30">
                                   <Clock className="w-3 h-3 mr-1" />
                                   Pending Client
                                 </Badge>
                               )}
-                              {doc.filePath && doc.reviewStatus === "approved" && (
+                              {doc.attachmentCount > 0 && doc.reviewStatus === "approved" && (
                                 <Badge variant="default" className="text-xs bg-green-600">
                                   <CheckCircle2 className="w-3 h-3 mr-1" />
                                   Approved
                                 </Badge>
                               )}
-                              {doc.filePath && doc.reviewStatus === "rejected" && (
+                              {doc.attachmentCount > 0 && doc.reviewStatus === "rejected" && (
                                 <Badge variant="destructive" className="text-xs">
                                   <XCircle className="w-3 h-3 mr-1" />
                                   Rejected
                                 </Badge>
                               )}
-                              {doc.filePath && doc.reviewStatus !== "approved" && doc.reviewStatus !== "rejected" && (
+                              {doc.attachmentCount > 0 && doc.reviewStatus !== "approved" && doc.reviewStatus !== "rejected" && (
                                 <Badge variant="outline" className="text-xs text-blue-600 border-blue-400 bg-blue-50 dark:bg-blue-950/30">
                                   <AlertCircle className="w-3 h-3 mr-1" />
                                   Ready to Review
                                 </Badge>
                               )}
-                              {doc.filePath && (() => {
-                                const fileType = getFileTypeBadge(doc.filePath);
-                                return fileType ? (
-                                  <Badge variant="outline" className={`text-xs ${fileType.color}`}>
-                                    {fileType.label}
-                                  </Badge>
-                                ) : null;
-                              })()}
                             </div>
                             {/* Document Timeline */}
                             {(doc.uploadedAt || doc.reviewedAt) && (
@@ -1723,38 +1864,49 @@ const VisaApplicationDetail = () => {
                             )}
                             <div className="flex items-center gap-2">
                               {/* File actions */}
-                              {doc.filePath ? (
-                                <>
+                              {doc.attachmentCount > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-primary"
+                                  onClick={() => setPreviewDoc(doc)}
+                                  title="Preview & Review"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                              )}
+                              {/* Upload button - show when under max_files limit */}
+                              {(doc.maxFiles === null || doc.attachmentCount < doc.maxFiles) && (
+                                <label className="cursor-pointer">
+                                  <input
+                                    type="file"
+                                    className="hidden"
+                                    accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleFileUpload(doc.id, file, doc.name);
+                                      e.target.value = "";
+                                    }}
+                                    disabled={uploadFileMutation.isPending}
+                                  />
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-primary"
-                                    onClick={() => setPreviewDoc(doc)}
-                                    title="Preview & Review"
+                                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                    asChild
+                                    disabled={uploadFileMutation.isPending}
+                                    title={doc.attachmentCount > 0 ? "Add another file" : "Upload file"}
                                   >
-                                    <Eye className="w-4 h-4" />
+                                    <span>
+                                      {uploadFileMutation.isPending ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <Upload className="w-4 h-4" />
+                                      )}
+                                    </span>
                                   </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground"
-                                    onClick={() => handleDownloadFile(doc.filePath!, doc.name)}
-                                    title="Download file"
-                                  >
-                                    <Download className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                    onClick={() => handleFileRemove(doc.id, doc.filePath!)}
-                                    disabled={removeFileMutation.isPending}
-                                    title="Remove file"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </Button>
-                                </>
-                              ) : null}
+                                </label>
+                              )}
                               {doc.category === "Custom" && (
                                 <Button
                                   variant="ghost"
@@ -1768,8 +1920,76 @@ const VisaApplicationDetail = () => {
                               )}
                             </div>
                           </div>
-                          {/* File indicator with thumbnail and review comment */}
-                          {doc.filePath && (
+                          {/* Attachments list */}
+                          {doc.attachments && doc.attachments.length > 0 && (
+                            <div className="mt-2 ml-8 space-y-2">
+                              <div className="bg-secondary/30 rounded-lg p-2 space-y-1">
+                                {doc.attachments.map((attachment) => (
+                                  <div 
+                                    key={attachment.id}
+                                    className="flex items-center justify-between py-1.5 px-2 bg-background rounded text-sm group"
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                      <DocumentThumbnail
+                                        filePath={attachment.file_path}
+                                        fileUrl={thumbnailUrls[attachment.file_path] || null}
+                                        onPreview={() => setPreviewDoc(doc)}
+                                        size={24}
+                                      />
+                                      <span className="truncate text-muted-foreground">
+                                        {attachment.file_name}
+                                      </span>
+                                      {attachment.file_size && (
+                                        <span className="text-xs text-muted-foreground/70 flex-shrink-0">
+                                          ({(attachment.file_size / 1024).toFixed(0)} KB)
+                                        </span>
+                                      )}
+                                      {attachment.file_type && (() => {
+                                        const fileType = getFileTypeBadge(attachment.file_path);
+                                        return fileType ? (
+                                          <Badge variant="outline" className={`text-xs ${fileType.color}`}>
+                                            {fileType.label}
+                                          </Badge>
+                                        ) : null;
+                                      })()}
+                                    </div>
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 text-muted-foreground"
+                                        onClick={() => handleDownloadFile(attachment.file_path, attachment.file_name)}
+                                        title="Download"
+                                      >
+                                        <Download className="w-3 h-3" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                        onClick={() => removeAttachmentMutation.mutate({ 
+                                          attachmentId: attachment.id, 
+                                          docId: doc.id, 
+                                          filePath: attachment.file_path 
+                                        })}
+                                        disabled={removeAttachmentMutation.isPending}
+                                        title="Remove"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              {doc.reviewComment && (
+                                <p className="text-sm text-muted-foreground italic pl-1">
+                                  "{doc.reviewComment}"
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          {/* Legacy single file display (for backward compatibility) */}
+                          {doc.filePath && (!doc.attachments || doc.attachments.length === 0) && (
                             <div className="mt-2 ml-8 space-y-2">
                               <div className="flex items-center gap-2">
                                 <DocumentThumbnail
