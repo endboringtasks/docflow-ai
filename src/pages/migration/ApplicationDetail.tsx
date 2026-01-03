@@ -136,6 +136,10 @@ interface DocumentItem {
   attachments: DocumentAttachment[];
   translationOfId: string | null;
   requiresTranslation: boolean;
+  translationTargetLanguage: string | null;
+  translationCertificationTypeId: string | null;
+  translationCertificationTypeName: string | null;
+  translationNotes: string | null;
 }
 
 interface DbDocumentItem {
@@ -166,6 +170,16 @@ interface DbDocumentItem {
   attachments?: DocumentAttachment[];
   translation_of_id?: string | null;
   requires_translation?: boolean;
+  translation_target_language?: string | null;
+  translation_certification_type_id?: string | null;
+  translation_notes?: string | null;
+}
+
+interface TranslationCertificationType {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
 }
 
 interface VisaType {
@@ -342,6 +356,21 @@ const VisaApplicationDetail = () => {
     },
   });
 
+  // Fetch translation certification types
+  const { data: certificationTypes = [] } = useQuery({
+    queryKey: ["translation-certification-types"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("translation_certification_types")
+        .select("id, code, name, description")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      
+      if (error) throw error;
+      return data as TranslationCertificationType[];
+    },
+  });
+
   // Filter visa types by selected country in edit form
   const editFilteredVisaTypes = editForm.countryId
     ? visaTypes.filter(type => type.country_id === editForm.countryId)
@@ -369,10 +398,10 @@ const VisaApplicationDetail = () => {
     queryFn: async () => {
       if (!visaApplicationId) return [];
       
-      // Fetch documents with min_files, max_files, translation_of_id, requires_translation
+      // Fetch documents with translation fields
       const { data: docs, error } = await supabase
         .from("document_checklist")
-        .select("*, min_files, max_files, translation_of_id, requires_translation")
+        .select("*, min_files, max_files, translation_of_id, requires_translation, translation_target_language, translation_certification_type_id, translation_notes")
         .eq("visa_application_id", visaApplicationId)
         .order("created_at", { ascending: true });
       
@@ -646,6 +675,12 @@ const VisaApplicationDetail = () => {
       : null;
     const reviewerProfile = doc.reviewer_profile;
     const reviewerName = reviewerProfile?.display_name || reviewerProfile?.email || null;
+    
+    // Lookup certification type name
+    const certType = doc.translation_certification_type_id 
+      ? certificationTypes.find(ct => ct.id === doc.translation_certification_type_id)
+      : null;
+    
     return {
       id: doc.id,
       name: parsed.displayName,
@@ -672,6 +707,10 @@ const VisaApplicationDetail = () => {
       attachments: doc.attachments ?? [],
       translationOfId: doc.translation_of_id ?? null,
       requiresTranslation: doc.requires_translation ?? false,
+      translationTargetLanguage: doc.translation_target_language ?? null,
+      translationCertificationTypeId: doc.translation_certification_type_id ?? null,
+      translationCertificationTypeName: certType?.name ?? null,
+      translationNotes: doc.translation_notes ?? null,
     };
   });
 
@@ -1858,12 +1897,38 @@ const VisaApplicationDetail = () => {
                                   {doc.ageCondition}
                                 </Badge>
                               )}
-                              {/* Translation indicator */}
+                              {/* Translation indicator with certification requirements */}
                               {doc.translationOfId && (
-                                <Badge variant="outline" className="text-xs text-purple-600 border-purple-400 bg-purple-50 dark:bg-purple-950/30">
-                                  <Languages className="w-3 h-3 mr-1" />
-                                  Translation
-                                </Badge>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge variant="outline" className="text-xs text-purple-600 border-purple-400 bg-purple-50 dark:bg-purple-950/30">
+                                        <Languages className="w-3 h-3 mr-1" />
+                                        Translation
+                                        {doc.translationCertificationTypeName && (
+                                          <span className="ml-1 font-semibold">• {doc.translationCertificationTypeName}</span>
+                                        )}
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs">
+                                      <div className="space-y-1">
+                                        <p className="font-medium">Translation Requirements</p>
+                                        {doc.translationTargetLanguage && (
+                                          <p className="text-xs">Target: {doc.translationTargetLanguage}</p>
+                                        )}
+                                        {doc.translationCertificationTypeName && (
+                                          <p className="text-xs">Certification: {doc.translationCertificationTypeName}</p>
+                                        )}
+                                        {doc.translationNotes && (
+                                          <p className="text-xs text-muted-foreground">{doc.translationNotes}</p>
+                                        )}
+                                        {!doc.translationCertificationTypeName && !doc.translationNotes && (
+                                          <p className="text-xs text-muted-foreground">Any certified translator</p>
+                                        )}
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               )}
                               {doc.requiresTranslation && !doc.translationOfId && (
                                 <Tooltip>
