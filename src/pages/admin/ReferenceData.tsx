@@ -1876,6 +1876,13 @@ function SortableDocumentRow({ doc, onEdit, onDuplicate, onDelete, isSelected, o
         </Badge>
       </TableCell>
       <TableCell>
+        <span className="text-sm text-muted-foreground">
+          {doc.min_files === doc.max_files 
+            ? doc.min_files 
+            : `${doc.min_files}–${doc.max_files ?? '∞'}`}
+        </span>
+      </TableCell>
+      <TableCell>
         <div className="flex gap-1">
           <Button variant="ghost" size="icon" onClick={() => onEdit(doc)} title="Edit">
             <Pencil className="w-4 h-4" />
@@ -2464,6 +2471,7 @@ function DocumentsTab() {
               <TableHead>Application Name</TableHead>
               <TableHead>Applicant Type</TableHead>
               <TableHead>Required</TableHead>
+              <TableHead>Files</TableHead>
               <TableHead className="w-32">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -2486,7 +2494,7 @@ function DocumentsTab() {
             </SortableContext>
             {documents?.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                   No document checklist items found. Add one to get started.
                 </TableCell>
               </TableRow>
