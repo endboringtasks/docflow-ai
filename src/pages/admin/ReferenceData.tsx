@@ -141,6 +141,8 @@ interface DocumentTemplate {
   applicant_type_id: string | null;
   age_condition: string | null;
   description: string | null;
+  min_files: number;
+  max_files: number | null;
   country?: Country;
   visa_type?: ApplicationType;
   applicant_type?: { id: string; name: string; code: string } | null;
@@ -1917,6 +1919,8 @@ function DocumentsTab() {
     applicant_type_id: "",
     age_condition: "",
     description: "",
+    min_files: 1,
+    max_files: 1,
   });
   const [dialogCategoryFilter, setDialogCategoryFilter] = useState<string>("");
   const [dialogSubcategoryFilter, setDialogSubcategoryFilter] = useState<string>("");
@@ -2125,6 +2129,8 @@ function DocumentsTab() {
         applicant_type_id: rest.applicant_type_id || null,
         age_condition: rest.age_condition || null,
         description: rest.description || null,
+        min_files: rest.min_files,
+        max_files: rest.max_files || null,
       };
       
       let templateId: string;
@@ -2305,6 +2311,8 @@ function DocumentsTab() {
       applicant_type_id: "",
       age_condition: "",
       description: "",
+      min_files: 1,
+      max_files: 1,
     });
     setDialogCategoryFilter("");
     setDialogSubcategoryFilter("");
@@ -2326,6 +2334,8 @@ function DocumentsTab() {
       applicant_type_id: doc.applicant_type_id || "",
       age_condition: doc.age_condition || "",
       description: doc.description || "",
+      min_files: doc.min_files ?? 1,
+      max_files: doc.max_files ?? 1,
     });
     setDialogCategoryFilter("");
     setDialogSubcategoryFilter("");
@@ -2346,6 +2356,8 @@ function DocumentsTab() {
       applicant_type_id: doc.applicant_type_id || "",
       age_condition: doc.age_condition || "",
       description: doc.description || "",
+      min_files: doc.min_files ?? 1,
+      max_files: doc.max_files ?? 1,
     });
     setDialogCategoryFilter("");
     setDialogSubcategoryFilter("");
@@ -2722,6 +2734,32 @@ function DocumentsTab() {
               <p className="text-xs text-muted-foreground">
                 This instruction will be shown to clients in the portal when uploading this document.
               </p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Min Files Required</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={form.min_files}
+                  onChange={(e) => setForm({ ...form, min_files: Math.max(1, parseInt(e.target.value) || 1) })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Minimum number of files clients must upload
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Max Files Allowed</Label>
+                <Input
+                  type="number"
+                  min={form.min_files}
+                  value={form.max_files}
+                  onChange={(e) => setForm({ ...form, max_files: Math.max(form.min_files, parseInt(e.target.value) || 1) })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Maximum number of files clients can upload
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Switch
