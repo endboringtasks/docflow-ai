@@ -31,6 +31,8 @@ import {
   Merge,
   Clock,
   Calendar,
+  Languages,
+  Link2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -132,6 +134,8 @@ interface DocumentItem {
   maxFiles: number | null;
   attachmentCount: number;
   attachments: DocumentAttachment[];
+  translationOfId: string | null;
+  requiresTranslation: boolean;
 }
 
 interface DbDocumentItem {
@@ -160,6 +164,8 @@ interface DbDocumentItem {
   updated_at: string;
   attachment_count?: number;
   attachments?: DocumentAttachment[];
+  translation_of_id?: string | null;
+  requires_translation?: boolean;
 }
 
 interface VisaType {
@@ -363,10 +369,10 @@ const VisaApplicationDetail = () => {
     queryFn: async () => {
       if (!visaApplicationId) return [];
       
-      // Fetch documents with min_files, max_files
+      // Fetch documents with min_files, max_files, translation_of_id, requires_translation
       const { data: docs, error } = await supabase
         .from("document_checklist")
-        .select("*, min_files, max_files")
+        .select("*, min_files, max_files, translation_of_id, requires_translation")
         .eq("visa_application_id", visaApplicationId)
         .order("created_at", { ascending: true });
       
@@ -509,6 +515,7 @@ const VisaApplicationDetail = () => {
                 age_condition,
                 is_required, 
                 sort_order,
+                requires_translation,
                 applicant_type:applicant_types(name)
               `
             )
@@ -518,6 +525,7 @@ const VisaApplicationDetail = () => {
           if (templatesError) throw templatesError;
 
           if (templates && templates.length > 0) {
+            // First pass: create all original documents
             const documentsToInsert = templates.map((template: any) => {
               const category = template.category || "General";
               const required = !!template.is_required;
@@ -537,14 +545,46 @@ const VisaApplicationDetail = () => {
                 is_completed: false,
                 is_standard_for_client: true,
                 review_status: "pending_client",
+                requires_translation: template.requires_translation ?? false,
               };
             });
 
-            const { error: insertError } = await supabase
+            const { data: insertedDocs, error: insertError } = await supabase
               .from("document_checklist")
-              .insert(documentsToInsert);
+              .insert(documentsToInsert)
+              .select("id, document_name, category, description, applicant_type, age_condition, requires_translation");
 
             if (insertError) throw insertError;
+
+            // Second pass: create translation documents for those that require it
+            const translationDocs = (insertedDocs || [])
+              .filter((doc: any) => doc.requires_translation)
+              .map((originalDoc: any) => {
+                const translationName = `[${originalDoc.category || "General"}:required] ${originalDoc.document_name.replace(/^\[[^\]]+\]\s*/, "")} (Translation)`;
+                return {
+                  visa_application_id: visaApplicationId,
+                  company_id: visaApplication.company_id,
+                  document_name: translationName,
+                  category: originalDoc.category,
+                  description: `Certified translation of: ${originalDoc.document_name.replace(/^\[[^\]]+\]\s*/, "")}`,
+                  applicant_type: originalDoc.applicant_type,
+                  age_condition: originalDoc.age_condition,
+                  is_completed: false,
+                  is_standard_for_client: true,
+                  review_status: "pending_client",
+                  requires_translation: false,
+                  translation_of_id: originalDoc.id,
+                };
+              });
+
+            if (translationDocs.length > 0) {
+              const { error: translationInsertError } = await supabase
+                .from("document_checklist")
+                .insert(translationDocs);
+
+              if (translationInsertError) throw translationInsertError;
+            }
+
             return;
           }
         }
@@ -630,6 +670,8 @@ const VisaApplicationDetail = () => {
       maxFiles: doc.max_files ?? 1,
       attachmentCount: doc.attachment_count ?? 0,
       attachments: doc.attachments ?? [],
+      translationOfId: doc.translation_of_id ?? null,
+      requiresTranslation: doc.requires_translation ?? false,
     };
   });
 
@@ -1815,6 +1857,26 @@ const VisaApplicationDetail = () => {
                                 <Badge variant="secondary" className="text-xs">
                                   {doc.ageCondition}
                                 </Badge>
+                              )}
+                              {/* Translation indicator */}
+                              {doc.translationOfId && (
+                                <Badge variant="outline" className="text-xs text-purple-600 border-purple-400 bg-purple-50 dark:bg-purple-950/30">
+                                  <Languages className="w-3 h-3 mr-1" />
+                                  Translation
+                                </Badge>
+                              )}
+                              {doc.requiresTranslation && !doc.translationOfId && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="outline" className="text-xs text-purple-600 border-purple-400 bg-purple-50 dark:bg-purple-950/30">
+                                      <Link2 className="w-3 h-3 mr-1" />
+                                      Has Translation
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>A translation document was auto-created for this original</p>
+                                  </TooltipContent>
+                                </Tooltip>
                               )}
                               {/* Review Status Badge */}
                               {doc.attachmentCount === 0 && (

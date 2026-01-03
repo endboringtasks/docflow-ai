@@ -547,10 +547,12 @@ export type Database = {
           is_standard_for_client: boolean | null
           max_files: number | null
           min_files: number
+          requires_translation: boolean
           review_comment: string | null
           review_status: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          translation_of_id: string | null
           updated_at: string
           uploaded_at: string | null
           uploaded_by: string | null
@@ -571,10 +573,12 @@ export type Database = {
           is_standard_for_client?: boolean | null
           max_files?: number | null
           min_files?: number
+          requires_translation?: boolean
           review_comment?: string | null
           review_status?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          translation_of_id?: string | null
           updated_at?: string
           uploaded_at?: string | null
           uploaded_by?: string | null
@@ -595,10 +599,12 @@ export type Database = {
           is_standard_for_client?: boolean | null
           max_files?: number | null
           min_files?: number
+          requires_translation?: boolean
           review_comment?: string | null
           review_status?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          translation_of_id?: string | null
           updated_at?: string
           uploaded_at?: string | null
           uploaded_by?: string | null
@@ -618,6 +624,13 @@ export type Database = {
             columns: ["visa_application_id"]
             isOneToOne: false
             referencedRelation: "visa_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_checklist_translation_of_id_fkey"
+            columns: ["translation_of_id"]
+            isOneToOne: false
+            referencedRelation: "document_checklist"
             referencedColumns: ["id"]
           },
           {
@@ -644,6 +657,7 @@ export type Database = {
           is_standard_for_client: boolean | null
           max_files: number | null
           min_files: number
+          requires_translation: boolean
           sort_order: number | null
           visa_subclass: string | null
           visa_type_id: string | null
@@ -662,6 +676,7 @@ export type Database = {
           is_standard_for_client?: boolean | null
           max_files?: number | null
           min_files?: number
+          requires_translation?: boolean
           sort_order?: number | null
           visa_subclass?: string | null
           visa_type_id?: string | null
@@ -680,6 +695,7 @@ export type Database = {
           is_standard_for_client?: boolean | null
           max_files?: number | null
           min_files?: number
+          requires_translation?: boolean
           sort_order?: number | null
           visa_subclass?: string | null
           visa_type_id?: string | null
