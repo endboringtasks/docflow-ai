@@ -88,6 +88,7 @@ interface DocumentTemplate {
   applicant_type_id: string | null;
   age_condition: string | null;
   description: string | null;
+  requires_translation: boolean;
   applicant_type?: ApplicantType | null;
 }
 
@@ -256,6 +257,7 @@ const DocumentTemplates = () => {
     applicantTypeId: "",
     ageCondition: "",
     description: "",
+    requiresTranslation: false,
   });
   
   const [docNameOpen, setDocNameOpen] = useState(false);
@@ -474,7 +476,7 @@ const DocumentTemplates = () => {
 
   // Add document mutation
   const addDocMutation = useMutation({
-    mutationFn: async (doc: { category: string; document_name: string; is_required: boolean; applicant_type_id: string | null; age_condition: string | null; description: string | null }) => {
+    mutationFn: async (doc: { category: string; document_name: string; is_required: boolean; applicant_type_id: string | null; age_condition: string | null; description: string | null; requires_translation: boolean }) => {
       if (!currentCompany?.id || !selectedApplicationType) throw new Error("No company or application type selected");
       
       const maxOrder = templates
@@ -493,6 +495,7 @@ const DocumentTemplates = () => {
           applicant_type_id: doc.applicant_type_id || null,
           age_condition: doc.age_condition || null,
           description: doc.description || null,
+          requires_translation: doc.requires_translation,
           sort_order: maxOrder + 1,
         })
         .select("*, applicant_type:applicant_types(*)")
@@ -504,7 +507,7 @@ const DocumentTemplates = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-templates", currentCompany?.id, selectedApplicationType] });
       setIsAddDocOpen(false);
-      setNewDoc({ category: "", documentName: "", isRequired: true, applicantTypeId: "", ageCondition: "", description: "" });
+      setNewDoc({ category: "", documentName: "", isRequired: true, applicantTypeId: "", ageCondition: "", description: "", requiresTranslation: false });
       toast.success("Document added to template");
     },
     onError: (error) => {
@@ -514,7 +517,7 @@ const DocumentTemplates = () => {
 
   // Update document mutation
   const updateDocMutation = useMutation({
-    mutationFn: async (doc: { id: string; document_name: string; is_required: boolean; category: string; applicant_type_id: string | null; age_condition: string | null; description: string | null }) => {
+    mutationFn: async (doc: { id: string; document_name: string; is_required: boolean; category: string; applicant_type_id: string | null; age_condition: string | null; description: string | null; requires_translation: boolean }) => {
       const { data, error } = await supabase
         .from("document_checklist_templates")
         .update({
@@ -524,6 +527,7 @@ const DocumentTemplates = () => {
           applicant_type_id: doc.applicant_type_id || null,
           age_condition: doc.age_condition || null,
           description: doc.description || null,
+          requires_translation: doc.requires_translation,
         })
         .eq("id", doc.id)
         .select("*, applicant_type:applicant_types(*)")
@@ -571,6 +575,7 @@ const DocumentTemplates = () => {
       applicant_type_id: newDoc.applicantTypeId || null,
       age_condition: newDoc.ageCondition || null,
       description: newDoc.description || null,
+      requires_translation: newDoc.requiresTranslation,
     });
   };
 
@@ -584,6 +589,7 @@ const DocumentTemplates = () => {
       applicant_type_id: editingDoc.applicant_type_id || null,
       age_condition: editingDoc.age_condition || null,
       description: editingDoc.description || null,
+      requires_translation: editingDoc.requires_translation ?? false,
     });
   };
 
@@ -1190,6 +1196,16 @@ const DocumentTemplates = () => {
                 onCheckedChange={(checked) => setNewDoc({ ...newDoc, isRequired: checked })}
               />
             </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Requires Translation</Label>
+                <p className="text-xs text-muted-foreground">Auto-creates a linked translation document</p>
+              </div>
+              <Switch
+                checked={newDoc.requiresTranslation}
+                onCheckedChange={(checked) => setNewDoc({ ...newDoc, requiresTranslation: checked })}
+              />
+            </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button variant="outline" onClick={() => setIsAddDocOpen(false)}>
                 Cancel
@@ -1364,6 +1380,16 @@ const DocumentTemplates = () => {
                 <Switch
                   checked={editingDoc.is_required}
                   onCheckedChange={(checked) => setEditingDoc({ ...editingDoc, is_required: checked })}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Requires Translation</Label>
+                  <p className="text-xs text-muted-foreground">Auto-creates a linked translation document</p>
+                </div>
+                <Switch
+                  checked={editingDoc.requires_translation ?? false}
+                  onCheckedChange={(checked) => setEditingDoc({ ...editingDoc, requires_translation: checked })}
                 />
               </div>
               <div className="flex justify-end gap-2 pt-4">
