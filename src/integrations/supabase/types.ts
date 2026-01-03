@@ -1512,6 +1512,11 @@ export type Database = {
           is_completed: boolean
           max_files: number
           min_files: number
+          translation_certification_type_id: string
+          translation_certification_type_name: string
+          translation_notes: string
+          translation_of_id: string
+          translation_target_language: string
         }[]
       }
       get_portal_visa_application_details: {

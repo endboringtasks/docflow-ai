@@ -34,8 +34,16 @@ import {
   ChevronDown,
   ChevronRight,
   FolderOpen,
-  User
+  User,
+  Languages,
+  Info
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertDialog,
@@ -98,6 +106,11 @@ interface DocumentItem {
   max_files: number | null;
   attachment_count: number;
   attachments?: DocumentAttachment[];
+  translation_of_id: string | null;
+  translation_target_language: string | null;
+  translation_certification_type_id: string | null;
+  translation_certification_type_name: string | null;
+  translation_notes: string | null;
 }
 
 interface FormData {
@@ -982,7 +995,7 @@ export default function ClientPortal() {
                                                         )}
                                                       </div>
                                                       <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2">
+                                                        <div className="flex items-center gap-2 flex-wrap">
                                                           <p className={`font-medium text-sm ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
                                                             {doc.document_name.replace(/\s*\[[^\]]*:required\]\s*/gi, " ").trim()}
                                                           </p>
@@ -992,6 +1005,46 @@ export default function ClientPortal() {
                                                             </Badge>
                                                           )}
                                                         </div>
+                                                        
+                                                        {/* Translation Requirements */}
+                                                        {doc.translation_of_id && (
+                                                          <div className="flex items-center gap-2 mt-1.5">
+                                                            <TooltipProvider>
+                                                              <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                  <Badge variant="secondary" className="text-xs bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 gap-1">
+                                                                    <Languages className="w-3 h-3" />
+                                                                    {doc.translation_certification_type_name 
+                                                                      ? `${doc.translation_certification_type_name} Required`
+                                                                      : "Translation Required"}
+                                                                    {doc.translation_target_language && (
+                                                                      <span className="font-normal">→ {doc.translation_target_language}</span>
+                                                                    )}
+                                                                    <Info className="w-3 h-3 ml-0.5" />
+                                                                  </Badge>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent side="top" className="max-w-xs">
+                                                                  <div className="space-y-1 text-xs">
+                                                                    <p className="font-medium">Translation Requirements</p>
+                                                                    {doc.translation_target_language && (
+                                                                      <p><span className="text-muted-foreground">Target Language:</span> {doc.translation_target_language}</p>
+                                                                    )}
+                                                                    <p>
+                                                                      <span className="text-muted-foreground">Certification:</span>{" "}
+                                                                      {doc.translation_certification_type_name || "Any certified translator"}
+                                                                    </p>
+                                                                    {doc.translation_notes && (
+                                                                      <p className="pt-1 border-t border-border mt-1">
+                                                                        <span className="text-muted-foreground">Note:</span> {doc.translation_notes}
+                                                                      </p>
+                                                                    )}
+                                                                  </div>
+                                                                </TooltipContent>
+                                                              </Tooltip>
+                                                            </TooltipProvider>
+                                                          </div>
+                                                        )}
+                                                        
                                                         {!doc.is_completed && (() => {
                                                           const cleaned = doc.description
                                                             ?.replace(/\s*\[[^\]]*:required\]\s*/gi, " ")
