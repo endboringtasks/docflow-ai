@@ -77,6 +77,15 @@ interface Client {
   client_type: string;
 }
 
+interface DocumentAttachment {
+  id: string;
+  file_path: string;
+  file_name: string;
+  file_type: string | null;
+  file_size: number | null;
+  uploaded_at: string;
+}
+
 interface DocumentItem {
   id: string;
   document_name: string;
@@ -85,6 +94,10 @@ interface DocumentItem {
   description: string | null;
   category: string | null;
   applicant_type: string | null;
+  min_files: number;
+  max_files: number | null;
+  attachment_count: number;
+  attachments?: DocumentAttachment[];
 }
 
 interface FormData {
@@ -136,10 +149,11 @@ export default function ClientPortal() {
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
-  const [removingDocId, setRemovingDocId] = useState<string | null>(null);
+  const [removingAttachmentId, setRemovingAttachmentId] = useState<string | null>(null);
   const [dragOverDocId, setDragOverDocId] = useState<string | null>(null);
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
 
   // File validation constants
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -217,7 +231,20 @@ export default function ClientPortal() {
       const { data: docsData } = await supabase
         .rpc("get_portal_documents", { p_token: token });
 
-      if (docsData) setDocuments(docsData);
+      if (docsData) {
+        // Load attachments for each document
+        const docsWithAttachments = await Promise.all(
+          docsData.map(async (doc: DocumentItem) => {
+            if (doc.attachment_count > 0) {
+              const { data: attachments } = await supabase
+                .rpc("get_document_attachments", { p_token: token, p_document_id: doc.id });
+              return { ...doc, attachments: attachments || [] };
+            }
+            return { ...doc, attachments: [] };
+          })
+        );
+        setDocuments(docsWithAttachments);
+      }
 
       // Load saved form data - use the visa_application_id from RPC
       const visaAppId = portalData.visa_application_id;
@@ -364,11 +391,8 @@ export default function ClientPortal() {
         throw new Error(result.error || 'Upload failed');
       }
 
-      // Refresh documents using secure RPC
-      const { data: docsData } = await supabase
-        .rpc("get_portal_documents", { p_token: token });
-
-      if (docsData) setDocuments(docsData);
+      // Refresh documents with attachments
+      await refreshDocuments();
       toast.success("Document uploaded successfully");
     } catch (err) {
       console.error("Upload failed:", err);
@@ -378,10 +402,63 @@ export default function ClientPortal() {
     }
   };
 
+  const refreshDocuments = async () => {
+    if (!token) return;
+    
+    const { data: docsData } = await supabase
+      .rpc("get_portal_documents", { p_token: token });
+
+    if (docsData) {
+      const docsWithAttachments = await Promise.all(
+        docsData.map(async (doc: DocumentItem) => {
+          if (doc.attachment_count > 0) {
+            const { data: attachments } = await supabase
+              .rpc("get_document_attachments", { p_token: token, p_document_id: doc.id });
+            return { ...doc, attachments: attachments || [] };
+          }
+          return { ...doc, attachments: [] };
+        })
+      );
+      setDocuments(docsWithAttachments);
+    }
+  };
+
+  const handleRemoveAttachment = async (attachmentId: string) => {
+    if (!token) return;
+
+    setRemovingAttachmentId(attachmentId);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-portal-remove-document`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, attachment_id: attachmentId }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Remove failed');
+      }
+
+      // Refresh documents with attachments
+      await refreshDocuments();
+      toast.success("File removed");
+    } catch (err) {
+      console.error("Remove failed:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to remove file");
+    } finally {
+      setRemovingAttachmentId(null);
+    }
+  };
+
+  // Legacy function for backward compatibility
   const handleRemoveDocument = async (docId: string) => {
     if (!token) return;
 
-    setRemovingDocId(docId);
+    setRemovingAttachmentId(docId);
     try {
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-portal-remove-document`,
@@ -398,17 +475,13 @@ export default function ClientPortal() {
         throw new Error(result.error || 'Remove failed');
       }
 
-      // Refresh documents
-      const { data: docsData } = await supabase
-        .rpc("get_portal_documents", { p_token: token });
-
-      if (docsData) setDocuments(docsData);
+      await refreshDocuments();
       toast.success("Document removed");
     } catch (err) {
       console.error("Remove failed:", err);
       toast.error(err instanceof Error ? err.message : "Failed to remove document");
     } finally {
-      setRemovingDocId(null);
+      setRemovingAttachmentId(null);
     }
   };
 
@@ -877,95 +950,142 @@ export default function ClientPortal() {
                                             transition={{ duration: 0.2 }}
                                           >
                                             <div className="p-2 space-y-2">
-                                              {categoryDocs.map((doc) => (
-                                                <motion.div
-                                                  key={doc.id}
-                                                  initial={{ opacity: 0, y: 10 }}
-                                                  animate={{ opacity: 1, y: 0 }}
-                                                  className={`flex items-center gap-4 p-3 rounded-lg border transition-all ${
-                                                    doc.is_completed 
-                                                      ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
-                                                      : dragOverDocId === doc.id
-                                                        ? "bg-primary/10 border-primary border-dashed"
-                                                        : "bg-background border-border/50 hover:border-border"
-                                                  }`}
-                                                  onDragOver={(e) => handleDragOver(e, doc.id)}
-                                                  onDragLeave={handleDragLeave}
-                                                  onDrop={(e) => handleDrop(e, doc.id)}
-                                                >
-                                                  <div className="flex-shrink-0">
-                                                    {doc.is_completed ? (
-                                                      <CheckCircle2 className="w-5 h-5 text-green-600" />
-                                                    ) : (
-                                                      <Circle className="w-5 h-5 text-muted-foreground" />
-                                                    )}
-                                                  </div>
-                                                  <div className="flex-1 min-w-0">
-                                                    <p className={`font-medium text-sm ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
-                                                      {doc.document_name.replace(/\s*\[[^\]]*:required\]\s*/gi, " ").trim()}
-                                                    </p>
-                                                    {!doc.is_completed && (() => {
-                                                      const cleaned = doc.description
-                                                        ?.replace(/\s*\[[^\]]*:required\]\s*/gi, " ")
-                                                        .trim();
-                                                      return cleaned ? (
-                                                        <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
-                                                          {cleaned}
-                                                        </p>
-                                                      ) : null;
-                                                    })()}
-                                                  </div>
-                                                  <div className="flex-shrink-0 flex items-center gap-2">
-                                                    {doc.is_completed ? (
-                                                      <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleRemoveDocument(doc.id)}
-                                                        disabled={removingDocId === doc.id}
-                                                        className="text-destructive hover:text-destructive h-8 w-8 p-0"
-                                                      >
-                                                        {removingDocId === doc.id ? (
-                                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                              {categoryDocs.map((doc) => {
+                                                const isMultiFile = (doc.max_files ?? 1) > 1 || doc.max_files === null;
+                                                const canUploadMore = doc.max_files === null || doc.attachment_count < doc.max_files;
+                                                const attachmentCount = doc.attachment_count || 0;
+                                                const minFiles = doc.min_files || 1;
+                                                
+                                                return (
+                                                  <motion.div
+                                                    key={doc.id}
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    className={`rounded-lg border transition-all ${
+                                                      doc.is_completed 
+                                                        ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
+                                                        : dragOverDocId === doc.id
+                                                          ? "bg-primary/10 border-primary border-dashed"
+                                                          : "bg-background border-border/50 hover:border-border"
+                                                    }`}
+                                                    onDragOver={(e) => handleDragOver(e, doc.id)}
+                                                    onDragLeave={handleDragLeave}
+                                                    onDrop={(e) => handleDrop(e, doc.id)}
+                                                  >
+                                                    {/* Document Header */}
+                                                    <div className="flex items-center gap-4 p-3">
+                                                      <div className="flex-shrink-0">
+                                                        {doc.is_completed ? (
+                                                          <CheckCircle2 className="w-5 h-5 text-green-600" />
                                                         ) : (
-                                                          <X className="w-4 h-4" />
+                                                          <Circle className="w-5 h-5 text-muted-foreground" />
                                                         )}
-                                                      </Button>
-                                                    ) : (
-                                                      <label className="cursor-pointer">
-                                                        <input
-                                                          type="file"
-                                                          className="hidden"
-                                                          accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic"
-                                                          onChange={(e) => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) handleFileUpload(doc.id, file);
-                                                            e.target.value = "";
-                                                          }}
-                                                          disabled={uploadingDocId === doc.id}
-                                                        />
-                                                        <Button
-                                                          variant="outline"
-                                                          size="sm"
-                                                          asChild
-                                                          disabled={uploadingDocId === doc.id}
-                                                          className="h-8"
-                                                        >
-                                                          <span>
-                                                            {uploadingDocId === doc.id ? (
-                                                              <Loader2 className="w-4 h-4 animate-spin" />
-                                                            ) : (
-                                                              <>
-                                                                <Upload className="w-4 h-4 mr-1" />
-                                                                Upload
-                                                              </>
-                                                            )}
-                                                          </span>
-                                                        </Button>
-                                                      </label>
+                                                      </div>
+                                                      <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                          <p className={`font-medium text-sm ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
+                                                            {doc.document_name.replace(/\s*\[[^\]]*:required\]\s*/gi, " ").trim()}
+                                                          </p>
+                                                          {isMultiFile && (
+                                                            <Badge variant="outline" className="text-xs">
+                                                              {attachmentCount}/{doc.max_files ?? "∞"} files
+                                                            </Badge>
+                                                          )}
+                                                        </div>
+                                                        {!doc.is_completed && (() => {
+                                                          const cleaned = doc.description
+                                                            ?.replace(/\s*\[[^\]]*:required\]\s*/gi, " ")
+                                                            .trim();
+                                                          return cleaned ? (
+                                                            <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
+                                                              {cleaned}
+                                                            </p>
+                                                          ) : null;
+                                                        })()}
+                                                        {isMultiFile && minFiles > 1 && attachmentCount < minFiles && (
+                                                          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                                                            Minimum {minFiles} files required
+                                                          </p>
+                                                        )}
+                                                      </div>
+                                                      <div className="flex-shrink-0 flex items-center gap-2">
+                                                        {canUploadMore && (
+                                                          <label className="cursor-pointer">
+                                                            <input
+                                                              type="file"
+                                                              className="hidden"
+                                                              accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic"
+                                                              onChange={(e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) handleFileUpload(doc.id, file);
+                                                                e.target.value = "";
+                                                              }}
+                                                              disabled={uploadingDocId === doc.id}
+                                                            />
+                                                            <Button
+                                                              variant="outline"
+                                                              size="sm"
+                                                              asChild
+                                                              disabled={uploadingDocId === doc.id}
+                                                              className="h-8"
+                                                            >
+                                                              <span>
+                                                                {uploadingDocId === doc.id ? (
+                                                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                                                ) : (
+                                                                  <>
+                                                                    <Upload className="w-4 h-4 mr-1" />
+                                                                    {attachmentCount > 0 ? "Add" : "Upload"}
+                                                                  </>
+                                                                )}
+                                                              </span>
+                                                            </Button>
+                                                          </label>
+                                                        )}
+                                                      </div>
+                                                    </div>
+
+                                                    {/* Attachments List */}
+                                                    {doc.attachments && doc.attachments.length > 0 && (
+                                                      <div className="px-3 pb-3 pt-0">
+                                                        <div className="bg-muted/30 rounded-md p-2 space-y-1">
+                                                          {doc.attachments.map((attachment) => (
+                                                            <div 
+                                                              key={attachment.id}
+                                                              className="flex items-center justify-between py-1.5 px-2 bg-background rounded text-sm"
+                                                            >
+                                                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                                <File className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                                                <span className="truncate text-muted-foreground">
+                                                                  {attachment.file_name}
+                                                                </span>
+                                                                {attachment.file_size && (
+                                                                  <span className="text-xs text-muted-foreground/70 flex-shrink-0">
+                                                                    ({(attachment.file_size / 1024).toFixed(0)} KB)
+                                                                  </span>
+                                                                )}
+                                                              </div>
+                                                              <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => handleRemoveAttachment(attachment.id)}
+                                                                disabled={removingAttachmentId === attachment.id}
+                                                                className="text-destructive hover:text-destructive h-6 w-6 p-0 flex-shrink-0"
+                                                              >
+                                                                {removingAttachmentId === attachment.id ? (
+                                                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                                                ) : (
+                                                                  <X className="w-3 h-3" />
+                                                                )}
+                                                              </Button>
+                                                            </div>
+                                                          ))}
+                                                        </div>
+                                                      </div>
                                                     )}
-                                                  </div>
-                                                </motion.div>
-                                              ))}
+                                                  </motion.div>
+                                                );
+                                              })}
                                             </div>
                                           </motion.div>
                                         )}
