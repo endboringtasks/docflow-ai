@@ -552,7 +552,10 @@ export type Database = {
           review_status: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          translation_certification_type_id: string | null
+          translation_notes: string | null
           translation_of_id: string | null
+          translation_target_language: string | null
           updated_at: string
           uploaded_at: string | null
           uploaded_by: string | null
@@ -578,7 +581,10 @@ export type Database = {
           review_status?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          translation_certification_type_id?: string | null
+          translation_notes?: string | null
           translation_of_id?: string | null
+          translation_target_language?: string | null
           updated_at?: string
           uploaded_at?: string | null
           uploaded_by?: string | null
@@ -604,7 +610,10 @@ export type Database = {
           review_status?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          translation_certification_type_id?: string | null
+          translation_notes?: string | null
           translation_of_id?: string | null
+          translation_target_language?: string | null
           updated_at?: string
           uploaded_at?: string | null
           uploaded_by?: string | null
@@ -624,6 +633,13 @@ export type Database = {
             columns: ["visa_application_id"]
             isOneToOne: false
             referencedRelation: "visa_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_checklist_translation_certification_type_id_fkey"
+            columns: ["translation_certification_type_id"]
+            isOneToOne: false
+            referencedRelation: "translation_certification_types"
             referencedColumns: ["id"]
           },
           {
@@ -659,6 +675,9 @@ export type Database = {
           min_files: number
           requires_translation: boolean
           sort_order: number | null
+          translation_certification_type_id: string | null
+          translation_notes: string | null
+          translation_target_language: string | null
           visa_subclass: string | null
           visa_type_id: string | null
         }
@@ -678,6 +697,9 @@ export type Database = {
           min_files?: number
           requires_translation?: boolean
           sort_order?: number | null
+          translation_certification_type_id?: string | null
+          translation_notes?: string | null
+          translation_target_language?: string | null
           visa_subclass?: string | null
           visa_type_id?: string | null
         }
@@ -697,6 +719,9 @@ export type Database = {
           min_files?: number
           requires_translation?: boolean
           sort_order?: number | null
+          translation_certification_type_id?: string | null
+          translation_notes?: string | null
+          translation_target_language?: string | null
           visa_subclass?: string | null
           visa_type_id?: string | null
         }
@@ -720,6 +745,13 @@ export type Database = {
             columns: ["country_id"]
             isOneToOne: false
             referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_checklist_templates_translation_certification_typ_fkey"
+            columns: ["translation_certification_type_id"]
+            isOneToOne: false
+            referencedRelation: "translation_certification_types"
             referencedColumns: ["id"]
           },
         ]
@@ -1083,6 +1115,47 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      translation_certification_types: {
+        Row: {
+          code: string
+          country_id: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          sort_order: number | null
+        }
+        Insert: {
+          code: string
+          country_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          sort_order?: number | null
+        }
+        Update: {
+          code?: string
+          country_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "translation_certification_types_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
             referencedColumns: ["id"]
           },
         ]

@@ -58,6 +58,7 @@ import {
   Copy,
   CheckSquare,
   Users,
+  Languages,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCountryFlag } from "@/lib/countryFlags";
@@ -130,6 +131,17 @@ interface ApplicationType {
   subcategory?: ApplicationSubcategory;
 }
 
+interface TranslationCertificationType {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  country_id: string | null;
+  is_active: boolean;
+  sort_order: number;
+  country?: Country;
+}
+
 interface DocumentTemplate {
   id: string;
   document_name: string;
@@ -143,9 +155,14 @@ interface DocumentTemplate {
   description: string | null;
   min_files: number;
   max_files: number | null;
+  requires_translation: boolean;
+  translation_target_language: string | null;
+  translation_certification_type_id: string | null;
+  translation_notes: string | null;
   country?: Country;
   visa_type?: ApplicationType;
   applicant_type?: { id: string; name: string; code: string } | null;
+  translation_certification_type?: TranslationCertificationType | null;
   document_template_applications?: { visa_type: ApplicationType }[];
 }
 
@@ -1791,7 +1808,290 @@ function TypesTab() {
   );
 }
 
-// Sortable Document Row Component
+// Translation Certifications Tab Component
+function TranslationCertificationsTab() {
+  const queryClient = useQueryClient();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingType, setEditingType] = useState<TranslationCertificationType | null>(null);
+  const [deleteType, setDeleteType] = useState<TranslationCertificationType | null>(null);
+  const [form, setForm] = useState({ code: "", name: "", description: "", country_id: "", is_active: true, sort_order: 0 });
+
+  const { data: countries } = useQuery({
+    queryKey: ["admin-countries"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("countries")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order");
+      if (error) throw error;
+      return data as Country[];
+    },
+  });
+
+  const { data: certTypes, isLoading } = useQuery({
+    queryKey: ["admin-translation-cert-types"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("translation_certification_types")
+        .select("*, country:countries(*)")
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return data as TranslationCertificationType[];
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: { code: string; name: string; description: string; country_id: string; is_active: boolean; sort_order: number }) => {
+      const payload = {
+        ...data,
+        country_id: data.country_id || null,
+        description: data.description || null,
+      };
+      if (editingType) {
+        const { error } = await supabase
+          .from("translation_certification_types")
+          .update(payload)
+          .eq("id", editingType.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("translation_certification_types").insert([payload]);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-translation-cert-types"] });
+      toast.success(editingType ? "Certification type updated" : "Certification type created");
+      closeDialog();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("translation_certification_types").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-translation-cert-types"] });
+      toast.success("Certification type deleted");
+      setDeleteType(null);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const openCreate = () => {
+    setEditingType(null);
+    setForm({ code: "", name: "", description: "", country_id: "", is_active: true, sort_order: (certTypes?.length || 0) * 10 });
+    setIsDialogOpen(true);
+  };
+
+  const openEdit = (type: TranslationCertificationType) => {
+    setEditingType(type);
+    setForm({
+      code: type.code,
+      name: type.name,
+      description: type.description || "",
+      country_id: type.country_id || "",
+      is_active: type.is_active,
+      sort_order: type.sort_order,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingType(null);
+  };
+
+  const handleSave = () => {
+    if (!form.code || !form.name) {
+      toast.error("Code and name are required");
+      return;
+    }
+    saveMutation.mutate(form);
+  };
+
+  if (isLoading) {
+    return <Skeleton className="h-64 w-full" />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button onClick={openCreate} size="sm">
+          <Plus className="w-4 h-4 mr-2" />
+          Add Certification Type
+        </Button>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Code</TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Description</TableHead>
+            <TableHead>Country</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="w-24">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {certTypes?.map((type) => (
+            <TableRow key={type.id}>
+              <TableCell className="font-mono">{type.code}</TableCell>
+              <TableCell className="font-medium">{type.name}</TableCell>
+              <TableCell className="text-muted-foreground text-sm max-w-xs truncate">{type.description || "—"}</TableCell>
+              <TableCell>
+                {type.country ? (
+                  <span className="flex items-center gap-2">
+                    {getCountryFlag(type.country.code)} {type.country.name}
+                  </span>
+                ) : (
+                  <Badge variant="outline">All</Badge>
+                )}
+              </TableCell>
+              <TableCell>
+                <Badge variant={type.is_active ? "default" : "secondary"}>
+                  {type.is_active ? "Active" : "Inactive"}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(type)}>
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive"
+                    onClick={() => setDeleteType(type)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+          {certTypes?.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                No certification types found. Add one to get started.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingType ? "Edit Certification Type" : "Add Certification Type"}</DialogTitle>
+            <DialogDescription>
+              {editingType ? "Update the certification type details" : "Add a new translation certification type"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Code</Label>
+                <Input
+                  value={form.code}
+                  onChange={(e) => setForm({ ...form, code: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
+                  placeholder="e.g., naati"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Name</Label>
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g., NAATI Certified"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Brief description of this certification type..."
+                rows={2}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Country (Optional)</Label>
+                <Select
+                  value={form.country_id || "__none__"}
+                  onValueChange={(value) => setForm({ ...form, country_id: value === "__none__" ? "" : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All countries" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">All Countries</SelectItem>
+                    {countries?.map((country) => (
+                      <SelectItem key={country.id} value={country.id}>
+                        {getCountryFlag(country.code)} {country.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Sort Order</Label>
+                <Input
+                  type="number"
+                  value={form.sort_order}
+                  onChange={(e) => setForm({ ...form, sort_order: parseInt(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={form.is_active}
+                onCheckedChange={(checked) => setForm({ ...form, is_active: checked })}
+              />
+              <Label>Active</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saveMutation.isPending}>
+              {saveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteType} onOpenChange={() => setDeleteType(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Certification Type</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteType?.name}"? This may affect document templates using this certification type.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteType && deleteMutation.mutate(deleteType.id)}
+            >
+              {deleteMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 interface SortableDocumentRowProps {
   doc: DocumentTemplate;
   onEdit: (doc: DocumentTemplate) => void;
@@ -1928,6 +2228,10 @@ function DocumentsTab() {
     description: "",
     min_files: 1,
     max_files: 1,
+    requires_translation: false,
+    translation_target_language: "English",
+    translation_certification_type_id: "",
+    translation_notes: "",
   });
   const [dialogCategoryFilter, setDialogCategoryFilter] = useState<string>("");
   const [dialogSubcategoryFilter, setDialogSubcategoryFilter] = useState<string>("");
@@ -2010,13 +2314,26 @@ function DocumentsTab() {
     enabled: isDialogOpen,
   });
 
+  const { data: certificationTypes } = useQuery({
+    queryKey: ["admin-translation-cert-types"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("translation_certification_types")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order");
+      if (error) throw error;
+      return data as TranslationCertificationType[];
+    },
+  });
+
   const { data: documents, isLoading } = useQuery({
     queryKey: ["admin-doc-templates", filterCountry, filterCategory],
     queryFn: async () => {
       // Only fetch global templates (company_id IS NULL)
       let query = supabase
         .from("document_checklist_templates")
-        .select("*, country:countries(*), applicant_type:applicant_types(*), document_template_applications(visa_type:visa_types(*))")
+        .select("*, country:countries(*), applicant_type:applicant_types(*), translation_certification_type:translation_certification_types(*), document_template_applications(visa_type:visa_types(*))")
         .is("company_id", null)
         .order("sort_order");
 
@@ -2138,6 +2455,10 @@ function DocumentsTab() {
         description: rest.description || null,
         min_files: rest.min_files,
         max_files: rest.max_files || null,
+        requires_translation: rest.requires_translation,
+        translation_target_language: rest.requires_translation ? (rest.translation_target_language || "English") : null,
+        translation_certification_type_id: rest.requires_translation ? (rest.translation_certification_type_id || null) : null,
+        translation_notes: rest.requires_translation ? (rest.translation_notes || null) : null,
       };
       
       let templateId: string;
@@ -2320,6 +2641,10 @@ function DocumentsTab() {
       description: "",
       min_files: 1,
       max_files: 1,
+      requires_translation: false,
+      translation_target_language: "English",
+      translation_certification_type_id: "",
+      translation_notes: "",
     });
     setDialogCategoryFilter("");
     setDialogSubcategoryFilter("");
@@ -2343,6 +2668,10 @@ function DocumentsTab() {
       description: doc.description || "",
       min_files: doc.min_files ?? 1,
       max_files: doc.max_files ?? 1,
+      requires_translation: doc.requires_translation ?? false,
+      translation_target_language: doc.translation_target_language || "English",
+      translation_certification_type_id: doc.translation_certification_type_id || "",
+      translation_notes: doc.translation_notes || "",
     });
     setDialogCategoryFilter("");
     setDialogSubcategoryFilter("");
@@ -2365,6 +2694,10 @@ function DocumentsTab() {
       description: doc.description || "",
       min_files: doc.min_files ?? 1,
       max_files: doc.max_files ?? 1,
+      requires_translation: doc.requires_translation ?? false,
+      translation_target_language: doc.translation_target_language || "English",
+      translation_certification_type_id: doc.translation_certification_type_id || "",
+      translation_notes: doc.translation_notes || "",
     });
     setDialogCategoryFilter("");
     setDialogSubcategoryFilter("");
@@ -2776,6 +3109,77 @@ function DocumentsTab() {
               />
               <Label>Required Document</Label>
             </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={form.requires_translation}
+                onCheckedChange={(checked) => setForm({ ...form, requires_translation: checked })}
+              />
+              <Label>Requires Translation</Label>
+            </div>
+            {form.requires_translation && (
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Languages className="w-4 h-4" />
+                  Translation Requirements
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Target Language</Label>
+                    <Select
+                      value={form.translation_target_language || "English"}
+                      onValueChange={(value) => setForm({ ...form, translation_target_language: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="English">English</SelectItem>
+                        <SelectItem value="Spanish">Spanish</SelectItem>
+                        <SelectItem value="Portuguese">Portuguese</SelectItem>
+                        <SelectItem value="French">French</SelectItem>
+                        <SelectItem value="German">German</SelectItem>
+                        <SelectItem value="Italian">Italian</SelectItem>
+                        <SelectItem value="Chinese">Chinese</SelectItem>
+                        <SelectItem value="Japanese">Japanese</SelectItem>
+                        <SelectItem value="Korean">Korean</SelectItem>
+                        <SelectItem value="Arabic">Arabic</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Certification Type</Label>
+                    <Select
+                      value={form.translation_certification_type_id || "__none__"}
+                      onValueChange={(value) => setForm({ ...form, translation_certification_type_id: value === "__none__" ? "" : value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select certification" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Any Certified Translator</SelectItem>
+                        {certificationTypes?.map((ct) => (
+                          <SelectItem key={ct.id} value={ct.id}>
+                            {ct.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Translation Notes / Instructions</Label>
+                  <Textarea
+                    value={form.translation_notes}
+                    onChange={(e) => setForm({ ...form, translation_notes: e.target.value })}
+                    placeholder="e.g., Translation must be on letterhead with translator credentials..."
+                    rows={2}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Special instructions that will be shown to clients for the translation document.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>
@@ -2952,6 +3356,10 @@ export default function AdminReferenceData() {
               <Users className="w-4 h-4" />
               Applicant Types
             </TabsTrigger>
+            <TabsTrigger value="translation-certs" className="gap-2">
+              <Languages className="w-4 h-4" />
+              Translation Certifications
+            </TabsTrigger>
             <TabsTrigger value="documents" className="gap-2">
               <FileText className="w-4 h-4" />
               Document Checklist
@@ -2978,6 +3386,10 @@ export default function AdminReferenceData() {
 
               <TabsContent value="applicant-types" className="mt-0">
                 <ApplicantTypesTab />
+              </TabsContent>
+
+              <TabsContent value="translation-certs" className="mt-0">
+                <TranslationCertificationsTab />
               </TabsContent>
 
               <TabsContent value="documents" className="mt-0">
