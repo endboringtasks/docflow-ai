@@ -44,7 +44,7 @@ serve(async (req) => {
       throw new Error(`Unauthorized: ${userError?.message || "No user found"}`);
     }
 
-    const { companyId, origin } = await req.json();
+    const { companyId, origin, fromOnboarding } = await req.json();
     if (!companyId) {
       throw new Error("Company ID required");
     }
@@ -70,6 +70,7 @@ serve(async (req) => {
       companyId,
       origin: origin || "",
       timestamp: Date.now(),
+      fromOnboarding: fromOnboarding || false,
     }));
 
     const redirectUri = `${SUPABASE_URL}/functions/v1/google-drive-callback`;
