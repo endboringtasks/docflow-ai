@@ -142,6 +142,8 @@ interface TranslationCertificationType {
   country?: Country;
 }
 
+type DocumentRequirementType = 'required' | 'conditional' | 'optional';
+
 interface DocumentTemplate {
   id: string;
   document_name: string;
@@ -149,6 +151,8 @@ interface DocumentTemplate {
   visa_type_id: string | null;
   country_id: string | null;
   is_required: boolean;
+  requirement_type: DocumentRequirementType;
+  applicability_condition: string | null;
   sort_order: number;
   applicant_type_id: string | null;
   age_condition: string | null;
@@ -2171,14 +2175,17 @@ function SortableDocumentRow({ doc, onEdit, onDuplicate, onDelete, isSelected, o
         </div>
       </TableCell>
       <TableCell>
-        <Badge variant={doc.is_required ? "default" : "secondary"}>
-          {doc.is_required ? "Required" : "Optional"}
+        <Badge 
+          variant={doc.requirement_type === "required" ? "default" : doc.requirement_type === "conditional" ? "outline" : "secondary"}
+          className={doc.requirement_type === "conditional" ? "border-amber-500 text-amber-600 dark:text-amber-400" : ""}
+        >
+          {doc.requirement_type === "required" ? "Required" : doc.requirement_type === "conditional" ? "If Applicable" : "Optional"}
         </Badge>
       </TableCell>
       <TableCell>
         <span className="text-sm text-muted-foreground">
           {doc.min_files === doc.max_files 
-            ? doc.min_files 
+            ? doc.min_files
             : `${doc.min_files}–${doc.max_files ?? '∞'}`}
         </span>
       </TableCell>
@@ -2222,6 +2229,8 @@ function DocumentsTab() {
     country_id: "",
     visa_type_ids: [] as string[],
     is_required: true,
+    requirement_type: "required" as DocumentRequirementType,
+    applicability_condition: "",
     sort_order: 0,
     applicant_type_id: "",
     age_condition: "",
@@ -2446,7 +2455,9 @@ function DocumentsTab() {
         document_name: rest.document_name,
         country_id: rest.country_id || null,
         category: rest.category || null,
-        is_required: rest.is_required,
+        is_required: rest.requirement_type === 'required',
+        requirement_type: rest.requirement_type,
+        applicability_condition: rest.requirement_type === 'conditional' ? (rest.applicability_condition || null) : null,
         sort_order: rest.sort_order,
         company_id: null, // Global template
         visa_type_id: null, // No longer used, using junction table
@@ -2635,6 +2646,8 @@ function DocumentsTab() {
       country_id: filterCountry || "",
       visa_type_ids: [],
       is_required: true,
+      requirement_type: "required" as DocumentRequirementType,
+      applicability_condition: "",
       sort_order: (documents?.length || 0) * 10,
       applicant_type_id: "",
       age_condition: "",
@@ -2662,6 +2675,8 @@ function DocumentsTab() {
       country_id: doc.country_id || "",
       visa_type_ids: visaTypeIds,
       is_required: doc.is_required,
+      requirement_type: (doc.requirement_type || "required") as DocumentRequirementType,
+      applicability_condition: doc.applicability_condition || "",
       sort_order: doc.sort_order,
       applicant_type_id: doc.applicant_type_id || "",
       age_condition: doc.age_condition || "",
@@ -2688,6 +2703,8 @@ function DocumentsTab() {
       country_id: doc.country_id || "",
       visa_type_ids: visaTypeIds,
       is_required: doc.is_required,
+      requirement_type: (doc.requirement_type || "required") as DocumentRequirementType,
+      applicability_condition: doc.applicability_condition || "",
       sort_order: (documents?.length || 0) * 10,
       applicant_type_id: doc.applicant_type_id || "",
       age_condition: doc.age_condition || "",
@@ -3102,13 +3119,73 @@ function DocumentsTab() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={form.is_required}
-                onCheckedChange={(checked) => setForm({ ...form, is_required: checked })}
-              />
-              <Label>Required Document</Label>
+            <div className="space-y-2">
+              <Label>Requirement Type</Label>
+              <Select
+                value={form.requirement_type}
+                onValueChange={(value: DocumentRequirementType) => setForm({ ...form, requirement_type: value, is_required: value === 'required' })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select requirement type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="required">Required</SelectItem>
+                  <SelectItem value="conditional">If Applicable</SelectItem>
+                  <SelectItem value="optional">Optional</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {form.requirement_type === 'required' && "Document is mandatory for all applications"}
+                {form.requirement_type === 'conditional' && "Document is only required in specific situations"}
+                {form.requirement_type === 'optional' && "Document is not required but may support the application"}
+              </p>
             </div>
+            {form.requirement_type === 'conditional' && (
+              <div className="space-y-2 p-4 border rounded-lg bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+                <Label className="flex items-center gap-2">
+                  <CheckSquare className="w-4 h-4 text-amber-600" />
+                  When is this document required?
+                </Label>
+                <Select
+                  value={form.applicability_condition || "__custom__"}
+                  onValueChange={(value) => setForm({ ...form, applicability_condition: value === "__custom__" ? "" : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select or type a condition" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__custom__">+ Custom Condition</SelectItem>
+                    <SelectItem value="If previously married">If previously married</SelectItem>
+                    <SelectItem value="If spouse/partner deceased">If spouse/partner deceased</SelectItem>
+                    <SelectItem value="If divorced">If divorced</SelectItem>
+                    <SelectItem value="If widowed">If widowed</SelectItem>
+                    <SelectItem value="If changed name">If changed name</SelectItem>
+                    <SelectItem value="If self-employed">If self-employed</SelectItem>
+                    <SelectItem value="If has children">If has children</SelectItem>
+                    <SelectItem value="If served in armed forces">If served in armed forces</SelectItem>
+                    <SelectItem value="If adopted">If adopted</SelectItem>
+                    <SelectItem value="If custody arrangements exist">If custody arrangements exist</SelectItem>
+                    <SelectItem value="If owns property">If owns property</SelectItem>
+                    <SelectItem value="If previously refused visa">If previously refused visa</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(form.applicability_condition === "" || ![
+                  "If previously married", "If spouse/partner deceased", "If divorced", "If widowed",
+                  "If changed name", "If self-employed", "If has children", "If served in armed forces",
+                  "If adopted", "If custody arrangements exist", "If owns property", "If previously refused visa"
+                ].includes(form.applicability_condition)) && (
+                  <Input
+                    value={form.applicability_condition}
+                    onChange={(e) => setForm({ ...form, applicability_condition: e.target.value })}
+                    placeholder="e.g., If previously married"
+                    className="mt-2"
+                  />
+                )}
+                <p className="text-xs text-muted-foreground">
+                  This condition will be shown to staff and clients to indicate when this document is needed
+                </p>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Switch
                 checked={form.requires_translation}

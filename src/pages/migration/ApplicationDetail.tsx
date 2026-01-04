@@ -141,6 +141,9 @@ interface DocumentItem {
   translationCertificationTypeId: string | null;
   translationCertificationTypeName: string | null;
   translationNotes: string | null;
+  requirementType: 'required' | 'conditional' | 'optional';
+  applicabilityCondition: string | null;
+  isApplicable: boolean;
 }
 
 interface DbDocumentItem {
@@ -174,6 +177,9 @@ interface DbDocumentItem {
   translation_target_language?: string | null;
   translation_certification_type_id?: string | null;
   translation_notes?: string | null;
+  requirement_type?: string | null;
+  applicability_condition?: string | null;
+  is_applicable?: boolean;
 }
 
 interface TranslationCertificationType {
@@ -402,7 +408,7 @@ const VisaApplicationDetail = () => {
       // Fetch documents with translation fields
       const { data: docs, error } = await supabase
         .from("document_checklist")
-        .select("*, min_files, max_files, translation_of_id, requires_translation, translation_target_language, translation_certification_type_id, translation_notes")
+        .select("*, min_files, max_files, translation_of_id, requires_translation, translation_target_language, translation_certification_type_id, translation_notes, requirement_type, applicability_condition, is_applicable")
         .eq("visa_application_id", visaApplicationId)
         .order("created_at", { ascending: true });
       
@@ -546,6 +552,8 @@ const VisaApplicationDetail = () => {
                 is_required, 
                 sort_order,
                 requires_translation,
+                requirement_type,
+                applicability_condition,
                 applicant_type:applicant_types(name)
               `
             )
@@ -576,6 +584,9 @@ const VisaApplicationDetail = () => {
                 is_standard_for_client: true,
                 review_status: "pending_client",
                 requires_translation: template.requires_translation ?? false,
+                requirement_type: template.requirement_type ?? "required",
+                applicability_condition: template.applicability_condition ?? null,
+                is_applicable: true, // Default to applicable, staff can toggle off
               };
             });
 
@@ -712,6 +723,9 @@ const VisaApplicationDetail = () => {
       translationCertificationTypeId: doc.translation_certification_type_id ?? null,
       translationCertificationTypeName: certType?.name ?? null,
       translationNotes: doc.translation_notes ?? null,
+      requirementType: (doc.requirement_type as 'required' | 'conditional' | 'optional') ?? 'required',
+      applicabilityCondition: doc.applicability_condition ?? null,
+      isApplicable: doc.is_applicable ?? true,
     };
   });
 
@@ -733,7 +747,26 @@ const VisaApplicationDetail = () => {
     },
   });
 
-  // Add custom document
+  // Toggle document applicability (for conditional documents)
+  const toggleApplicabilityMutation = useMutation({
+    mutationFn: async ({ docId, isApplicable }: { docId: string; isApplicable: boolean }) => {
+      const { error } = await supabase
+        .from("document_checklist")
+        .update({ is_applicable: isApplicable })
+        .eq("id", docId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
+      toast.success("Document applicability updated");
+    },
+    onError: (error) => {
+      toast.error("Failed to update document", { description: error.message });
+    },
+  });
+
+
   const addDocumentMutation = useMutation({
     mutationFn: async (docName: string) => {
       if (!visaApplicationId || !visaApplication?.company_id) throw new Error("Missing IDs");
@@ -1406,10 +1439,12 @@ const VisaApplicationDetail = () => {
     });
   };
 
-  const completedCount = documents.filter(d => d.completed).length;
-  const requiredCount = documents.filter(d => d.required).length;
-  const requiredCompleted = documents.filter(d => d.required && d.completed).length;
-  const progress = documents.length > 0 ? Math.round((completedCount / documents.length) * 100) : 0;
+  // Only count applicable documents for progress
+  const applicableDocuments = documents.filter(d => d.isApplicable);
+  const completedCount = applicableDocuments.filter(d => d.completed).length;
+  const requiredCount = applicableDocuments.filter(d => d.required || d.requirementType === 'required').length;
+  const requiredCompleted = applicableDocuments.filter(d => (d.required || d.requirementType === 'required') && d.completed).length;
+  const progress = applicableDocuments.length > 0 ? Math.round((completedCount / applicableDocuments.length) * 100) : 0;
 
   // Apply review status filter - MUST be before any conditional returns (hooks rule)
   const filteredDocuments = useMemo(() => {
@@ -1890,6 +1925,32 @@ const VisaApplicationDetail = () => {
                               <span className={doc.completed ? "line-through text-muted-foreground" : ""}>
                                 {doc.name}
                               </span>
+                              {/* Requirement Type Badge */}
+                              {doc.requirementType === "conditional" && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge variant="outline" className={`text-xs border-amber-500 text-amber-600 dark:text-amber-400 ${!doc.isApplicable ? 'opacity-50' : ''}`}>
+                                        If Applicable
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs">
+                                      <p className="text-xs">{doc.applicabilityCondition || "Submit this document if it applies to this case"}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                              {doc.requirementType === "optional" && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Optional
+                                </Badge>
+                              )}
+                              {/* Not Applicable indicator for conditional documents */}
+                              {doc.requirementType === "conditional" && !doc.isApplicable && (
+                                <Badge variant="outline" className="text-xs text-muted-foreground bg-muted/50">
+                                  Not Applicable
+                                </Badge>
+                              )}
                               {/* Multi-file indicator */}
                               {(doc.maxFiles === null || doc.maxFiles > 1) && (
                                 <Badge variant="outline" className="text-xs">
@@ -2037,6 +2098,34 @@ const VisaApplicationDetail = () => {
                                     </span>
                                   </Button>
                                 </label>
+                              )}
+                              {/* Toggle applicability for conditional documents */}
+                              {doc.requirementType === "conditional" && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant={doc.isApplicable ? "outline" : "ghost"}
+                                        size="sm"
+                                        className={`h-7 text-xs ${doc.isApplicable ? 'text-amber-600 border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'text-muted-foreground'}`}
+                                        onClick={() => toggleApplicabilityMutation.mutate({ docId: doc.id, isApplicable: !doc.isApplicable })}
+                                        disabled={toggleApplicabilityMutation.isPending}
+                                      >
+                                        {doc.isApplicable ? "Applies" : "N/A"}
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                      <p className="text-xs">
+                                        {doc.isApplicable 
+                                          ? "Click to mark as not applicable to this case" 
+                                          : "Click to mark as applicable to this case"}
+                                      </p>
+                                      {doc.applicabilityCondition && (
+                                        <p className="text-xs text-muted-foreground mt-1">{doc.applicabilityCondition}</p>
+                                      )}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               )}
                               {doc.category === "Custom" && (
                                 <Button
