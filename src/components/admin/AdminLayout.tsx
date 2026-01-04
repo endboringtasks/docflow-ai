@@ -19,12 +19,15 @@ interface AdminLayoutProps {
   children: React.ReactNode;
 }
 
+import { MessageSquare } from "lucide-react";
+
 const adminNavItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/companies", label: "Companies", icon: Building2 },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/reference-data", label: "Reference Data", icon: Database },
   { href: "/admin/billing", label: "Billing & Revenue", icon: CreditCard },
+  { href: "/admin/feedback", label: "Beta Feedback", icon: MessageSquare },
   { href: "/admin/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/admin/webhook-monitoring", label: "Webhook Monitoring", icon: Activity },
   { href: "/admin/settings", label: "Settings", icon: Settings },

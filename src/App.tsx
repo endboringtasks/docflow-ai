@@ -9,6 +9,7 @@ import { ImpersonationProvider } from "@/hooks/useImpersonation";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminProtectedRoute } from "@/components/admin/AdminProtectedRoute";
+import { FeedbackWidget } from "@/components/feedback/FeedbackWidget";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Privacy from "./pages/Privacy";
@@ -18,6 +19,7 @@ import AdminCompanies from "./pages/admin/Companies";
 import AdminUsers from "./pages/admin/Users";
 import AdminReferenceData from "./pages/admin/ReferenceData";
 import AdminBilling from "./pages/admin/Billing";
+import AdminFeedback from "./pages/admin/Feedback";
 import AdminWebhooks from "./pages/admin/Webhooks";
 import AdminWebhookMonitoring from "./pages/admin/WebhookMonitoring";
 import AdminSettings from "./pages/admin/Settings";
@@ -49,6 +51,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
+              <FeedbackWidget />
               <Routes>
               {/* Public */}
               <Route path="/" element={<Index />} />
@@ -151,6 +154,7 @@ const App = () => (
               <Route path="/admin/users" element={<AdminProtectedRoute><AdminUsers /></AdminProtectedRoute>} />
               <Route path="/admin/reference-data" element={<AdminProtectedRoute><AdminReferenceData /></AdminProtectedRoute>} />
               <Route path="/admin/billing" element={<AdminProtectedRoute><AdminBilling /></AdminProtectedRoute>} />
+              <Route path="/admin/feedback" element={<AdminProtectedRoute><AdminFeedback /></AdminProtectedRoute>} />
               <Route path="/admin/webhooks" element={<AdminProtectedRoute><AdminWebhooks /></AdminProtectedRoute>} />
               <Route path="/admin/webhook-monitoring" element={<AdminProtectedRoute><AdminWebhookMonitoring /></AdminProtectedRoute>} />
               <Route path="/admin/settings" element={<AdminProtectedRoute><AdminSettings /></AdminProtectedRoute>} />
