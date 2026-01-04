@@ -1131,13 +1131,15 @@ const MigrationVisaApplications = () => {
                               href={`https://drive.google.com/drive/folders/${application.visa_application_folder_id}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-2 hover:bg-muted rounded-lg transition-colors"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 hover:underline transition-all group"
                             >
-                              <FolderOpen className="w-4 h-4 text-green-500" />
+                              <FolderOpen className="w-3.5 h-3.5" />
+                              Open Folder
+                              <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
                             </a>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Open folder in Google Drive</p>
+                            <p>Opens in Google Drive</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
