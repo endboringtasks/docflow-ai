@@ -111,6 +111,9 @@ interface DocumentItem {
   translation_certification_type_id: string | null;
   translation_certification_type_name: string | null;
   translation_notes: string | null;
+  requirement_type: string | null;
+  applicability_condition: string | null;
+  is_applicable: boolean;
 }
 
 interface FormData {
@@ -999,12 +1002,40 @@ export default function ClientPortal() {
                                                           <p className={`font-medium text-sm ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
                                                             {doc.document_name.replace(/\s*\[[^\]]*:required\]\s*/gi, " ").trim()}
                                                           </p>
+                                                          {/* Requirement Type Badge */}
+                                                          {doc.requirement_type === "conditional" && (
+                                                            <TooltipProvider>
+                                                              <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                  <Badge variant="outline" className="text-xs border-amber-500 text-amber-600 dark:text-amber-400">
+                                                                    If Applicable
+                                                                  </Badge>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent side="top" className="max-w-xs">
+                                                                  <p className="text-xs">{doc.applicability_condition || "Submit this document if it applies to your situation"}</p>
+                                                                </TooltipContent>
+                                                              </Tooltip>
+                                                            </TooltipProvider>
+                                                          )}
+                                                          {doc.requirement_type === "optional" && (
+                                                            <Badge variant="secondary" className="text-xs">
+                                                              Optional
+                                                            </Badge>
+                                                          )}
                                                           {isMultiFile && (
                                                             <Badge variant="outline" className="text-xs">
                                                               {attachmentCount}/{doc.max_files ?? "∞"} files
                                                             </Badge>
                                                           )}
                                                         </div>
+                                                        
+                                                        {/* Applicability Condition text for conditional documents */}
+                                                        {doc.requirement_type === "conditional" && doc.applicability_condition && (
+                                                          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                                                            <AlertCircle className="w-3 h-3" />
+                                                            {doc.applicability_condition}
+                                                          </p>
+                                                        )}
                                                         
                                                         {/* Translation Requirements */}
                                                         {doc.translation_of_id && (

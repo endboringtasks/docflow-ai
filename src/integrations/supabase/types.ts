@@ -535,6 +535,7 @@ export type Database = {
       document_checklist: {
         Row: {
           age_condition: string | null
+          applicability_condition: string | null
           applicant_type: string | null
           category: string | null
           company_id: string
@@ -543,10 +544,12 @@ export type Database = {
           document_name: string
           file_path: string | null
           id: string
+          is_applicable: boolean
           is_completed: boolean
           is_standard_for_client: boolean | null
           max_files: number | null
           min_files: number
+          requirement_type: Database["public"]["Enums"]["document_requirement_type"]
           requires_translation: boolean
           review_comment: string | null
           review_status: string | null
@@ -564,6 +567,7 @@ export type Database = {
         }
         Insert: {
           age_condition?: string | null
+          applicability_condition?: string | null
           applicant_type?: string | null
           category?: string | null
           company_id: string
@@ -572,10 +576,12 @@ export type Database = {
           document_name: string
           file_path?: string | null
           id?: string
+          is_applicable?: boolean
           is_completed?: boolean
           is_standard_for_client?: boolean | null
           max_files?: number | null
           min_files?: number
+          requirement_type?: Database["public"]["Enums"]["document_requirement_type"]
           requires_translation?: boolean
           review_comment?: string | null
           review_status?: string | null
@@ -593,6 +599,7 @@ export type Database = {
         }
         Update: {
           age_condition?: string | null
+          applicability_condition?: string | null
           applicant_type?: string | null
           category?: string | null
           company_id?: string
@@ -601,10 +608,12 @@ export type Database = {
           document_name?: string
           file_path?: string | null
           id?: string
+          is_applicable?: boolean
           is_completed?: boolean
           is_standard_for_client?: boolean | null
           max_files?: number | null
           min_files?: number
+          requirement_type?: Database["public"]["Enums"]["document_requirement_type"]
           requires_translation?: boolean
           review_comment?: string | null
           review_status?: string | null
@@ -661,6 +670,7 @@ export type Database = {
       document_checklist_templates: {
         Row: {
           age_condition: string | null
+          applicability_condition: string | null
           applicant_type_id: string | null
           category: string | null
           company_id: string | null
@@ -673,6 +683,7 @@ export type Database = {
           is_standard_for_client: boolean | null
           max_files: number | null
           min_files: number
+          requirement_type: Database["public"]["Enums"]["document_requirement_type"]
           requires_translation: boolean
           sort_order: number | null
           translation_certification_type_id: string | null
@@ -683,6 +694,7 @@ export type Database = {
         }
         Insert: {
           age_condition?: string | null
+          applicability_condition?: string | null
           applicant_type_id?: string | null
           category?: string | null
           company_id?: string | null
@@ -695,6 +707,7 @@ export type Database = {
           is_standard_for_client?: boolean | null
           max_files?: number | null
           min_files?: number
+          requirement_type?: Database["public"]["Enums"]["document_requirement_type"]
           requires_translation?: boolean
           sort_order?: number | null
           translation_certification_type_id?: string | null
@@ -705,6 +718,7 @@ export type Database = {
         }
         Update: {
           age_condition?: string | null
+          applicability_condition?: string | null
           applicant_type_id?: string | null
           category?: string | null
           company_id?: string | null
@@ -717,6 +731,7 @@ export type Database = {
           is_standard_for_client?: boolean | null
           max_files?: number | null
           min_files?: number
+          requirement_type?: Database["public"]["Enums"]["document_requirement_type"]
           requires_translation?: boolean
           sort_order?: number | null
           translation_certification_type_id?: string | null
@@ -1502,6 +1517,7 @@ export type Database = {
       get_portal_documents: {
         Args: { p_token: string }
         Returns: {
+          applicability_condition: string
           applicant_type: string
           attachment_count: number
           category: string
@@ -1509,9 +1525,11 @@ export type Database = {
           document_name: string
           file_path: string
           id: string
+          is_applicable: boolean
           is_completed: boolean
           max_files: number
           min_files: number
+          requirement_type: string
           translation_certification_type_id: string
           translation_certification_type_name: string
           translation_notes: string
@@ -1590,6 +1608,7 @@ export type Database = {
     Enums: {
       client_type: "personal" | "corporate"
       company_role: "owner" | "admin" | "member" | "guest"
+      document_requirement_type: "required" | "conditional" | "optional"
       matter_status: "draft" | "active" | "done"
       niche_type: "migration" | "audit" | "hr"
       platform_role: "super_admin"
@@ -1723,6 +1742,7 @@ export const Constants = {
     Enums: {
       client_type: ["personal", "corporate"],
       company_role: ["owner", "admin", "member", "guest"],
+      document_requirement_type: ["required", "conditional", "optional"],
       matter_status: ["draft", "active", "done"],
       niche_type: ["migration", "audit", "hr"],
       platform_role: ["super_admin"],
