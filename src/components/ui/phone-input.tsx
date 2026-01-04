@@ -148,7 +148,7 @@ export function PhoneInput({
   onCountryCodeChange,
   onPhoneNumberChange,
   disabled = false,
-  placeholder = "Phone number",
+  placeholder = "400 123 456",
 }: PhoneInputProps) {
   const [open, setOpen] = React.useState(false);
   
