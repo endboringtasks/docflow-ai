@@ -27,7 +27,8 @@ import {
   Search,
   X,
   Eye,
-  Settings
+  Settings,
+  User
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -249,6 +250,7 @@ const DocumentTemplates = () => {
   const [editingDoc, setEditingDoc] = useState<DocumentTemplate | null>(null);
   const [docToDelete, setDocToDelete] = useState<DocumentTemplate | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(defaultCategories));
+  const [expandedApplicantTypes, setExpandedApplicantTypes] = useState<Set<string>>(new Set(["Primary Applicant", "Partner", "Dependant", "Sponsor", "Witness", "General"]));
   
   const [newDoc, setNewDoc] = useState({
     category: "",
@@ -462,7 +464,7 @@ const DocumentTemplates = () => {
     ...filteredTemplates.map(t => t.category)
   ])];
 
-  // Group templates by category
+  // Group templates by category (kept for dialogs)
   const groupedTemplates = filteredTemplates.reduce((acc, template) => {
     if (!acc[template.category]) {
       acc[template.category] = [];
@@ -470,6 +472,62 @@ const DocumentTemplates = () => {
     acc[template.category].push(template);
     return acc;
   }, {} as Record<string, DocumentTemplate[]>);
+
+  // Group templates by applicant type, then by category
+  const groupedByApplicantType = useMemo(() => {
+    const grouped: Record<string, Record<string, DocumentTemplate[]>> = {};
+    
+    filteredTemplates.forEach(template => {
+      const applicantType = template.applicant_type?.name || "General";
+      const category = template.category;
+      
+      if (!grouped[applicantType]) {
+        grouped[applicantType] = {};
+      }
+      if (!grouped[applicantType][category]) {
+        grouped[applicantType][category] = [];
+      }
+      grouped[applicantType][category].push(template);
+    });
+    
+    return grouped;
+  }, [filteredTemplates]);
+
+  // Get ordered applicant types for consistent display
+  const orderedApplicantTypes = useMemo(() => {
+    const types = Object.keys(groupedByApplicantType);
+    const preferredOrder = ["Primary Applicant", "Partner", "Dependant", "Sponsor", "Witness"];
+    
+    return types.sort((a, b) => {
+      if (a === "General") return 1;
+      if (b === "General") return -1;
+      const aIndex = preferredOrder.indexOf(a);
+      const bIndex = preferredOrder.indexOf(b);
+      if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+      if (aIndex === -1) return 1;
+      if (bIndex === -1) return -1;
+      return aIndex - bIndex;
+    });
+  }, [groupedByApplicantType]);
+
+  // Toggle applicant type expansion
+  const toggleApplicantType = (applicantType: string) => {
+    setExpandedApplicantTypes(prev => {
+      const next = new Set(prev);
+      if (next.has(applicantType)) {
+        next.delete(applicantType);
+      } else {
+        next.add(applicantType);
+      }
+      return next;
+    });
+  };
+
+  // Get document count for an applicant type
+  const getApplicantTypeDocCount = (applicantType: string) => {
+    const categories = groupedByApplicantType[applicantType] || {};
+    return Object.values(categories).reduce((sum, docs) => sum + docs.length, 0);
+  };
 
   // Get selected application type details
   const selectedTypeDetails = visaTypes.find(v => v.id === selectedApplicationType);
@@ -954,87 +1012,122 @@ const DocumentTemplates = () => {
                 )}
               </div>
             ) : (
-              <div className="space-y-4">
-                {docCategories
-                  .filter(category => groupedTemplates[category]?.length > 0)
-                  .map((category) => (
-                    <div 
-                      key={category} 
-                      className="card-gradient rounded-xl border border-border/50 overflow-hidden"
+              <div className="space-y-6">
+                {orderedApplicantTypes.map((applicantType) => (
+                  <div key={applicantType} className="space-y-3">
+                    {/* Applicant Type Header */}
+                    <button
+                      onClick={() => toggleApplicantType(applicantType)}
+                      className="w-full flex items-center gap-3 p-2 hover:bg-secondary/30 rounded-lg transition-colors"
                     >
-                      <button
-                        onClick={() => toggleCategory(category)}
-                        className="w-full flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          {expandedCategories.has(category) ? (
-                            <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                          )}
-                          <h3 className="font-semibold">{category}</h3>
-                          <Badge variant="outline">
-                            {groupedTemplates[category]?.length || 0}
-                          </Badge>
-                        </div>
-                      </button>
+                      {expandedApplicantTypes.has(applicantType) ? (
+                        <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                      )}
+                      <User className="w-5 h-5 text-primary" />
+                      <h2 className="text-lg font-semibold">{applicantType}</h2>
+                      <Badge variant="secondary" className="ml-auto">
+                        {getApplicantTypeDocCount(applicantType)}
+                      </Badge>
+                    </button>
 
-                      <AnimatePresence>
-                        {expandedCategories.has(category) && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            <div className="border-t border-border/50 divide-y divide-border/50">
-                              {groupedTemplates[category]?.map((doc) => (
-                                <div 
-                                  key={doc.id}
-                                  className="flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors"
+                    <AnimatePresence>
+                      {expandedApplicantTypes.has(applicantType) && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="pl-6 space-y-3"
+                        >
+                          {Object.entries(groupedByApplicantType[applicantType] || {})
+                            .sort(([catA], [catB]) => {
+                              const orderA = defaultCategories.indexOf(catA);
+                              const orderB = defaultCategories.indexOf(catB);
+                              if (orderA === -1 && orderB === -1) return catA.localeCompare(catB);
+                              if (orderA === -1) return 1;
+                              if (orderB === -1) return -1;
+                              return orderA - orderB;
+                            })
+                            .map(([category, docs]) => (
+                              <div 
+                                key={`${applicantType}-${category}`} 
+                                className="card-gradient rounded-xl border border-border/50 overflow-hidden"
+                              >
+                                <button
+                                  onClick={() => toggleCategory(`${applicantType}-${category}`)}
+                                  className="w-full flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors"
                                 >
-                                  <div className="flex items-center gap-3 flex-wrap">
-                                    <GripVertical className="w-4 h-4 text-muted-foreground/50" />
-                                    <span className="font-medium">{doc.document_name}</span>
-                                    {doc.applicant_type && (
-                                      <Badge variant="default" className="text-xs">
-                                        {doc.applicant_type.name}
-                                      </Badge>
+                                  <div className="flex items-center gap-3">
+                                    {expandedCategories.has(`${applicantType}-${category}`) ? (
+                                      <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                                    ) : (
+                                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
                                     )}
-                                    {doc.age_condition && (
-                                      <Badge variant="outline" className="text-xs">
-                                        {doc.age_condition}
-                                      </Badge>
-                                    )}
-                                    {!doc.is_required && (
-                                      <Badge variant="secondary" className="text-xs">Optional</Badge>
-                                    )}
+                                    <h3 className="font-semibold">{category}</h3>
+                                    <Badge variant="outline">
+                                      {docs.length}
+                                    </Badge>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => setEditingDoc(doc)}
+                                </button>
+
+                                <AnimatePresence>
+                                  {expandedCategories.has(`${applicantType}-${category}`) && (
+                                    <motion.div
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: "auto", opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      transition={{ duration: 0.2 }}
                                     >
-                                      <Pencil className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                      onClick={() => setDocToDelete(doc)}
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  ))}
+                                      <div className="border-t border-border/50 divide-y divide-border/50">
+                                        {docs.map((doc) => (
+                                          <div 
+                                            key={doc.id}
+                                            className="flex items-center justify-between p-4 hover:bg-secondary/30 transition-colors"
+                                          >
+                                            <div className="flex items-center gap-3 flex-wrap">
+                                              <GripVertical className="w-4 h-4 text-muted-foreground/50" />
+                                              <span className="font-medium">{doc.document_name}</span>
+                                              {doc.age_condition && (
+                                                <Badge variant="outline" className="text-xs">
+                                                  {doc.age_condition}
+                                                </Badge>
+                                              )}
+                                              {!doc.is_required && (
+                                                <Badge variant="secondary" className="text-xs">Optional</Badge>
+                                              )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => setEditingDoc(doc)}
+                                              >
+                                                <Pencil className="w-4 h-4" />
+                                              </Button>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                onClick={() => setDocToDelete(doc)}
+                                              >
+                                                <Trash2 className="w-4 h-4" />
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                ))}
               </div>
             )}
           </div>
