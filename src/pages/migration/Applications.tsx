@@ -396,6 +396,12 @@ const MigrationVisaApplications = () => {
                 age_condition,
                 is_required, 
                 sort_order,
+                requires_translation,
+                translation_target_language,
+                translation_certification_type_id,
+                translation_notes,
+                requirement_type,
+                applicability_condition,
                 applicant_type:applicant_types(name)
               `)
               .in("id", templateIds)
@@ -421,10 +427,51 @@ const MigrationVisaApplications = () => {
                   is_completed: false,
                   is_standard_for_client: true,
                   review_status: "pending_client",
+                  requires_translation: template.requires_translation ?? false,
+                  translation_target_language: template.translation_target_language,
+                  translation_certification_type_id: template.translation_certification_type_id,
+                  translation_notes: template.translation_notes,
+                  requirement_type: template.requirement_type ?? "required",
+                  applicability_condition: template.applicability_condition ?? null,
+                  is_applicable: true,
                 };
               });
 
-              await supabase.from("document_checklist").insert(documentsToInsert);
+              // Insert original documents and get their IDs
+              const { data: insertedDocs } = await supabase
+                .from("document_checklist")
+                .insert(documentsToInsert)
+                .select("id, document_name, category, applicant_type, age_condition, requires_translation, translation_target_language, translation_certification_type_id, translation_notes");
+
+              // Create translation documents for those that require it
+              if (insertedDocs) {
+                const translationDocs = insertedDocs
+                  .filter((doc: any) => doc.requires_translation)
+                  .map((originalDoc: any) => {
+                    const translationName = `[${originalDoc.category || "General"}:required] ${originalDoc.document_name.replace(/^\[[^\]]+\]\s*/, "")} (Translation)`;
+                    return {
+                      visa_application_id: data.id,
+                      company_id: currentCompany.id,
+                      document_name: translationName,
+                      category: originalDoc.category,
+                      description: `Certified translation of: ${originalDoc.document_name.replace(/^\[[^\]]+\]\s*/, "")}`,
+                      applicant_type: originalDoc.applicant_type,
+                      age_condition: originalDoc.age_condition,
+                      is_completed: false,
+                      is_standard_for_client: true,
+                      review_status: "pending_client",
+                      requires_translation: false,
+                      translation_of_id: originalDoc.id,
+                      translation_target_language: originalDoc.translation_target_language,
+                      translation_certification_type_id: originalDoc.translation_certification_type_id,
+                      translation_notes: originalDoc.translation_notes,
+                    };
+                  });
+
+                if (translationDocs.length > 0) {
+                  await supabase.from("document_checklist").insert(translationDocs);
+                }
+              }
             }
           }
         }
