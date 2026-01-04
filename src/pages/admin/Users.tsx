@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,12 +25,25 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, Users as UsersIcon, Shield, UserCheck, Loader2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Search, Users as UsersIcon, Shield, UserCheck, Loader2, MoreHorizontal, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useImpersonation } from "@/hooks/useImpersonation";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 interface UserToImpersonate {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+}
+
+interface UserToDelete {
   id: string;
   email: string | null;
   display_name: string | null;
@@ -39,14 +52,22 @@ interface UserToImpersonate {
 export default function AdminUsers() {
   const [search, setSearch] = useState("");
   const { user: currentUser } = useAuth();
+  const queryClient = useQueryClient();
   const { startImpersonation, isLoading: impersonationLoading } = useImpersonation();
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [userToImpersonate, setUserToImpersonate] = useState<UserToImpersonate | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<UserToDelete | null>(null);
 
   const openConfirmDialog = (user: UserToImpersonate) => {
     setUserToImpersonate(user);
     setConfirmDialogOpen(true);
+  };
+
+  const openDeleteDialog = (user: UserToDelete) => {
+    setUserToDelete(user);
+    setDeleteDialogOpen(true);
   };
 
   const handleConfirmImpersonate = async () => {
@@ -56,6 +77,36 @@ export default function AdminUsers() {
     await startImpersonation(userToImpersonate.id);
     setImpersonatingUserId(null);
     setUserToImpersonate(null);
+  };
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const response = await supabase.functions.invoke("admin-delete-user", {
+        body: { userId },
+      });
+
+      if (response.error) throw new Error(response.error.message);
+      if (response.data?.error) throw new Error(response.data.error);
+
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success("User deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to delete user");
+    },
+  });
+
+  const handleConfirmDelete = () => {
+    if (!userToDelete) return;
+    deleteUserMutation.mutate(userToDelete.id);
   };
 
   const { data: users, isLoading } = useQuery({
@@ -189,20 +240,38 @@ export default function AdminUsers() {
                         {format(new Date(user.created_at), "MMM d, yyyy")}
                       </TableCell>
                       <TableCell>
-                        {user.id !== currentUser?.id && !user.isPlatformAdmin && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openConfirmDialog({ id: user.id, email: user.email, display_name: user.display_name })}
-                            disabled={impersonationLoading && impersonatingUserId === user.id}
-                          >
-                            {impersonationLoading && impersonatingUserId === user.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <UserCheck className="w-4 h-4" />
-                            )}
-                            <span className="ml-2 hidden lg:inline">Impersonate</span>
-                          </Button>
+                        {user.id !== currentUser?.id && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {!user.isPlatformAdmin && (
+                                <DropdownMenuItem
+                                  onClick={() => openConfirmDialog({ id: user.id, email: user.email, display_name: user.display_name })}
+                                  disabled={impersonationLoading && impersonatingUserId === user.id}
+                                >
+                                  {impersonationLoading && impersonatingUserId === user.id ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <UserCheck className="w-4 h-4 mr-2" />
+                                  )}
+                                  Impersonate
+                                </DropdownMenuItem>
+                              )}
+                              {!user.isPlatformAdmin && (
+                                <DropdownMenuItem
+                                  onClick={() => openDeleteDialog({ id: user.id, email: user.email, display_name: user.display_name })}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Delete User
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
                       </TableCell>
                     </TableRow>
@@ -245,6 +314,47 @@ export default function AdminUsers() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmImpersonate}>
               Start Impersonation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Are you sure you want to delete{" "}
+                <span className="font-semibold">
+                  {userToDelete?.display_name || userToDelete?.email}
+                </span>
+                ?
+              </p>
+              <p className="text-sm">
+                This action cannot be undone. The user will be permanently removed from the platform along with their profile data.
+              </p>
+              <p className="text-sm text-destructive font-medium">
+                Company memberships and associated data may be affected.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteUserMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={deleteUserMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteUserMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete User"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
