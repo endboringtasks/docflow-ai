@@ -57,6 +57,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { useFolderStatusRealtime } from "@/hooks/useFolderStatusRealtime";
+import { PhoneInput, parsePhoneNumber, formatPhoneNumber } from "@/components/ui/phone-input";
 
 interface Client {
   id: string;
@@ -86,7 +87,8 @@ const MigrationClients = () => {
     lastName: "",
     companyName: "",
     email: "",
-    phone: "",
+    phoneCountryCode: "+61",
+    phoneNumber: "",
   });
   const [newClient, setNewClient] = useState({
     clientType: "personal" as "personal" | "corporate",
@@ -94,8 +96,20 @@ const MigrationClients = () => {
     lastName: "",
     companyName: "",
     email: "",
-    phone: "",
+    phoneCountryCode: "+61",
+    phoneNumber: "",
   });
+
+  // Email validation helper
+  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
+  // Personal client validation
+  const isPersonalClientValid = (form: typeof newClient) => 
+    form.firstName.trim() && 
+    form.lastName.trim() && 
+    form.email.trim() && 
+    isValidEmail(form.email) &&
+    form.phoneNumber.trim();
 
   // Fetch clients with matters count
   const { data: clients = [], isLoading } = useQuery({
@@ -201,7 +215,7 @@ const MigrationClients = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
       setIsCreateOpen(false);
-      setNewClient({ clientType: "personal", firstName: "", lastName: "", companyName: "", email: "", phone: "" });
+      setNewClient({ clientType: "personal", firstName: "", lastName: "", companyName: "", email: "", phoneCountryCode: "+61", phoneNumber: "" });
       toast.success("Client created!");
     },
     onError: (error) => {
@@ -388,7 +402,9 @@ const MigrationClients = () => {
 
   const handleCreateClient = () => {
     const isCorporate = newClient.clientType === "corporate";
-    const hasRequiredField = isCorporate ? newClient.companyName.trim() : newClient.firstName.trim();
+    const hasRequiredField = isCorporate 
+      ? newClient.companyName.trim() 
+      : isPersonalClientValid(newClient);
     if (!hasRequiredField) return;
     
     createClientMutation.mutate({
@@ -397,18 +413,20 @@ const MigrationClients = () => {
       last_name: isCorporate ? null : (newClient.lastName.trim() || null),
       company_name: isCorporate ? newClient.companyName.trim() : null,
       email: newClient.email.trim() || null,
-      phone: newClient.phone.trim() || null,
+      phone: formatPhoneNumber(newClient.phoneCountryCode, newClient.phoneNumber) || null,
     });
   };
 
   const handleEditClient = (client: Client) => {
+    const { countryCode, phoneNumber } = parsePhoneNumber(client.phone);
     setEditForm({
       clientType: client.client_type,
       firstName: client.first_name || "",
       lastName: client.last_name || "",
       companyName: client.company_name || "",
       email: client.email || "",
-      phone: client.phone || "",
+      phoneCountryCode: countryCode,
+      phoneNumber: phoneNumber,
     });
     setClientToEdit(client);
   };
@@ -416,7 +434,9 @@ const MigrationClients = () => {
   const handleUpdateClient = () => {
     if (!clientToEdit) return;
     const isCorporate = editForm.clientType === "corporate";
-    const hasRequiredField = isCorporate ? editForm.companyName.trim() : editForm.firstName.trim();
+    const hasRequiredField = isCorporate 
+      ? editForm.companyName.trim() 
+      : isPersonalClientValid(editForm);
     if (!hasRequiredField) return;
     
     updateClientMutation.mutate({
@@ -426,7 +446,7 @@ const MigrationClients = () => {
       last_name: isCorporate ? null : (editForm.lastName.trim() || null),
       company_name: isCorporate ? editForm.companyName.trim() : null,
       email: editForm.email.trim() || null,
-      phone: editForm.phone.trim() || null,
+      phone: formatPhoneNumber(editForm.phoneCountryCode, editForm.phoneNumber) || null,
     });
   };
 
@@ -482,7 +502,7 @@ const MigrationClients = () => {
 
                 {newClient.clientType === "corporate" ? (
                   <div className="space-y-2">
-                    <Label>Company Name</Label>
+                    <Label>Company Name <span className="text-destructive">*</span></Label>
                     <Input
                       value={newClient.companyName}
                       onChange={(e) => setNewClient({...newClient, companyName: e.target.value})}
@@ -493,7 +513,7 @@ const MigrationClients = () => {
                 ) : (
                   <>
                     <div className="space-y-2">
-                      <Label>First Name</Label>
+                      <Label>First Name <span className="text-destructive">*</span></Label>
                       <Input
                         value={newClient.firstName}
                         onChange={(e) => setNewClient({...newClient, firstName: e.target.value})}
@@ -502,7 +522,7 @@ const MigrationClients = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Last Name</Label>
+                      <Label>Last Name <span className="text-destructive">*</span></Label>
                       <Input
                         value={newClient.lastName}
                         onChange={(e) => setNewClient({...newClient, lastName: e.target.value})}
@@ -514,7 +534,7 @@ const MigrationClients = () => {
                 )}
 
                 <div className="space-y-2">
-                  <Label>Email</Label>
+                  <Label>Email {newClient.clientType === "personal" && <span className="text-destructive">*</span>}</Label>
                   <Input
                     type="email"
                     value={newClient.email}
@@ -525,13 +545,12 @@ const MigrationClients = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Phone</Label>
-                  <Input
-                    type="tel"
-                    value={newClient.phone}
-                    onChange={(e) => setNewClient({...newClient, phone: e.target.value})}
-                    placeholder="+61 400 123 456"
-                    className="bg-secondary border-border"
+                  <Label>Phone {newClient.clientType === "personal" && <span className="text-destructive">*</span>}</Label>
+                  <PhoneInput
+                    countryCode={newClient.phoneCountryCode}
+                    phoneNumber={newClient.phoneNumber}
+                    onCountryCodeChange={(code) => setNewClient({...newClient, phoneCountryCode: code})}
+                    onPhoneNumberChange={(num) => setNewClient({...newClient, phoneNumber: num})}
                   />
                 </div>
               </div>
@@ -544,7 +563,7 @@ const MigrationClients = () => {
                   variant="gradient" 
                   className="flex-1" 
                   onClick={handleCreateClient} 
-                  disabled={(newClient.clientType === "corporate" ? !newClient.companyName.trim() : !newClient.firstName.trim()) || createClientMutation.isPending}
+                  disabled={(newClient.clientType === "corporate" ? !newClient.companyName.trim() : !isPersonalClientValid(newClient)) || createClientMutation.isPending}
                 >
                   {createClientMutation.isPending ? (
                     <>
@@ -805,7 +824,7 @@ const MigrationClients = () => {
 
                 {editForm.clientType === "corporate" ? (
                   <div className="space-y-2">
-                    <Label>Company Name</Label>
+                    <Label>Company Name <span className="text-destructive">*</span></Label>
                     <Input
                       value={editForm.companyName}
                       onChange={(e) => setEditForm({...editForm, companyName: e.target.value})}
@@ -816,7 +835,7 @@ const MigrationClients = () => {
                 ) : (
                   <>
                     <div className="space-y-2">
-                      <Label>First Name</Label>
+                      <Label>First Name <span className="text-destructive">*</span></Label>
                       <Input
                         value={editForm.firstName}
                         onChange={(e) => setEditForm({...editForm, firstName: e.target.value})}
@@ -825,7 +844,7 @@ const MigrationClients = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Last Name</Label>
+                      <Label>Last Name <span className="text-destructive">*</span></Label>
                       <Input
                         value={editForm.lastName}
                         onChange={(e) => setEditForm({...editForm, lastName: e.target.value})}
@@ -837,7 +856,7 @@ const MigrationClients = () => {
                 )}
 
               <div className="space-y-2">
-                <Label>Email</Label>
+                <Label>Email {editForm.clientType === "personal" && <span className="text-destructive">*</span>}</Label>
                 <Input
                   type="email"
                   value={editForm.email}
@@ -848,13 +867,12 @@ const MigrationClients = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Phone</Label>
-                <Input
-                  type="tel"
-                  value={editForm.phone}
-                  onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
-                  placeholder="+61 400 123 456"
-                  className="bg-secondary border-border"
+                <Label>Phone {editForm.clientType === "personal" && <span className="text-destructive">*</span>}</Label>
+                <PhoneInput
+                  countryCode={editForm.phoneCountryCode}
+                  phoneNumber={editForm.phoneNumber}
+                  onCountryCodeChange={(code) => setEditForm({...editForm, phoneCountryCode: code})}
+                  onPhoneNumberChange={(num) => setEditForm({...editForm, phoneNumber: num})}
                 />
               </div>
             </div>
@@ -867,7 +885,7 @@ const MigrationClients = () => {
                 variant="gradient" 
                 className="flex-1" 
                 onClick={handleUpdateClient} 
-                disabled={(editForm.clientType === "corporate" ? !editForm.companyName.trim() : !editForm.firstName.trim()) || updateClientMutation.isPending}
+                disabled={(editForm.clientType === "corporate" ? !editForm.companyName.trim() : !isPersonalClientValid(editForm)) || updateClientMutation.isPending}
               >
                 {updateClientMutation.isPending ? (
                   <>
