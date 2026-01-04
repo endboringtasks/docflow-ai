@@ -191,6 +191,59 @@ export type Database = {
           },
         ]
       }
+      beta_feedback: {
+        Row: {
+          admin_notes: string | null
+          company_id: string | null
+          created_at: string
+          current_page: string | null
+          description: string
+          id: string
+          status: string
+          title: string
+          type: string
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          company_id?: string | null
+          created_at?: string
+          current_page?: string | null
+          description: string
+          id?: string
+          status?: string
+          title: string
+          type: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          company_id?: string | null
+          created_at?: string
+          current_page?: string | null
+          description?: string
+          id?: string
+          status?: string
+          title?: string
+          type?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "beta_feedback_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_form_data: {
         Row: {
           client_id: string
