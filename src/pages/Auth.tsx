@@ -349,64 +349,16 @@ const Auth = () => {
                   {isSignup ? "Create your account" : "Welcome back"}
                 </h2>
                 <p className="text-muted-foreground">
-                  Enter your email to receive a 6-digit verification code
+                  Sign in with your Google account to continue
                 </p>
-              </div>
-
-              <form onSubmit={handleEmailSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Email address</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      type="email"
-                      placeholder="you@company.com"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        setEmailError("");
-                      }}
-                      className={`pl-10 h-12 bg-secondary border-border ${emailError ? "border-destructive" : ""}`}
-                      required
-                    />
-                  </div>
-                  {emailError && (
-                    <p className="text-sm text-destructive">{emailError}</p>
-                  )}
-                </div>
-                
-                <Button 
-                  type="submit" 
-                  variant="gradient" 
-                  className="w-full h-12"
-                  disabled={isLoading || isGoogleLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Sending code...
-                    </>
-                  ) : (
-                    "Continue with Email"
-                  )}
-                </Button>
-              </form>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-                </div>
               </div>
 
               <Button
                 type="button"
-                variant="outline"
+                variant="gradient"
                 className="w-full h-12"
                 onClick={handleGoogleSignIn}
-                disabled={isLoading || isGoogleLoading}
+                disabled={isGoogleLoading}
               >
                 {isGoogleLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
