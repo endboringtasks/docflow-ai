@@ -145,7 +145,15 @@ async function hydratePayloadData(
           created_at: applicationRow.created_at,
         };
       } else {
-        hydrated = { ...hydrated, application_id: (hydrated as any).application_id ?? applicationId };
+        // Record not found (likely deleted) - preserve existing payload fields
+        console.log("Hydration: application not found (likely deleted), preserving payload data", { application_id: applicationId });
+        // Map incoming field names to standard webhook field names
+        hydrated = {
+          ...hydrated,
+          application_id: hydrated.application_id ?? hydrated.visa_application_id ?? applicationId,
+          subclass: hydrated.subclass ?? hydrated.visa_subclass,
+          application_folder_id: hydrated.application_folder_id ?? hydrated.visa_application_folder_id,
+        };
       }
     } catch (e) {
       console.log("Hydration: exception loading visa application", { application_id: applicationId, error: String(e) });

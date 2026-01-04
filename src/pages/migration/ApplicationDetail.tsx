@@ -85,6 +85,7 @@ interface VisaApplication {
   status: "draft" | "active" | "done";
   visa_application_folder_id: string | null;
   folder_status: "pending" | "creating" | "created" | "failed";
+  folder_status_updated_at: string | null;
   created_at: string;
   company_id: string;
 }
@@ -1217,6 +1218,9 @@ const VisaApplicationDetail = () => {
         visa_subclass: visaApplication.visa_subclass,
         status: visaApplication.status,
         visa_application_folder_id: visaApplication.visa_application_folder_id,
+        folder_status: visaApplication.folder_status,
+        folder_status_updated_at: visaApplication.folder_status_updated_at,
+        created_at: visaApplication.created_at,
       };
       
       const { error } = await supabase
