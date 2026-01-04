@@ -2045,9 +2045,9 @@ const VisaApplicationDetail = () => {
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <Button
-                                        variant={doc.isApplicable ? "outline" : "ghost"}
+                                        variant="outline"
                                         size="sm"
-                                        className={`h-7 text-xs ${doc.isApplicable ? 'text-amber-600 border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'text-muted-foreground'}`}
+                                        className={`h-7 text-xs ${doc.isApplicable ? 'text-amber-600 border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'text-muted-foreground border-muted'}`}
                                         onClick={() => toggleApplicabilityMutation.mutate({ docId: doc.id, isApplicable: !doc.isApplicable })}
                                         disabled={toggleApplicabilityMutation.isPending}
                                       >
