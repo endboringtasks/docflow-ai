@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Bug, Lightbulb, HelpCircle, MessageSquare, Filter, ChevronDown, ChevronUp } from "lucide-react";
+import { Bug, Lightbulb, HelpCircle, MessageSquare, Filter, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +28,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -128,12 +139,35 @@ export default function AdminFeedback() {
     },
   });
 
+  const deleteFeedback = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("beta_feedback")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-feedback"] });
+      toast({ title: "Feedback deleted" });
+      setExpandedId(null);
+    },
+    onError: () => {
+      toast({ title: "Error deleting feedback", variant: "destructive" });
+    },
+  });
+
   const handleStatusChange = (id: string, status: FeedbackStatus) => {
     updateFeedback.mutate({ id, status });
   };
 
   const handleSaveNotes = (id: string) => {
     updateFeedback.mutate({ id, notes: adminNotes[id] || "" });
+  };
+
+  const handleDelete = (id: string) => {
+    deleteFeedback.mutate(id);
   };
 
   const stats = feedback?.reduce(
@@ -305,14 +339,44 @@ export default function AdminFeedback() {
                                     className="min-h-[80px]"
                                   />
                                 </div>
-                                <Button
-                                  size="sm"
-                                  className="mt-2"
-                                  onClick={() => handleSaveNotes(item.id)}
-                                  disabled={updateFeedback.isPending}
-                                >
-                                  Save Notes
-                                </Button>
+                                <div className="flex gap-2 mt-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleSaveNotes(item.id)}
+                                    disabled={updateFeedback.isPending}
+                                  >
+                                    Save Notes
+                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        disabled={deleteFeedback.isPending}
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-1" />
+                                        Delete
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete Feedback</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to delete this feedback? This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleDelete(item.id)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
                               </div>
                               {item.user_agent && (
                                 <div>
