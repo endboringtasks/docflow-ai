@@ -22,6 +22,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { SEO } from "@/components/SEO";
+import OnboardingChecklist from "@/components/dashboard/OnboardingChecklist";
 
 interface DashboardStats {
   totalClients: number;
@@ -224,6 +225,9 @@ const MigrationDashboard = () => {
             </Button>
           </div>
         </div>
+
+        {/* Onboarding Checklist */}
+        <OnboardingChecklist />
 
         {/* Stats */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
