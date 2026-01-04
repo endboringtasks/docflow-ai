@@ -18,7 +18,7 @@ import {
   CheckCircle2,
   Circle,
   Plus,
-  Upload,
+  
   Download,
   X,
   File,
@@ -958,41 +958,7 @@ const VisaApplicationDetail = () => {
     },
   });
 
-  // Upload file for a document - uses edge function for Google Drive sync
-  const uploadFileMutation = useMutation({
-    mutationFn: async ({
-      docId,
-      file,
-      documentName,
-    }: {
-      docId: string;
-      file: File;
-      documentName: string;
-    }) => {
-      const formData = new FormData();
-      formData.append("visa_application_id", visaApplicationId!);
-      formData.append("doc_id", docId);
-      formData.append("file", file);
-      formData.append("document_name", documentName);
 
-      const { data, error } = await supabase.functions.invoke("internal-upload", {
-        body: formData,
-      });
-
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "Upload failed");
-
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
-      const location = data.uploaded_to === "google_drive" ? "Google Drive" : "storage";
-      toast.success(`File uploaded to ${location}`);
-    },
-    onError: (error) => {
-      toast.error("Failed to upload file", { description: error.message });
-    },
-  });
 
   // Remove file from a document (legacy - removes all)
   const removeFileMutation = useMutation({
@@ -1323,9 +1289,6 @@ const VisaApplicationDetail = () => {
     removeDocumentMutation.mutate(docId);
   };
 
-  const handleFileUpload = (docId: string, file: File, documentName: string) => {
-    uploadFileMutation.mutate({ docId, file, documentName });
-  };
 
   const handleFileRemove = (docId: string, filePath: string) => {
     removeFileMutation.mutate({ docId, filePath });
@@ -2039,7 +2002,7 @@ const VisaApplicationDetail = () => {
                               <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-muted-foreground">
                                 {doc.uploadedAt && (
                                   <span className="flex items-center gap-1">
-                                    <Upload className="w-3 h-3" />
+                                    <Calendar className="w-3 h-3" />
                                     Uploaded {new Date(doc.uploadedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
                                     {doc.uploadedByClientName && <span className="text-muted-foreground">by {doc.uploadedByClientName} (Client)</span>}
                                     {!doc.uploadedByClientName && doc.uploadedByName && <span className="text-muted-foreground">by {doc.uploadedByName}</span>}
@@ -2066,38 +2029,6 @@ const VisaApplicationDetail = () => {
                                 >
                                   <Eye className="w-4 h-4" />
                                 </Button>
-                              )}
-                              {/* Upload button - show when under max_files limit */}
-                              {(doc.maxFiles === null || doc.attachmentCount < doc.maxFiles) && (
-                                <label className="cursor-pointer">
-                                  <input
-                                    type="file"
-                                    className="hidden"
-                                    accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
-                                    onChange={(e) => {
-                                      const file = e.target.files?.[0];
-                                      if (file) handleFileUpload(doc.id, file, doc.name);
-                                      e.target.value = "";
-                                    }}
-                                    disabled={uploadFileMutation.isPending}
-                                  />
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-primary"
-                                    asChild
-                                    disabled={uploadFileMutation.isPending}
-                                    title={doc.attachmentCount > 0 ? "Add another file" : "Upload file"}
-                                  >
-                                    <span>
-                                      {uploadFileMutation.isPending ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                      ) : (
-                                        <Upload className="w-4 h-4" />
-                                      )}
-                                    </span>
-                                  </Button>
-                                </label>
                               )}
                               {/* Toggle applicability for conditional documents */}
                               {doc.requirementType === "conditional" && (
