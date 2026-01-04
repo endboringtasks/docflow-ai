@@ -416,11 +416,12 @@ const DocumentTemplates = () => {
           code,
           country_id,
           category_id,
-          country:countries(name, code),
+          country:countries!inner(name, code, is_active),
           category:application_categories(name),
           subcategory:application_subcategories(name)
         `)
         .eq("is_active", true)
+        .eq("country.is_active", true)
         .order("sort_order");
       
       if (selectedCountry) {
