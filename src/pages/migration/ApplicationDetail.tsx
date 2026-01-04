@@ -2047,7 +2047,7 @@ const VisaApplicationDetail = () => {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        className={`h-7 text-xs ${doc.isApplicable ? 'text-amber-600 border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'text-muted-foreground border-muted'}`}
+                                        className={`h-7 text-xs ${doc.isApplicable ? 'text-amber-600 border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'text-muted-foreground border-muted line-through'}`}
                                         onClick={() => toggleApplicabilityMutation.mutate({ docId: doc.id, isApplicable: !doc.isApplicable })}
                                         disabled={toggleApplicabilityMutation.isPending}
                                       >
