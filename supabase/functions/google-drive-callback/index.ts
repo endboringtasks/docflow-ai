@@ -173,11 +173,11 @@ serve(async (req) => {
 
     if (error) {
       console.error("OAuth error:", error);
-      return redirectWithError("Authorization was denied", "");
+      return redirectWithError("Authorization was denied", "", false);
     }
 
     if (!code || !state) {
-      return redirectWithError("Missing authorization code or state", "");
+      return redirectWithError("Missing authorization code or state", "", false);
     }
 
     // Decode state
@@ -185,17 +185,17 @@ serve(async (req) => {
     try {
       stateData = JSON.parse(atob(state));
     } catch {
-      return redirectWithError("Invalid state parameter", "");
+      return redirectWithError("Invalid state parameter", "", false);
     }
 
-    const { userId, companyId, origin, timestamp } = stateData;
+    const { userId, companyId, origin, timestamp, fromOnboarding } = stateData;
 
     // Check if state is not too old (5 minutes max)
     if (Date.now() - timestamp > 5 * 60 * 1000) {
-      return redirectWithError("Authorization expired, please try again", origin);
+      return redirectWithError("Authorization expired, please try again", origin, fromOnboarding);
     }
 
-    console.log("Processing callback for user:", userId, "company:", companyId, "origin:", origin);
+    console.log("Processing callback for user:", userId, "company:", companyId, "origin:", origin, "fromOnboarding:", fromOnboarding);
 
     // Exchange code for tokens
     const redirectUri = `${SUPABASE_URL}/functions/v1/google-drive-callback`;
@@ -216,7 +216,7 @@ serve(async (req) => {
 
     if (tokenData.error) {
       console.error("Token exchange error:", tokenData);
-      return redirectWithError("Failed to exchange authorization code", origin);
+      return redirectWithError("Failed to exchange authorization code", origin, fromOnboarding);
     }
 
     const { access_token, refresh_token, expires_in } = tokenData;
@@ -271,7 +271,7 @@ serve(async (req) => {
 
     if (upsertError) {
       console.error("Database error:", upsertError);
-      return redirectWithError("Failed to save connection", origin);
+      return redirectWithError("Failed to save connection", origin, fromOnboarding);
     }
 
     console.log("Successfully saved encrypted Google Drive connection for company:", companyId);
@@ -279,9 +279,12 @@ serve(async (req) => {
       console.log("Root folder set to:", rootFolderName, "(", rootFolderId, ")");
     }
 
-    // Redirect back to settings with success using the app origin
-    const appSettingsPath = "/app/settings";
-    const redirectUrl = origin ? `${origin}${appSettingsPath}?drive_connected=true` : `${appSettingsPath}?drive_connected=true`;
+    // Redirect back to the appropriate page based on where the flow started
+    const redirectPath = fromOnboarding ? "/onboarding" : "/app/settings";
+    const redirectUrl = origin 
+      ? `${origin}${redirectPath}?drive_connected=true` 
+      : `${redirectPath}?drive_connected=true`;
+    
     return new Response(null, {
       status: 302,
       headers: {
@@ -290,15 +293,15 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("Callback error:", error);
-    return redirectWithError("An unexpected error occurred", "");
+    return redirectWithError("An unexpected error occurred", "", false);
   }
 });
 
-function redirectWithError(message: string, origin: string) {
-  const appSettingsPath = "/app/settings";
+function redirectWithError(message: string, origin: string, fromOnboarding: boolean) {
+  const redirectPath = fromOnboarding ? "/onboarding" : "/app/settings";
   const redirectUrl = origin
-    ? `${origin}${appSettingsPath}?drive_error=${encodeURIComponent(message)}`
-    : `${appSettingsPath}?drive_error=${encodeURIComponent(message)}`;
+    ? `${origin}${redirectPath}?drive_error=${encodeURIComponent(message)}`
+    : `${redirectPath}?drive_error=${encodeURIComponent(message)}`;
   return new Response(null, {
     status: 302,
     headers: {

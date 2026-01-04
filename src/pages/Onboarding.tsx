@@ -2,14 +2,15 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Zap, FileCheck, Users, Clipboard, ArrowRight, Check, Loader2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Zap, FileCheck, Users, Clipboard, ArrowRight, Check, Loader2, FolderSync, CheckCircle } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompany } from "@/hooks/useCompany";
 import { SEO } from "@/components/SEO";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { supabase } from "@/integrations/supabase/client";
 
 type Niche = "migration" | "audit" | "hr";
 
@@ -49,8 +50,15 @@ const niches: NicheOption[] = [
   },
 ];
 
+const driveFeatures = [
+  "Automatic folder creation for each client",
+  "Visa application-specific subfolders",
+  "Secure storage in your own Google Drive",
+];
+
 const Onboarding = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const { currentCompany, loading: companyLoading, createCompany } = useCompany();
   
@@ -58,6 +66,26 @@ const Onboarding = () => {
   const [companyName, setCompanyName] = useState("");
   const [selectedNiche, setSelectedNiche] = useState<Niche | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [createdCompanyId, setCreatedCompanyId] = useState<string | null>(null);
+  const [createdNiche, setCreatedNiche] = useState<Niche | null>(null);
+  const [isConnectingDrive, setIsConnectingDrive] = useState(false);
+
+  // Handle OAuth callback from Google Drive
+  useEffect(() => {
+    const driveConnected = searchParams.get("drive_connected");
+    const driveError = searchParams.get("drive_error");
+
+    if (driveConnected === "true") {
+      toast.success("Google Drive connected successfully!");
+      // Navigate to dashboard after successful connection
+      const niche = createdNiche || "migration";
+      navigate(`/app/${niche}/dashboard`);
+    } else if (driveError) {
+      toast.error("Failed to connect Google Drive", {
+        description: driveError,
+      });
+    }
+  }, [searchParams, navigate, createdNiche]);
 
   // Redirect to auth if not logged in
   useEffect(() => {
@@ -66,12 +94,52 @@ const Onboarding = () => {
     }
   }, [user, authLoading, navigate]);
 
-  // Redirect to dashboard if user already has a company
+  // Redirect to dashboard if user already has a company (and not on step 3)
   useEffect(() => {
-    if (!companyLoading && currentCompany) {
+    if (!companyLoading && currentCompany && step < 3) {
       navigate(`/app/${currentCompany.niche}/dashboard`);
     }
-  }, [currentCompany, companyLoading, navigate]);
+  }, [currentCompany, companyLoading, navigate, step]);
+
+  const handleConnectGoogleDrive = async () => {
+    if (!createdCompanyId) {
+      toast.error("Company not found. Please try again.");
+      return;
+    }
+
+    setIsConnectingDrive(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("google-drive-auth", {
+        body: {
+          companyId: createdCompanyId,
+          origin: window.location.origin,
+          fromOnboarding: true,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        throw new Error("No authorization URL received");
+      }
+    } catch (error) {
+      console.error("Failed to initiate Google Drive connection:", error);
+      toast.error("Failed to connect Google Drive", {
+        description: error instanceof Error ? error.message : "Please try again",
+      });
+      setIsConnectingDrive(false);
+    }
+  };
+
+  const handleSkipDrive = () => {
+    const niche = createdNiche || "migration";
+    navigate(`/app/${niche}/dashboard`);
+  };
 
   const handleContinue = async () => {
     if (step === 1 && companyName.trim()) {
@@ -93,7 +161,11 @@ const Onboarding = () => {
         description: `Welcome to Docflow AI – ${selectedNiche.charAt(0).toUpperCase() + selectedNiche.slice(1)}`,
       });
       
-      navigate(`/app/${selectedNiche}/dashboard`);
+      // Store company info and move to step 3
+      setCreatedCompanyId(company?.id || null);
+      setCreatedNiche(selectedNiche);
+      setIsLoading(false);
+      setStep(3);
     }
   };
 
@@ -106,10 +178,23 @@ const Onboarding = () => {
     );
   }
 
-  // Don't render if user already has a company (will redirect)
-  if (currentCompany) {
+  // Don't render if user already has a company and not on step 3 (will redirect)
+  if (currentCompany && step < 3) {
     return null;
   }
+
+  const getStepLabel = (s: number) => {
+    switch (s) {
+      case 1:
+        return "Company";
+      case 2:
+        return "Industry";
+      case 3:
+        return "Integrations";
+      default:
+        return "";
+    }
+  };
 
   return (
     <>
@@ -146,7 +231,7 @@ const Onboarding = () => {
 
         {/* Progress */}
         <div className="flex items-center justify-center gap-4 mb-12">
-          {[1, 2].map((s) => (
+          {[1, 2, 3].map((s, index) => (
             <div key={s} className="flex items-center gap-2">
               <div 
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${
@@ -158,9 +243,9 @@ const Onboarding = () => {
                 {s < step ? <Check className="w-4 h-4" /> : s}
               </div>
               <span className={`text-sm ${s === step ? "text-foreground" : "text-muted-foreground"}`}>
-                {s === 1 ? "Company" : "Industry"}
+                {getStepLabel(s)}
               </span>
-              {s < 2 && <div className="w-12 h-px bg-border" />}
+              {index < 2 && <div className="w-12 h-px bg-border" />}
             </div>
           ))}
         </div>
@@ -287,6 +372,67 @@ const Onboarding = () => {
                     )}
                   </Button>
                 </div>
+              </motion.div>
+            )}
+
+            {step === 3 && (
+              <motion.div
+                key="step3"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+                className="text-center"
+              >
+                <div className="flex justify-center mb-6">
+                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+                    <FolderSync className="w-8 h-8 text-primary" />
+                  </div>
+                </div>
+                
+                <h2 className="text-2xl font-bold mb-2">Connect Google Drive</h2>
+                <p className="text-muted-foreground mb-8">
+                  Organize your client documents automatically
+                </p>
+                
+                <div className="bg-secondary/50 rounded-xl p-6 mb-8 text-left">
+                  <p className="text-sm font-medium mb-4">What this enables:</p>
+                  <ul className="space-y-3">
+                    {driveFeatures.map((feature, index) => (
+                      <li key={index} className="flex items-center gap-3 text-sm text-muted-foreground">
+                        <CheckCircle className="w-5 h-5 text-primary flex-shrink-0" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                
+                <Button 
+                  variant="gradient" 
+                  className="w-full h-12 mb-4"
+                  onClick={handleConnectGoogleDrive}
+                  disabled={isConnectingDrive}
+                >
+                  {isConnectingDrive ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <FolderSync className="w-4 h-4" />
+                      Connect Google Drive
+                    </>
+                  )}
+                </Button>
+                
+                <button
+                  onClick={handleSkipDrive}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  disabled={isConnectingDrive}
+                >
+                  Skip for now →
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
