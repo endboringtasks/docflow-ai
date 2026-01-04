@@ -233,7 +233,11 @@ const MigrationClients = () => {
               first_name: client.first_name,
               last_name: client.last_name,
               company_name: client.company_name,
+              email: client.email,
+              phone: client.phone,
               client_folder_id: client.client_folder_id,
+              folder_status: client.folder_status,
+              created_at: client.created_at,
             },
           },
         });

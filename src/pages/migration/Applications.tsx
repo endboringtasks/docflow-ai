@@ -70,6 +70,7 @@ interface VisaApplication {
   status: "draft" | "active" | "done";
   visa_application_folder_id: string | null;
   folder_status: string;
+  folder_status_updated_at: string | null;
   created_at: string;
 }
 
@@ -288,6 +289,7 @@ const MigrationVisaApplications = () => {
           status,
           visa_application_folder_id,
           folder_status,
+          folder_status_updated_at,
           created_at,
           clients (
             client_type,
@@ -325,6 +327,7 @@ const MigrationVisaApplications = () => {
           status: application.status as "draft" | "active" | "done",
           visa_application_folder_id: application.visa_application_folder_id,
           folder_status: application.folder_status,
+          folder_status_updated_at: application.folder_status_updated_at,
           created_at: application.created_at,
         };
       }) as VisaApplication[];
@@ -570,6 +573,9 @@ const MigrationVisaApplications = () => {
               visa_subclass: application.visa_subclass,
               status: application.status,
               visa_application_folder_id: application.visa_application_folder_id,
+              folder_status: application.folder_status,
+              folder_status_updated_at: application.folder_status_updated_at,
+              created_at: application.created_at,
             },
           },
         });

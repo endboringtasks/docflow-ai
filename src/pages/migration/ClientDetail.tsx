@@ -417,7 +417,7 @@ const ClientDetail = () => {
       // Get application data before deletion for webhook
       const { data: applicationData } = await supabase
         .from("visa_applications")
-        .select("id, company_id, client_id, application_name, visa_subclass, status, visa_application_folder_id")
+        .select("id, company_id, client_id, application_name, visa_subclass, status, visa_application_folder_id, folder_status, folder_status_updated_at, created_at")
         .eq("id", applicationId)
         .single();
       
@@ -444,6 +444,9 @@ const ClientDetail = () => {
                 visa_subclass: applicationData.visa_subclass,
                 status: applicationData.status,
                 visa_application_folder_id: applicationData.visa_application_folder_id,
+                folder_status: applicationData.folder_status,
+                folder_status_updated_at: applicationData.folder_status_updated_at,
+                created_at: applicationData.created_at,
               },
             },
           });
