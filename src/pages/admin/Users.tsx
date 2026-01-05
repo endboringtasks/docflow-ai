@@ -31,7 +31,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, Users as UsersIcon, Shield, UserCheck, Loader2, MoreHorizontal, Trash2 } from "lucide-react";
+import { Search, Users as UsersIcon, Shield, ShieldOff, UserCheck, Loader2, MoreHorizontal, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useImpersonation } from "@/hooks/useImpersonation";
 import { useAuth } from "@/hooks/useAuth";
@@ -49,6 +49,13 @@ interface UserToDelete {
   display_name: string | null;
 }
 
+interface UserToToggleAdmin {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+  isPlatformAdmin: boolean;
+}
+
 export default function AdminUsers() {
   const [search, setSearch] = useState("");
   const { user: currentUser } = useAuth();
@@ -59,6 +66,8 @@ export default function AdminUsers() {
   const [userToImpersonate, setUserToImpersonate] = useState<UserToImpersonate | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<UserToDelete | null>(null);
+  const [adminDialogOpen, setAdminDialogOpen] = useState(false);
+  const [userToToggleAdmin, setUserToToggleAdmin] = useState<UserToToggleAdmin | null>(null);
 
   const openConfirmDialog = (user: UserToImpersonate) => {
     setUserToImpersonate(user);
@@ -68,6 +77,11 @@ export default function AdminUsers() {
   const openDeleteDialog = (user: UserToDelete) => {
     setUserToDelete(user);
     setDeleteDialogOpen(true);
+  };
+
+  const openAdminDialog = (user: UserToToggleAdmin) => {
+    setUserToToggleAdmin(user);
+    setAdminDialogOpen(true);
   };
 
   const handleConfirmImpersonate = async () => {
@@ -104,9 +118,46 @@ export default function AdminUsers() {
     },
   });
 
+  const toggleAdminMutation = useMutation({
+    mutationFn: async ({ userId, isPlatformAdmin }: { userId: string; isPlatformAdmin: boolean }) => {
+      if (isPlatformAdmin) {
+        // Demote: Remove from platform_admins
+        const { error } = await supabase
+          .from("platform_admins")
+          .delete()
+          .eq("user_id", userId);
+        if (error) throw error;
+      } else {
+        // Promote: Add to platform_admins
+        const { error } = await supabase
+          .from("platform_admins")
+          .insert({ user_id: userId, created_by: currentUser?.id });
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, variables) => {
+      const action = variables.isPlatformAdmin ? "removed from" : "promoted to";
+      toast.success(`User ${action} Super Admin`);
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      setAdminDialogOpen(false);
+      setUserToToggleAdmin(null);
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update admin status: " + error.message);
+    },
+  });
+
   const handleConfirmDelete = () => {
     if (!userToDelete) return;
     deleteUserMutation.mutate(userToDelete.id);
+  };
+
+  const handleConfirmToggleAdmin = () => {
+    if (!userToToggleAdmin) return;
+    toggleAdminMutation.mutate({ 
+      userId: userToToggleAdmin.id, 
+      isPlatformAdmin: userToToggleAdmin.isPlatformAdmin 
+    });
   };
 
   const { data: users, isLoading } = useQuery({
@@ -248,6 +299,26 @@ export default function AdminUsers() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => openAdminDialog({ 
+                                  id: user.id, 
+                                  email: user.email, 
+                                  display_name: user.display_name,
+                                  isPlatformAdmin: user.isPlatformAdmin 
+                                })}
+                              >
+                                {user.isPlatformAdmin ? (
+                                  <>
+                                    <ShieldOff className="w-4 h-4 mr-2" />
+                                    Remove Super Admin
+                                  </>
+                                ) : (
+                                  <>
+                                    <Shield className="w-4 h-4 mr-2" />
+                                    Make Super Admin
+                                  </>
+                                )}
+                              </DropdownMenuItem>
                               {!user.isPlatformAdmin && (
                                 <DropdownMenuItem
                                   onClick={() => openConfirmDialog({ id: user.id, email: user.email, display_name: user.display_name })}
@@ -354,6 +425,62 @@ export default function AdminUsers() {
                 </>
               ) : (
                 "Delete User"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Toggle Super Admin Confirmation Dialog */}
+      <AlertDialog open={adminDialogOpen} onOpenChange={setAdminDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {userToToggleAdmin?.isPlatformAdmin ? "Remove Super Admin" : "Make Super Admin"}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                {userToToggleAdmin?.isPlatformAdmin ? (
+                  <>
+                    Are you sure you want to remove Super Admin privileges from{" "}
+                    <span className="font-semibold">
+                      {userToToggleAdmin?.display_name || userToToggleAdmin?.email}
+                    </span>
+                    ?
+                  </>
+                ) : (
+                  <>
+                    Are you sure you want to make{" "}
+                    <span className="font-semibold">
+                      {userToToggleAdmin?.display_name || userToToggleAdmin?.email}
+                    </span>
+                    {" "}a Super Admin?
+                  </>
+                )}
+              </p>
+              <p className="text-sm">
+                {userToToggleAdmin?.isPlatformAdmin
+                  ? "This user will lose access to all platform admin features."
+                  : "This user will have full access to all platform admin features including user management, company oversight, and system settings."}
+              </p>
+              <p className="text-sm text-destructive font-medium">
+                This action is logged for security purposes.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={toggleAdminMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmToggleAdmin}
+              disabled={toggleAdminMutation.isPending}
+            >
+              {toggleAdminMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {userToToggleAdmin?.isPlatformAdmin ? "Removing..." : "Promoting..."}
+                </>
+              ) : (
+                userToToggleAdmin?.isPlatformAdmin ? "Remove Super Admin" : "Make Super Admin"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
