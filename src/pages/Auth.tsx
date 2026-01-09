@@ -35,6 +35,20 @@ const Auth = () => {
   const [emailError, setEmailError] = useState("");
   const [expiredEmail, setExpiredEmail] = useState("");
   
+  const getAuthErrorDescription = (error: Error) => {
+    const message = error?.message || "Unknown error";
+    const normalized = message.toLowerCase();
+
+    if (normalized.includes("load failed") || normalized.includes("failed to fetch")) {
+      return "Network error reaching the auth service. Check your connection and VITE_SUPABASE_URL.";
+    }
+
+    if (normalized.includes("redirect") && normalized.includes("not allowed")) {
+      return "This app URL is not allowed in Supabase Auth settings. Add it to the redirect allowlist.";
+    }
+
+    return message;
+  };
 
   // Redirect based on authentication and company status
   useEffect(() => {
@@ -94,7 +108,7 @@ const Auth = () => {
     if (error) {
       console.error("OTP send error:", error.message);
       toast.error("Failed to send verification code", {
-        description: error.message,
+        description: getAuthErrorDescription(error),
       });
       setIsLoading(false);
       return;
@@ -144,7 +158,7 @@ const Auth = () => {
     
     if (error) {
       toast.error("Failed to resend code", {
-        description: error.message,
+        description: getAuthErrorDescription(error),
       });
     } else {
       toast.success("New code sent!", {
