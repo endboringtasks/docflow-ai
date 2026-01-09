@@ -24,6 +24,7 @@ services:
       - VITE_SUPABASE_ANON_KEY=${ANON_KEY}
       - VITE_SUPABASE_PROJECT_ID=local
       - VITE_ENVIRONMENT=development
+      - VITE_ENABLE_EMAIL_AUTH=${VITE_ENABLE_EMAIL_AUTH:-true}
     depends_on:
       - supabase-kong
     networks:

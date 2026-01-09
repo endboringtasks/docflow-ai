@@ -32,6 +32,7 @@ services:
         VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
         VITE_SUPABASE_PROJECT_ID: qa
         VITE_ENVIRONMENT: staging
+        VITE_ENABLE_EMAIL_AUTH: ${VITE_ENABLE_EMAIL_AUTH:-false}
     networks:
       - supabase-network
     restart: unless-stopped

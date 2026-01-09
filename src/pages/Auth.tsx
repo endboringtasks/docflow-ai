@@ -25,6 +25,7 @@ const Auth = () => {
   const { currentCompany, loading: companyLoading } = useCompany();
   const { signInWithOtp, verifyOtp, signInWithGoogle } = useAuth();
   const isSignup = searchParams.get("signup") === "true";
+  const enableEmailAuth = import.meta.env.VITE_ENABLE_EMAIL_AUTH === "true";
   
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("");
@@ -349,7 +350,9 @@ const Auth = () => {
                   {isSignup ? "Create your account" : "Welcome back"}
                 </h2>
                 <p className="text-muted-foreground">
-                  Sign in with your Google account to continue
+                  {enableEmailAuth
+                    ? "Sign in with Google or your email to continue"
+                    : "Sign in with your Google account to continue"}
                 </p>
               </div>
 
@@ -384,6 +387,55 @@ const Auth = () => {
                 )}
                 Continue with Google
               </Button>
+
+              {enableEmailAuth ? (
+                <>
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-border" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">Or</span>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleEmailSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Email</label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                        <Input
+                          type="email"
+                          placeholder="you@company.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="pl-10 h-12 bg-background border-border"
+                          required
+                        />
+                      </div>
+                      {emailError ? (
+                        <p className="text-xs text-destructive">{emailError}</p>
+                      ) : null}
+                    </div>
+
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      className="w-full h-12"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Sending code...
+                        </>
+                      ) : (
+                        "Email me a code"
+                      )}
+                    </Button>
+                  </form>
+                </>
+              ) : null}
 
               <PendingInvitations />
             </motion.div>

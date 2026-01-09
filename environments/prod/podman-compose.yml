@@ -37,6 +37,7 @@ services:
         VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
         VITE_SUPABASE_PROJECT_ID: prod
         VITE_ENVIRONMENT: production
+        VITE_ENABLE_EMAIL_AUTH: ${VITE_ENABLE_EMAIL_AUTH:-false}
     networks:
       - supabase-network
     restart: always
