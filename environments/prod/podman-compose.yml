@@ -1,0 +1,314 @@
+# PRODUCTION Environment - High Availability Supabase Stack
+# Access: Public URL with SSL
+# Usage: cd environments/prod && podman-compose up -d
+
+version: "3.8"
+
+services:
+  # Nginx Reverse Proxy with SSL
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:z
+      - ${SSL_CERT_PATH}:/etc/ssl/certs/fullchain.pem:z
+      - ${SSL_KEY_PATH}:/etc/ssl/private/privkey.pem:z
+      - nginx-cache:/var/cache/nginx:Z
+    depends_on:
+      - frontend
+      - supabase-kong
+    networks:
+      - supabase-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # Frontend Application (Production Build) - Scaled
+  frontend:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${ANON_KEY}
+        VITE_SUPABASE_PROJECT_ID: prod
+        VITE_ENVIRONMENT: production
+    networks:
+      - supabase-network
+    restart: always
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 128M
+
+  # PostgreSQL Database - Primary
+  supabase-db:
+    image: supabase/postgres:15.1.1.41
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXP: 3600
+    volumes:
+      - supabase-db-data:/var/lib/postgresql/data:Z
+      - ./backups:/backups:z
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - supabase-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  # Redis - Session Cache & Rate Limiting
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data:Z
+    networks:
+      - supabase-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # GoTrue - Authentication (Scaled)
+  supabase-auth:
+    image: supabase/gotrue:v2.143.0
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${VITE_SUPABASE_URL}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
+      GOTRUE_SITE_URL: ${SITE_URL}
+      GOTRUE_URI_ALLOW_LIST: "${SITE_URL}/**"
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "false"
+      GOTRUE_SMTP_HOST: ${SMTP_HOST}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-587}
+      GOTRUE_SMTP_USER: ${SMTP_USER}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: "true"
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${VITE_SUPABASE_URL}/auth/v1/callback
+      GOTRUE_RATE_LIMIT_HEADER: X-Real-IP
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - supabase-network
+    restart: always
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 512M
+
+  # PostgREST - REST API (Scaled)
+  supabase-rest:
+    image: postgrest/postgrest:v12.0.2
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
+      PGRST_DB_SCHEMAS: public,storage,graphql_public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: ${JWT_SECRET}
+      PGRST_APP_SETTINGS_JWT_EXP: 3600
+      PGRST_DB_POOL: 20
+      PGRST_DB_POOL_ACQUISITION_TIMEOUT: 10
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - supabase-network
+    restart: always
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 512M
+
+  # Realtime - Websocket subscriptions
+  supabase-realtime:
+    image: supabase/realtime:v2.27.5
+    environment:
+      PORT: 4000
+      DB_HOST: supabase-db
+      DB_PORT: 5432
+      DB_USER: supabase_admin
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB:-postgres}
+      DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'
+      DB_ENC_KEY: ${REALTIME_ENC_KEY:-supabaserealtime}
+      API_JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY_BASE: ${JWT_SECRET}
+      ERL_AFLAGS: -proto_dist inet_tcp
+      ENABLE_TAILSCALE: "false"
+      DNS_NODES: "''"
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - supabase-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Storage API
+  supabase-storage:
+    image: supabase/storage-api:v0.46.4
+    environment:
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      PROJECT_REF: prod
+      REGION: ${REGION:-us-east-1}
+      TENANT_ID: stub
+      POSTGREST_URL: http://supabase-rest:3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-file}
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      ENABLE_IMAGE_TRANSFORMATION: "true"
+      IMGPROXY_URL: http://supabase-imgproxy:8080
+    volumes:
+      - supabase-storage-data:/var/lib/storage:Z
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+      supabase-rest:
+        condition: service_started
+    networks:
+      - supabase-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Image Proxy
+  supabase-imgproxy:
+    image: darthsim/imgproxy:v3.18
+    environment:
+      IMGPROXY_BIND: ":8080"
+      IMGPROXY_LOCAL_FILESYSTEM_ROOT: /
+      IMGPROXY_USE_ETAG: "true"
+      IMGPROXY_CACHE_CONTROL_PASSTHROUGH: "true"
+    volumes:
+      - supabase-storage-data:/var/lib/storage:Z
+    networks:
+      - supabase-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # Kong - API Gateway
+  supabase-kong:
+    image: kong:2.8.1
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth,rate-limiting
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+    volumes:
+      - ../../supabase/kong.yml:/var/lib/kong/kong.yml:z
+    depends_on:
+      - supabase-auth
+      - supabase-rest
+      - supabase-realtime
+      - supabase-storage
+    networks:
+      - supabase-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Postgres Meta - Database metadata
+  supabase-meta:
+    image: supabase/postgres-meta:v0.77.2
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: supabase-db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: ${POSTGRES_DB:-postgres}
+      PG_META_DB_USER: supabase_admin
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - supabase-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # Edge Functions Runtime (Scaled)
+  supabase-edge-functions:
+    image: supabase/edge-runtime:v1.36.1
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      SUPABASE_DB_URL: postgres://postgres:${POSTGRES_PASSWORD}@supabase-db:5432/${POSTGRES_DB:-postgres}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      MAKE_GOOGLE_EMAIL: ${MAKE_GOOGLE_EMAIL}
+    volumes:
+      - ../../supabase/functions:/home/deno/functions:z
+    depends_on:
+      - supabase-kong
+    networks:
+      - supabase-network
+    restart: always
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 512M
+
+volumes:
+  supabase-db-data:
+  supabase-storage-data:
+  redis-data:
+  nginx-cache:
+
+networks:
+  supabase-network:
+    driver: bridge

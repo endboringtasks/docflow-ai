@@ -1,0 +1,165 @@
+# Kong API Gateway Configuration for Supabase
+# This file configures routing for all Supabase services
+
+_format_version: "2.1"
+_transform: true
+
+###
+### Consumers / Users
+###
+consumers:
+  - username: ANON
+    keyauth_credentials:
+      - key: ${SUPABASE_ANON_KEY}
+  - username: SERVICE_ROLE
+    keyauth_credentials:
+      - key: ${SUPABASE_SERVICE_KEY}
+
+###
+### Access Control Lists (ACL)
+###
+acls:
+  - consumer: ANON
+    group: anon
+  - consumer: SERVICE_ROLE
+    group: admin
+
+###
+### Services
+###
+
+services:
+  ## Auth Service (GoTrue)
+  - name: auth-v1
+    url: http://supabase-auth:9999/
+    routes:
+      - name: auth-v1-route
+        strip_path: true
+        paths:
+          - /auth/v1/
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+          key_names:
+            - apikey
+
+  ## REST API (PostgREST)
+  - name: rest-v1
+    url: http://supabase-rest:3000/
+    routes:
+      - name: rest-v1-route
+        strip_path: true
+        paths:
+          - /rest/v1/
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+          key_names:
+            - apikey
+
+  ## Realtime Service
+  - name: realtime-v1
+    url: http://supabase-realtime:4000/socket/
+    routes:
+      - name: realtime-v1-route
+        strip_path: true
+        paths:
+          - /realtime/v1/
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+          key_names:
+            - apikey
+
+  ## Storage Service
+  - name: storage-v1
+    url: http://supabase-storage:5000/
+    routes:
+      - name: storage-v1-route
+        strip_path: true
+        paths:
+          - /storage/v1/
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+          key_names:
+            - apikey
+
+  ## Edge Functions
+  - name: functions-v1
+    url: http://supabase-edge-functions:8000/
+    routes:
+      - name: functions-v1-route
+        strip_path: true
+        paths:
+          - /functions/v1/
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+          key_names:
+            - apikey
+
+  ## Postgres Meta (Database metadata for Studio)
+  - name: meta
+    url: http://supabase-meta:8080/
+    routes:
+      - name: meta-route
+        strip_path: true
+        paths:
+          - /pg/
+    plugins:
+      - name: key-auth
+        config:
+          hide_credentials: false
+          key_names:
+            - apikey
+
+###
+### Plugins (Global)
+###
+plugins:
+  # CORS configuration
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      headers:
+        - Accept
+        - Accept-Version
+        - Authorization
+        - Content-Length
+        - Content-MD5
+        - Content-Type
+        - Date
+        - X-Auth-Token
+        - apikey
+        - x-client-info
+        - x-supabase-api-version
+      exposed_headers:
+        - X-Total-Count
+        - Content-Range
+      credentials: true
+      max_age: 3600
+
+  # Request size limit
+  - name: request-size-limiting
+    config:
+      allowed_payload_size: 50
+      size_unit: megabytes

@@ -1,0 +1,49 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build output
+dist
+build
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files (use compose env_file instead)
+.env*.local
+
+# Supabase local
+supabase/.branches
+supabase/.temp
+
+# Test coverage
+coverage
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+podman-compose*.yml
+
+# Documentation
+*.md
+!README.md
+
+# Environments (don't include in image)
+environments

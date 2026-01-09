@@ -1,0 +1,17 @@
+# Development Dockerfile with hot reload
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Copy source files (volumes will override in development)
+COPY . .
+
+# Expose Vite dev server port
+EXPOSE 8080
+
+# Start Vite dev server with host binding for container access
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
