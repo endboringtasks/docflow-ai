@@ -190,9 +190,6 @@ const Index = () => {
                   <ArrowRight className="w-5 h-5" />
                 </Link>
               </Button>
-              <Button variant="outline" size="xl">
-                Watch Demo
-              </Button>
             </div>
             
             <div className="mt-12 flex items-center justify-center gap-8 text-sm text-muted-foreground">
