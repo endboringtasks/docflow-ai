@@ -425,6 +425,7 @@ const Index = () => {
                   features: [
                     "Up to 50 active applications",
                     "Google Drive integration",
+                    "Up to 3 team members"
                     "Document checklists",
                     "Webhook automations",
                     "Priority email support",
