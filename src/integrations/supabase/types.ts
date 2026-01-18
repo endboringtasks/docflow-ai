@@ -1665,7 +1665,7 @@ export type Database = {
       matter_status: "draft" | "active" | "done"
       niche_type: "migration" | "audit" | "hr"
       platform_role: "super_admin"
-      subscription_plan: "free" | "basic" | "pro" | "enterprise"
+      subscription_plan: "free" | "basic" | "pro" | "teams" | "enterprise"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1799,7 +1799,7 @@ export const Constants = {
       matter_status: ["draft", "active", "done"],
       niche_type: ["migration", "audit", "hr"],
       platform_role: ["super_admin"],
-      subscription_plan: ["free", "basic", "pro", "enterprise"],
+      subscription_plan: ["free", "basic", "pro", "teams", "enterprise"],
     },
   },
 } as const

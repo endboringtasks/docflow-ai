@@ -31,8 +31,9 @@ import { format } from "date-fns";
 
 const PLAN_PRICES: Record<string, number> = {
   free: 0,
-  basic: 29,
-  pro: 99,
+  basic: 39,
+  pro: 79,
+  teams: 129,
   enterprise: 299,
 };
 
@@ -59,6 +60,7 @@ export default function AdminBilling() {
         free: 0,
         basic: 0,
         pro: 0,
+        teams: 0,
         enterprise: 0,
       };
 

@@ -48,22 +48,30 @@ const homepageJsonLd = [
         "@type": "Offer",
         "name": "Free",
         "price": "0",
-        "priceCurrency": "USD",
+        "priceCurrency": "AUD",
         "availability": "https://schema.org/InStock"
       },
       {
         "@type": "Offer",
         "name": "Basic",
-        "price": "25",
-        "priceCurrency": "USD",
+        "price": "39",
+        "priceCurrency": "AUD",
         "priceValidUntil": "2025-12-31",
         "availability": "https://schema.org/InStock"
       },
       {
         "@type": "Offer",
         "name": "Pro",
-        "price": "49",
-        "priceCurrency": "USD",
+        "price": "79",
+        "priceCurrency": "AUD",
+        "priceValidUntil": "2025-12-31",
+        "availability": "https://schema.org/InStock"
+      },
+      {
+        "@type": "Offer",
+        "name": "Teams",
+        "price": "129",
+        "priceCurrency": "AUD",
         "priceValidUntil": "2025-12-31",
         "availability": "https://schema.org/InStock"
       }
@@ -102,7 +110,7 @@ const homepageJsonLd = [
         "name": "How much does Docflow AI cost?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Docflow AI offers a free tier with basic features. Paid plans start at $25/month for Basic and $49/month for Pro, with additional features and higher limits."
+          "text": "Docflow AI offers a free preview tier. Paid plans start at A$39/month for Basic, A$79/month for Pro, and A$129/month for Teams. Enterprise pricing is custom."
         }
       },
       {
@@ -347,19 +355,20 @@ const Index = () => {
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
               Choose Your <span className="gradient-text">Plan</span>
             </h2>
-            <p className="text-muted-foreground text-lg">Per company. All team members included.</p>
+            <p className="text-muted-foreground text-lg">Per company. Scale as you grow.</p>
           </motion.div>
           
-          <div className="grid md:grid-cols-4 gap-6 max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-4 max-w-7xl mx-auto">
             {[
-              { name: "Free", price: "$0", period: "/month", credits: "0 AI Credits", features: ["Up to 5 clients", "Basic dashboard", "Email support"], cta: "Start Free", popular: false },
-              { name: "Basic", price: "$25", period: "/month", credits: "50 AI Credits", features: ["Unlimited clients", "Full dashboard", "Priority support", "Automation webhooks"], cta: "Get Started", popular: false },
-              { name: "Pro", price: "$49", period: "/month", credits: "200 AI Credits", features: ["Everything in Basic", "Advanced analytics", "Custom integrations", "Dedicated support"], cta: "Get Started", popular: true },
-              { name: "Enterprise", price: "Custom", period: "", credits: "Unlimited AI Credits", features: ["Everything in Pro", "Custom workflows", "SLA guarantee", "On-premise option"], cta: "Contact Sales", popular: false },
+              { name: "Free", subtitle: "Preview Access", price: "A$0", period: "/month", credits: "0 AI Credits", features: ["Up to 3 clients", "Up to 5 active applications", "Basic dashboard", "Client portal access", "Multi-language support", "Email support"], cta: "Start Free", popular: false },
+              { name: "Basic", subtitle: "For Independents", price: "A$39", period: "/month", credits: "50 AI Credits", features: ["Up to 50 active applications", "Up to 3 team members", "Google Drive integration", "Document checklists", "Webhook automations", "Priority email support"], cta: "Get Started", popular: false },
+              { name: "Pro", subtitle: "For Growing Teams", price: "A$79", period: "/month", credits: "200 AI Credits", features: ["Unlimited applications", "Up to 10 team members", "Everything in Basic", "Advanced analytics", "Audit logs", "Custom portal branding"], cta: "Get Started", popular: true },
+              { name: "Teams", subtitle: "For Structured Agencies", price: "A$129", period: "/month", credits: "500 AI Credits", features: ["Everything in Pro", "Up to 25 team members", "Advanced roles & permissions", "Team-level reporting", "Activity & action logs"], cta: "Get Started", popular: false },
+              { name: "Enterprise", subtitle: "Custom Solution", price: "Custom", period: "", credits: "Unlimited AI Credits", features: ["Everything in Teams", "Unlimited team members", "Custom workflows", "API access", "SLA guarantee", "Dedicated account manager"], cta: "Contact Sales", popular: false },
             ].map((plan, index) => (
               <motion.div
                 key={plan.name}
-                className={`rounded-2xl p-8 border transition-all duration-300 ${
+                className={`rounded-2xl p-6 border transition-all duration-300 ${
                   plan.popular 
                     ? "gradient-bg border-transparent shadow-glow scale-105" 
                     : "card-gradient border-border/50 hover:border-primary/50"
@@ -370,20 +379,21 @@ const Index = () => {
                 transition={{ duration: 0.5, delay: index * 0.1 }}
               >
                 {plan.popular && (
-                  <Badge className="mb-4 bg-background/20 text-primary-foreground border-0">Most Popular</Badge>
+                  <Badge className="mb-3 bg-background/20 text-primary-foreground border-0">Most Popular</Badge>
                 )}
-                <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
-                <div className="mb-4">
-                  <span className="text-4xl font-bold">{plan.price}</span>
-                  <span className="text-muted-foreground">{plan.period}</span>
+                <h3 className="text-lg font-bold mb-1">{plan.name}</h3>
+                <p className={`text-xs mb-3 ${plan.popular ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{plan.subtitle}</p>
+                <div className="mb-2">
+                  <span className="text-3xl font-bold">{plan.price}</span>
+                  <span className={plan.popular ? "text-primary-foreground/80" : "text-muted-foreground"}>{plan.period}</span>
                 </div>
-                <p className={`text-sm mb-6 ${plan.popular ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                <p className={`text-xs mb-4 ${plan.popular ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
                   {plan.credits}
                 </p>
-                <ul className="space-y-3 mb-8">
+                <ul className="space-y-2 mb-6">
                   {plan.features.map((feature) => (
-                    <li key={feature} className={`flex items-center gap-2 text-sm ${plan.popular ? "text-primary-foreground" : "text-muted-foreground"}`}>
-                      <CheckCircle className={`w-4 h-4 ${plan.popular ? "text-primary-foreground" : "text-success"}`} />
+                    <li key={feature} className={`flex items-start gap-2 text-xs ${plan.popular ? "text-primary-foreground" : "text-muted-foreground"}`}>
+                      <CheckCircle className={`w-3 h-3 mt-0.5 flex-shrink-0 ${plan.popular ? "text-primary-foreground" : "text-success"}`} />
                       {feature}
                     </li>
                   ))}
@@ -391,12 +401,83 @@ const Index = () => {
                 <Button 
                   variant={plan.popular ? "secondary" : "outline"} 
                   className="w-full"
+                  size="sm"
                   asChild
                 >
                   <Link to="/auth?signup=true">{plan.cta}</Link>
                 </Button>
               </motion.div>
             ))}
+          </div>
+
+          {/* Add-ons Section */}
+          <div className="mt-16 max-w-4xl mx-auto">
+            <motion.h3 
+              className="text-2xl font-bold text-center mb-8"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+            >
+              Optional <span className="gradient-text">Add-ons</span>
+            </motion.h3>
+            
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Extra Team Members */}
+              <motion.div 
+                className="card-gradient rounded-xl p-6 border border-border/50"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <Users className="w-6 h-6 text-primary" />
+                  <h4 className="text-lg font-semibold">Extra Team Members</h4>
+                </div>
+                <p className="text-2xl font-bold mb-2">A$7 <span className="text-sm font-normal text-muted-foreground">per user / month</span></p>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>• Available on Basic and Pro plans</li>
+                  <li>• Pro plan capped at 10 total users</li>
+                </ul>
+              </motion.div>
+
+              {/* AI Credits Packages */}
+              <motion.div 
+                className="card-gradient rounded-xl p-6 border border-border/50"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.1 }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <Sparkles className="w-6 h-6 text-accent" />
+                  <h4 className="text-lg font-semibold">Extra AI Credits</h4>
+                </div>
+                <div className="space-y-2 mb-4">
+                  <div className="flex justify-between text-sm"><span>+50 AI Credits</span><span className="font-bold">A$15</span></div>
+                  <div className="flex justify-between text-sm"><span>+100 AI Credits</span><span className="font-bold">A$25</span></div>
+                  <div className="flex justify-between text-sm"><span>+500 AI Credits</span><span className="font-bold">A$99</span></div>
+                </div>
+                <p className="text-xs text-muted-foreground">Available as recurring or one-off purchases</p>
+              </motion.div>
+            </div>
+
+            {/* AI Credits Explanation */}
+            <motion.div 
+              className="mt-8 text-center"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+            >
+              <p className="text-sm text-muted-foreground mb-2">
+                <strong>What are AI Credits?</strong>
+              </p>
+              <p className="text-xs text-muted-foreground max-w-2xl mx-auto">
+                AI Credits power document intelligence: classification, data extraction, validation checks, 
+                expiry detection, and form comparison. <strong>1 AI Credit = 1 document analysis.</strong> 
+                You only pay for AI when you use it.
+              </p>
+            </motion.div>
           </div>
         </div>
       </section>
