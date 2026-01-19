@@ -58,6 +58,13 @@ interface Feedback {
   admin_notes: string | null;
   created_at: string;
   updated_at: string;
+  profile?: {
+    display_name: string | null;
+    email: string | null;
+  } | null;
+  company?: {
+    name: string;
+  } | null;
 }
 
 const typeIcons: Record<FeedbackType, typeof Bug> = {
@@ -101,7 +108,10 @@ export default function AdminFeedback() {
     queryFn: async () => {
       let query = supabase
         .from("beta_feedback")
-        .select("*")
+        .select(`
+          *,
+          company:companies(name)
+        `)
         .order("created_at", { ascending: false });
 
       if (typeFilter !== "all") {
@@ -113,7 +123,20 @@ export default function AdminFeedback() {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as Feedback[];
+      
+      // Fetch user profiles for all feedback items
+      const userIds = [...new Set(data.map(item => item.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, display_name, email")
+        .in("id", userIds);
+      
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+      
+      return data.map(item => ({
+        ...item,
+        profile: profileMap.get(item.user_id) || null,
+      })) as Feedback[];
     },
   });
 
@@ -246,6 +269,7 @@ export default function AdminFeedback() {
                 <TableHead className="w-[40px]"></TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Title</TableHead>
+                <TableHead>User</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Page</TableHead>
                 <TableHead>Date</TableHead>
@@ -256,14 +280,14 @@ export default function AdminFeedback() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={7}>
+                    <TableCell colSpan={8}>
                       <Skeleton className="h-10 w-full" />
                     </TableCell>
                   </TableRow>
                 ))
               ) : feedback?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     No feedback found
                   </TableCell>
                 </TableRow>
@@ -288,8 +312,20 @@ export default function AdminFeedback() {
                             <span className="text-sm">{typeLabels[item.type]}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-medium max-w-[300px] truncate">
+                        <TableCell className="font-medium max-w-[250px] truncate">
                           {item.title}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium truncate max-w-[150px]">
+                              {item.profile?.display_name || item.profile?.email || "Unknown"}
+                            </span>
+                            {item.company?.name && (
+                              <span className="text-xs text-muted-foreground truncate max-w-[150px]">
+                                {item.company.name}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={statusColors[item.status]}>
