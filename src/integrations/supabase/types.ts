@@ -41,6 +41,58 @@ export type Database = {
         }
         Relationships: []
       }
+      application_applicants: {
+        Row: {
+          applicant_type_id: string
+          client_id: string
+          created_at: string
+          id: string
+          is_primary: boolean
+          sort_order: number
+          visa_application_id: string
+        }
+        Insert: {
+          applicant_type_id: string
+          client_id: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          sort_order?: number
+          visa_application_id: string
+        }
+        Update: {
+          applicant_type_id?: string
+          client_id?: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          sort_order?: number
+          visa_application_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_applicants_applicant_type_id_fkey"
+            columns: ["applicant_type_id"]
+            isOneToOne: false
+            referencedRelation: "applicant_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_applicants_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_applicants_visa_application_id_fkey"
+            columns: ["visa_application_id"]
+            isOneToOne: false
+            referencedRelation: "visa_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       application_categories: {
         Row: {
           code: string
@@ -240,6 +292,57 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      category_applicant_types: {
+        Row: {
+          allow_multiple: boolean
+          applicant_type_id: string
+          category_id: string
+          created_at: string
+          id: string
+          is_required: boolean
+          max_count: number | null
+          min_count: number
+          sort_order: number
+        }
+        Insert: {
+          allow_multiple?: boolean
+          applicant_type_id: string
+          category_id: string
+          created_at?: string
+          id?: string
+          is_required?: boolean
+          max_count?: number | null
+          min_count?: number
+          sort_order?: number
+        }
+        Update: {
+          allow_multiple?: boolean
+          applicant_type_id?: string
+          category_id?: string
+          created_at?: string
+          id?: string
+          is_required?: boolean
+          max_count?: number | null
+          min_count?: number
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_applicant_types_applicant_type_id_fkey"
+            columns: ["applicant_type_id"]
+            isOneToOne: false
+            referencedRelation: "applicant_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_applicant_types_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "application_categories"
             referencedColumns: ["id"]
           },
         ]
