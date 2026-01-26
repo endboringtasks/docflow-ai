@@ -1123,7 +1123,6 @@ const MigrationVisaApplications = () => {
                   <ApplicantSelector
                     categoryId={newApplication.categoryId}
                     primaryClientId={newApplication.clientId}
-                    clients={clients}
                     selections={applicantSelections}
                     onSelectionsChange={setApplicantSelections}
                   />

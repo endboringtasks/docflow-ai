@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
@@ -8,12 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { User, Users } from "lucide-react";
 
-interface Client {
+interface RelatedApplicant {
   id: string;
-  client_type: "personal" | "corporate";
-  first_name: string | null;
-  last_name: string | null;
-  company_name: string | null;
+  type: "partner" | "dependant" | "witness";
+  first_name: string;
+  last_name: string;
+  date_of_birth?: string;
+  passport_number?: string;
+  nationality?: string;
+  relationship: string;
 }
 
 interface ApplicantType {
@@ -37,36 +39,58 @@ interface CategoryApplicantRule {
 export interface ApplicantSelection {
   [applicantTypeId: string]: {
     enabled: boolean;
-    clients: string[]; // Array of client IDs
+    clients: string[]; // Array of related applicant IDs
   };
 }
 
 interface ApplicantSelectorProps {
   categoryId: string;
   primaryClientId: string;
-  clients: Client[];
   selections: ApplicantSelection;
   onSelectionsChange: (selections: ApplicantSelection) => void;
 }
 
-const getClientName = (client: Client) => {
-  if (client.client_type === "corporate") {
-    return client.company_name || "Unnamed Company";
+const getApplicantName = (applicant: RelatedApplicant) => {
+  return `${applicant.first_name} ${applicant.last_name}`;
+};
+
+const getPrimaryClientName = (data: { client_type: string; first_name: string | null; last_name: string | null; company_name: string | null }) => {
+  if (data.client_type === "corporate") {
+    return data.company_name || "Unnamed Company";
   }
-  return client.last_name 
-    ? `${client.first_name} ${client.last_name}` 
-    : (client.first_name || "Unnamed Client");
+  return data.last_name 
+    ? `${data.first_name} ${data.last_name}` 
+    : (data.first_name || "Unnamed Client");
 };
 
 export const ApplicantSelector = ({
   categoryId,
   primaryClientId,
-  clients,
   selections,
   onSelectionsChange,
 }: ApplicantSelectorProps) => {
+  // Fetch primary client's data including related_applicants
+  const { data: primaryClientData, isLoading: isLoadingClient } = useQuery({
+    queryKey: ["client-related-applicants", primaryClientId],
+    queryFn: async () => {
+      if (!primaryClientId) return null;
+      const { data, error } = await supabase
+        .from("clients")
+        .select("first_name, last_name, company_name, client_type, related_applicants")
+        .eq("id", primaryClientId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!primaryClientId,
+  });
+
+  const relatedApplicants = Array.isArray(primaryClientData?.related_applicants) 
+    ? (primaryClientData.related_applicants as unknown as RelatedApplicant[])
+    : [];
+
   // Fetch category applicant rules
-  const { data: categoryApplicantRules = [], isLoading } = useQuery({
+  const { data: categoryApplicantRules = [], isLoading: isLoadingRules } = useQuery({
     queryKey: ["category-applicant-rules", categoryId],
     queryFn: async () => {
       if (!categoryId) return [];
@@ -81,9 +105,6 @@ export const ApplicantSelector = ({
     enabled: !!categoryId,
   });
 
-  // Get primary client object
-  const primaryClient = clients.find(c => c.id === primaryClientId);
-
   // Filter out non-primary rules for UI
   const nonPrimaryRules = categoryApplicantRules.filter(
     rule => rule.applicant_type?.code !== "primary"
@@ -94,15 +115,26 @@ export const ApplicantSelector = ({
     rule => rule.applicant_type?.code === "primary"
   );
 
-  // Get available clients (exclude already selected ones for the current type)
-  const getAvailableClients = (typeId: string, currentIndex: number) => {
-    const selectedInType = selections[typeId]?.clients || [];
-    return clients.filter(c => {
-      // Don't show primary client in other selections
-      if (c.id === primaryClientId) return false;
-      // Don't show if already selected at a different index in this type
-      const indexOfClient = selectedInType.indexOf(c.id);
-      return indexOfClient === -1 || indexOfClient === currentIndex;
+  // Get available related applicants for a specific type
+  const getAvailableApplicants = (typeCode: string, typeId: string, currentIndex: number) => {
+    // Map applicant type code to related_applicants type
+    const typeMapping: Record<string, string> = {
+      partner: "partner",
+      dependant: "dependant",
+      witness: "witness",
+    };
+    
+    const matchingType = typeMapping[typeCode.toLowerCase()];
+    if (!matchingType) return [];
+    
+    // Filter related applicants by type
+    const applicantsOfType = relatedApplicants.filter(a => a.type === matchingType);
+    
+    // Exclude already selected ones (except at current index)
+    const selectedIds = selections[typeId]?.clients || [];
+    return applicantsOfType.filter(a => {
+      const indexOfApplicant = selectedIds.indexOf(a.id);
+      return indexOfApplicant === -1 || indexOfApplicant === currentIndex;
     });
   };
 
@@ -156,6 +188,8 @@ export const ApplicantSelector = ({
     });
   };
 
+  const isLoading = isLoadingClient || isLoadingRules;
+
   if (isLoading) {
     return (
       <div className="space-y-2 py-2">
@@ -177,7 +211,7 @@ export const ApplicantSelector = ({
       </div>
 
       {/* Primary Applicant - Read only */}
-      {primaryRule && primaryClient && (
+      {primaryRule && primaryClientData && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Label className="text-sm text-muted-foreground">Primary Applicant</Label>
@@ -185,7 +219,7 @@ export const ApplicantSelector = ({
           </div>
           <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg border border-border">
             <User className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium">{getClientName(primaryClient)}</span>
+            <span className="text-sm font-medium">{getPrimaryClientName(primaryClientData)}</span>
           </div>
         </div>
       )}
@@ -235,15 +269,16 @@ export const ApplicantSelector = ({
               )}
             </div>
 
-            {/* Client Selection Dropdowns */}
+            {/* Applicant Selection Dropdowns */}
             {(selection.enabled || isRequired || selection.clients.length > 0) && (
               <div className="space-y-2 pl-4">
-                {(selection.clients.length > 0 ? selection.clients : [""]).map((clientId, index) => {
+                {(selection.clients.length > 0 ? selection.clients : [""]).map((applicantId, index) => {
                   // Only show if enabled or required
                   if (!selection.enabled && !isRequired && selection.clients.length === 0) return null;
                   if (!selection.enabled && !isRequired && index >= selection.clients.length) return null;
                   
-                  const availableClients = getAvailableClients(typeId, index);
+                  const typeCode = rule.applicant_type?.code || "";
+                  const availableApplicants = getAvailableApplicants(typeCode, typeId, index);
                   
                   return (
                     <div key={index} className="flex items-center gap-2">
@@ -253,21 +288,21 @@ export const ApplicantSelector = ({
                         </span>
                       )}
                       <Select
-                        value={clientId || ""}
+                        value={applicantId || ""}
                         onValueChange={(value) => handleClientSelect(typeId, index, value)}
                       >
                         <SelectTrigger className="flex-1">
-                          <SelectValue placeholder={`Select ${rule.applicant_type?.name?.toLowerCase() || 'client'}...`} />
+                          <SelectValue placeholder={`Select ${rule.applicant_type?.name?.toLowerCase() || 'applicant'}...`} />
                         </SelectTrigger>
                         <SelectContent>
-                          {availableClients.map((client) => (
-                            <SelectItem key={client.id} value={client.id}>
-                              {getClientName(client)}
+                          {availableApplicants.map((applicant) => (
+                            <SelectItem key={applicant.id} value={applicant.id}>
+                              {getApplicantName(applicant)} ({applicant.relationship})
                             </SelectItem>
                           ))}
-                          {availableClients.length === 0 && (
+                          {availableApplicants.length === 0 && (
                             <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                              No available clients
+                              No {typeCode.toLowerCase()}s added to this client's profile
                             </div>
                           )}
                         </SelectContent>
