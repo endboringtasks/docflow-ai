@@ -55,7 +55,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { getCountryFlag } from "@/lib/countryFlags";
-
+import RelatedApplicantsSection, { type RelatedApplicant } from "@/components/client/RelatedApplicantsSection";
 interface Client {
   id: string;
   client_type: "personal" | "corporate";
@@ -67,6 +67,8 @@ interface Client {
   client_folder_id: string | null;
   folder_status: "pending" | "creating" | "created" | "failed";
   created_at: string;
+  company_id: string;
+  related_applicants: RelatedApplicant[];
 }
 
 interface VisaApplication {
@@ -152,7 +154,13 @@ const ClientDetail = () => {
         .maybeSingle();
       
       if (error) throw error;
-      return data as Client | null;
+      if (!data) return null;
+      
+      // Cast related_applicants from JSON to our type
+      return {
+        ...data,
+        related_applicants: (data.related_applicants || []) as unknown as RelatedApplicant[],
+      } as Client;
     },
     enabled: !!clientId,
   });
@@ -664,6 +672,13 @@ const ClientDetail = () => {
             </div>
           </div>
         </div>
+
+        {/* Related Applicants Section */}
+        <RelatedApplicantsSection
+          clientId={client.id}
+          relatedApplicants={client.related_applicants}
+          companyId={client.company_id}
+        />
 
         {/* Applications Section */}
         <div className="space-y-4">
