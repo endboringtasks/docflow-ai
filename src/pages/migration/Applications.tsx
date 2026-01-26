@@ -57,6 +57,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { useFolderStatusRealtime } from "@/hooks/useFolderStatusRealtime";
 import { getCountryFlag } from "@/lib/countryFlags";
+import { ApplicantSelector, type ApplicantSelection } from "@/components/visa-application/ApplicantSelector";
 
 interface VisaApplication {
   id: string;
@@ -143,6 +144,7 @@ const MigrationVisaApplications = () => {
     visaSubclass: "",
     visaTypeId: "",
   });
+  const [applicantSelections, setApplicantSelections] = useState<ApplicantSelection>({});
 
   // Fetch clients for the dropdown
   const { data: clients = [] } = useQuery({
@@ -218,6 +220,22 @@ const MigrationVisaApplications = () => {
       if (error) throw error;
       return data as ApplicationType[];
     },
+  });
+
+  // Fetch category applicant rules for creating applicants
+  const { data: categoryApplicantRules = [] } = useQuery({
+    queryKey: ["category-applicant-rules", newApplication.categoryId],
+    queryFn: async () => {
+      if (!newApplication.categoryId) return [];
+      const { data, error } = await supabase
+        .from("category_applicant_types")
+        .select("*, applicant_type:applicant_types(id, code, name)")
+        .eq("category_id", newApplication.categoryId)
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!newApplication.categoryId,
   });
 
   // Filter categories by selected country
@@ -522,10 +540,51 @@ const MigrationVisaApplications = () => {
         console.error("Failed to dispatch webhook:", webhookError);
       }
 
+      // Insert application applicants
+      try {
+        const applicantRecords: any[] = [];
+
+        // Add primary applicant
+        const primaryRule = categoryApplicantRules.find((r: any) => r.applicant_type?.code === "primary");
+        if (primaryRule) {
+          applicantRecords.push({
+            visa_application_id: data.id,
+            client_id: data.client_id,
+            applicant_type_id: primaryRule.applicant_type_id,
+            is_primary: true,
+            sort_order: 0,
+          });
+        }
+
+        // Add other selected applicants
+        Object.entries(applicantSelections).forEach(([typeId, selection], index) => {
+          if (selection.enabled && selection.clients.length > 0) {
+            selection.clients.forEach((clientId, clientIndex) => {
+              if (clientId) {
+                applicantRecords.push({
+                  visa_application_id: data.id,
+                  client_id: clientId,
+                  applicant_type_id: typeId,
+                  is_primary: false,
+                  sort_order: (index + 1) * 10 + clientIndex,
+                });
+              }
+            });
+          }
+        });
+
+        if (applicantRecords.length > 0) {
+          await supabase.from("application_applicants").insert(applicantRecords);
+        }
+      } catch (applicantError) {
+        console.error("Failed to insert applicants:", applicantError);
+      }
+
       queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
       setIsCreateOpen(false);
       setNewApplication({ clientId: "", countryId: "", categoryId: "", subcategoryId: "", applicationName: "", visaSubclass: "", visaTypeId: "" });
+      setApplicantSelections({});
       toast.success("Application created!", {
         description: "A webhook can be configured to create the application folder.",
       });
@@ -963,13 +1022,17 @@ const MigrationVisaApplications = () => {
                     <Label htmlFor="category">Category</Label>
                     <Select
                       value={newApplication.categoryId}
-                      onValueChange={(value) => setNewApplication(prev => ({ 
-                        ...prev, 
-                        categoryId: value,
-                        subcategoryId: "",
-                        applicationName: "",
-                        visaSubclass: ""
-                      }))}
+                      onValueChange={(value) => {
+                        setNewApplication(prev => ({ 
+                          ...prev, 
+                          categoryId: value,
+                          subcategoryId: "",
+                          applicationName: "",
+                          visaSubclass: ""
+                        }));
+                        // Reset applicant selections when category changes
+                        setApplicantSelections({});
+                      }}
                       disabled={!newApplication.countryId}
                     >
                       <SelectTrigger>
@@ -1053,6 +1116,17 @@ const MigrationVisaApplications = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                )}
+
+                {/* Applicants Section - Only show after category is selected */}
+                {newApplication.categoryId && newApplication.clientId && (
+                  <ApplicantSelector
+                    categoryId={newApplication.categoryId}
+                    primaryClientId={newApplication.clientId}
+                    clients={clients}
+                    selections={applicantSelections}
+                    onSelectionsChange={setApplicantSelections}
+                  />
                 )}
               </div>
               <div className="flex justify-end gap-2">
