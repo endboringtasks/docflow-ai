@@ -73,6 +73,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { InviteClientDialog } from "@/components/visa-application/InviteClientDialog";
 import { DocumentPreviewDialog, ReviewStatus } from "@/components/visa-application/DocumentPreviewDialog";
+import { ApplicantsSection } from "@/components/visa-application/ApplicantsSection";
 import { useAuth } from "@/hooks/useAuth";
 import { getCountryFlag } from "@/lib/countryFlags";
 
@@ -82,6 +83,7 @@ interface VisaApplication {
   application_name: string;
   visa_subclass: string | null;
   country_id: string | null;
+  category_id: string | null;
   status: "draft" | "active" | "done";
   visa_application_folder_id: string | null;
   folder_status: "pending" | "creating" | "created" | "failed";
@@ -1624,6 +1626,15 @@ const VisaApplicationDetail = () => {
             </div>
           </div>
         </div>
+
+        {/* Applicants Section */}
+        {visaApplication && currentCompany && (
+          <ApplicantsSection
+            visaApplicationId={visaApplication.id}
+            categoryId={visaApplication.category_id}
+            companyId={currentCompany.id}
+          />
+        )}
 
         {/* Tabs */}
         <Tabs defaultValue="documents" className="space-y-6">
