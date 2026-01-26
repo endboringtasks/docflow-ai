@@ -481,6 +481,7 @@ export type Database = {
           id: string
           last_name: string | null
           phone: string | null
+          related_applicants: Json | null
         }
         Insert: {
           client_folder_id?: string | null
@@ -496,6 +497,7 @@ export type Database = {
           id?: string
           last_name?: string | null
           phone?: string | null
+          related_applicants?: Json | null
         }
         Update: {
           client_folder_id?: string | null
@@ -511,6 +513,7 @@ export type Database = {
           id?: string
           last_name?: string | null
           phone?: string | null
+          related_applicants?: Json | null
         }
         Relationships: [
           {
