@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Bug, Lightbulb, HelpCircle, MessageSquare, Filter, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
@@ -23,11 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -297,14 +292,17 @@ export default function AdminFeedback() {
                   const isExpanded = expandedId === item.id;
 
                   return (
-                    <Collapsible key={item.id} open={isExpanded} onOpenChange={() => setExpandedId(isExpanded ? null : item.id)}>
+                    <React.Fragment key={item.id}>
                       <TableRow className="hover:bg-muted/50">
                         <TableCell>
-                          <CollapsibleTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                            </Button>
-                          </CollapsibleTrigger>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0"
+                            onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                          >
+                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </Button>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -355,9 +353,9 @@ export default function AdminFeedback() {
                           </Select>
                         </TableCell>
                       </TableRow>
-                      <CollapsibleContent asChild>
+                      {isExpanded && (
                         <TableRow className="bg-muted/30">
-                          <TableCell colSpan={7} className="p-4">
+                          <TableCell colSpan={8} className="p-4">
                             <div className="space-y-4">
                               <div>
                                 <h4 className="font-medium text-sm mb-1">Description</h4>
@@ -425,8 +423,8 @@ export default function AdminFeedback() {
                             </div>
                           </TableCell>
                         </TableRow>
-                      </CollapsibleContent>
-                    </Collapsible>
+                      )}
+                    </React.Fragment>
                   );
                 })
               )}
