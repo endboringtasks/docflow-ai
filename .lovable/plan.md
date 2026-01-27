@@ -1,119 +1,104 @@
 
-## Fix: Duplicate Applicant Rules Showing in Selector
+## Replace "Applies" Button with Toggle Switch
 
-### Root Cause Analysis
-
-The issue is in the rule filtering logic in `ApplicantSelector.tsx`. Currently:
-
-1. The query fetches **all** rules for the category (not filtered by subcategory)
-2. The current filter logic has a flaw:
-   ```javascript
-   const specificRules = rules.filter(r => r.subcategory_id === subcategoryId);
-   const fallbackRules = rules.filter(r => r.subcategory_id === null);
-   return specificRules.length > 0 ? specificRules : fallbackRules;
-   ```
-
-**Problem**: This returns EITHER specific rules OR fallback rules, but what we need is:
-- For each applicant type, prefer the specific subcategory rule if it exists
-- If no specific rule exists for that type, use the fallback (null subcategory) rule
-
-Looking at the database:
-- Partner rules exist for each specific subcategory (Visitor, Family, Working, etc.)
-- Primary Applicant only exists as a fallback (subcategory_id = null)
-
-With the current logic, when "Visitor" is selected, `specificRules` only contains Partner + Dependant for Visitor, and Primary Applicant (which has null subcategory) is excluded entirely.
-
-Additionally, there may be a scenario where the rules aren't being filtered properly, causing all 5 Partner rules (one per subcategory) to display.
+### Summary
+Replace the current button-based toggle with a proper Switch component for conditional documents. The switch will have clear labels showing "Applies" (ON) and "N/A" (OFF), with N/A as the default state.
 
 ---
 
-### The Solution
+### Changes Overview
 
-Update the filtering logic to properly merge specific and fallback rules per applicant type:
+| Change | Description |
+|--------|-------------|
+| Replace button with Switch | Use the existing Radix Switch component for clearer ON/OFF interaction |
+| Change default value | New conditional documents default to `is_applicable: false` (N/A) |
+| Add inline labels | Show "N/A" and "Applies" labels next to the switch |
+| Update visual styling | Remove the "Not Applicable" badge since the switch state is now obvious |
 
-```javascript
-// Group rules by applicant_type_id
-const rulesByType = new Map<string, typeof rules[0]>();
+---
 
-// First, add fallback rules (subcategory_id = null)
-rules
-  .filter(r => r.subcategory_id === null)
-  .forEach(r => rulesByType.set(r.applicant_type_id, r));
+### UI Design
 
-// Then, override with specific subcategory rules if they exist
-rules
-  .filter(r => r.subcategory_id === subcategoryId)
-  .forEach(r => rulesByType.set(r.applicant_type_id, r));
-
-// Convert back to array and sort
-return Array.from(rulesByType.values())
-  .sort((a, b) => a.sort_order - b.sort_order);
+**Current:**
+```
+[Applies] button → click → [N/A] button with strikethrough
 ```
 
-This ensures:
-- Primary Applicant (fallback) is included
-- Partner with Visitor-specific settings is included (not 5 copies)
-- Dependant with Visitor-specific settings is included
-
----
-
-### Files to Modify
-
-| File | Change |
-|------|--------|
-| `src/components/visa-application/ApplicantSelector.tsx` | Fix rule filtering logic to merge by applicant_type_id |
-| `src/components/visa-application/ApplicantsSection.tsx` | Apply same fix for consistency |
+**New:**
+```
+N/A  [○────]  Applies    (OFF state - default)
+N/A  [────●]  Applies    (ON state)
+```
 
 ---
 
 ### Technical Details
 
-#### ApplicantSelector.tsx Changes (lines 100-114)
+#### 1. Update Default Value (line 598)
 
-**Before:**
-```javascript
-// Filter: prefer specific subcategory rules, fall back to null (category-wide)
-const rules = data as (CategoryApplicantRule & { subcategory_id: string | null })[];
-const specificRules = rules.filter(r => r.subcategory_id === subcategoryId);
-const fallbackRules = rules.filter(r => r.subcategory_id === null);
+```typescript
+// Before
+is_applicable: true, // Default to applicable, staff can toggle off
 
-// If there are specific rules for this subcategory, use those; otherwise use fallback
-return specificRules.length > 0 ? specificRules : fallbackRules;
+// After  
+is_applicable: false, // Default to N/A for conditional docs, staff toggles on if applicable
 ```
 
-**After:**
-```javascript
-const rules = data as (CategoryApplicantRule & { subcategory_id: string | null })[];
+#### 2. Replace Button with Switch (lines 2056-2082)
 
-// Merge rules: fallback first, then override with specific subcategory rules
-const rulesByType = new Map<string, (typeof rules)[0]>();
-
-// Add fallback rules (subcategory_id = null)
-rules
-  .filter(r => r.subcategory_id === null)
-  .forEach(r => rulesByType.set(r.applicant_type_id, r));
-
-// Override with specific subcategory rules
-rules
-  .filter(r => r.subcategory_id === subcategoryId)
-  .forEach(r => rulesByType.set(r.applicant_type_id, r));
-
-// Return merged rules sorted by sort_order
-return Array.from(rulesByType.values())
-  .sort((a, b) => a.sort_order - b.sort_order);
+```tsx
+{doc.requirementType === "conditional" && (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex items-center gap-1.5">
+          <span className={`text-xs ${!doc.isApplicable ? 'text-muted-foreground font-medium' : 'text-muted-foreground'}`}>
+            N/A
+          </span>
+          <Switch
+            checked={doc.isApplicable}
+            onCheckedChange={(checked) => 
+              toggleApplicabilityMutation.mutate({ docId: doc.id, isApplicable: checked })
+            }
+            disabled={toggleApplicabilityMutation.isPending}
+            className="data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-muted h-5 w-9"
+          />
+          <span className={`text-xs ${doc.isApplicable ? 'text-amber-600 font-medium' : 'text-muted-foreground'}`}>
+            Applies
+          </span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        <p className="text-xs">
+          Toggle whether this document applies to this case
+        </p>
+        {doc.applicabilityCondition && (
+          <p className="text-xs text-muted-foreground mt-1">{doc.applicabilityCondition}</p>
+        )}
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+)}
 ```
+
+#### 3. Keep "Not Applicable" Badge (optional)
+The badge at lines 1934-1938 can remain as a visual indicator in the document name area, or be removed since the switch state is now obvious. I recommend keeping it for quick scanning of the checklist.
 
 ---
 
-### Expected Result
+### Files to Modify
 
-After this fix, when creating an application with:
-- Category: Visa
-- Subcategory: Visitor
+| File | Changes |
+|------|---------|
+| `src/pages/migration/ApplicationDetail.tsx` | Replace button with Switch, update default value |
 
-The Applicants section will show:
-- **Primary Applicant** (from fallback rule) - Required
-- **Partner** (from Visitor-specific rule) - Optional toggle
-- **Dependant** (from Visitor-specific rule) - Multiple with count input
+---
 
-No more duplicate Partner entries.
+### Visual Behavior
+
+| State | Switch | Left Label | Right Label | Row Styling |
+|-------|--------|------------|-------------|-------------|
+| N/A (default) | OFF (left) | **N/A** (bold) | Applies (muted) | Normal |
+| Applies | ON (right) | N/A (muted) | **Applies** (amber, bold) | Normal |
+
+The switch uses amber color when ON to match the existing "If Applicable" badge styling.
