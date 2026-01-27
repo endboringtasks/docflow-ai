@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { Switch } from "@/components/ui/switch";
 import { useParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { getFileTypeBadge } from "@/lib/fileUtils";
@@ -595,7 +596,7 @@ const VisaApplicationDetail = () => {
                 translation_notes: template.translation_notes,
                 requirement_type: template.requirement_type ?? "required",
                 applicability_condition: template.applicability_condition ?? null,
-                is_applicable: true, // Default to applicable, staff can toggle off
+                is_applicable: template.requirement_type === "conditional" ? false : true, // Conditional docs default to N/A
               };
             });
 
@@ -2057,21 +2058,26 @@ const VisaApplicationDetail = () => {
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className={`h-7 text-xs ${doc.isApplicable ? 'text-amber-600 border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'text-muted-foreground border-muted line-through'}`}
-                                        onClick={() => toggleApplicabilityMutation.mutate({ docId: doc.id, isApplicable: !doc.isApplicable })}
-                                        disabled={toggleApplicabilityMutation.isPending}
-                                      >
-                                        {doc.isApplicable ? "Applies" : "N/A"}
-                                      </Button>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className={`text-xs ${!doc.isApplicable ? 'text-muted-foreground font-medium' : 'text-muted-foreground/60'}`}>
+                                          N/A
+                                        </span>
+                                        <Switch
+                                          checked={doc.isApplicable}
+                                          onCheckedChange={(checked) => 
+                                            toggleApplicabilityMutation.mutate({ docId: doc.id, isApplicable: checked })
+                                          }
+                                          disabled={toggleApplicabilityMutation.isPending}
+                                          className="data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-muted h-5 w-9"
+                                        />
+                                        <span className={`text-xs ${doc.isApplicable ? 'text-amber-600 font-medium' : 'text-muted-foreground/60'}`}>
+                                          Applies
+                                        </span>
+                                      </div>
                                     </TooltipTrigger>
                                     <TooltipContent side="top">
                                       <p className="text-xs">
-                                        {doc.isApplicable 
-                                          ? "Click to mark as not applicable to this case" 
-                                          : "Click to mark as applicable to this case"}
+                                        Toggle whether this document applies to this case
                                       </p>
                                       {doc.applicabilityCondition && (
                                         <p className="text-xs text-muted-foreground mt-1">{doc.applicabilityCondition}</p>
