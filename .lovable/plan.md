@@ -1,100 +1,148 @@
 
 
-## Fix Table Alignment on Beta Feedback Page
+## Add Subcategory Support to Category Applicant Rules
 
 ### The Problem
-The table rows are not aligned with the column headers because the `Collapsible` component (which renders as a `<div>`) is wrapping `<TableRow>` elements. This breaks the HTML table structure since `<tr>` elements must be direct children of `<tbody>`, not wrapped in `<div>` elements.
+Currently, applicant rules are configured per **category only**. However, different subcategories within the same category often have different applicant requirements:
 
-**Current Structure (Invalid):**
-```text
-<tbody>
-  <div> <!-- Collapsible renders as div - INVALID -->
-    <tr>...</tr>
-    <tr>...</tr>
-  </div>
-  <div>
-    <tr>...</tr>
-    <tr>...</tr>
-  </div>
-</tbody>
-```
+| Category | Subcategory | Required Applicants |
+|----------|-------------|---------------------|
+| Visa | Family and Partner | Primary + **Partner** + Dependants |
+| Visa | Working and Skilled | Primary only |
+| Visa | Refugee and Humanitarian | Primary + Dependants |
 
-**Required Structure (Valid):**
-```text
-<tbody>
-  <tr>...</tr>
-  <tr>...</tr>
-  <tr>...</tr>
-</tbody>
-```
+The admin UI only shows a single category dropdown, but you need to configure rules at the **category + subcategory level**.
 
 ---
 
 ### The Solution
-Remove the `Collapsible` wrapper and manually control the visibility of the expanded content row using React state. This keeps proper table semantics while maintaining the expand/collapse functionality.
 
----
+#### 1. Database Schema Change
+Add an optional `subcategory_id` column to the `category_applicant_types` table:
 
-### Technical Changes
-
-#### File: `src/pages/admin/Feedback.tsx`
-
-| Line | Change |
-|------|--------|
-| 26-30 | Remove unused Collapsible imports |
-| 300 | Remove `<Collapsible>` wrapper |
-| 303-307 | Change `CollapsibleTrigger` to regular `Button` with onClick handler |
-| 358-428 | Replace `<CollapsibleContent asChild>` with conditional rendering based on `isExpanded` state |
-| 360 | Fix `colSpan={7}` to `colSpan={8}` to match all 8 columns |
-| 429 | Remove closing `</Collapsible>` tag |
-
----
-
-### Updated Code Structure
-
-**Before (with Collapsible - broken):**
-```jsx
-<Collapsible key={item.id} open={isExpanded} onOpenChange={...}>
-  <TableRow>
-    <TableCell>
-      <CollapsibleTrigger asChild>
-        <Button>...</Button>
-      </CollapsibleTrigger>
-    </TableCell>
-    ...
-  </TableRow>
-  <CollapsibleContent asChild>
-    <TableRow>...</TableRow>
-  </CollapsibleContent>
-</Collapsible>
+```sql
+ALTER TABLE category_applicant_types 
+ADD COLUMN subcategory_id uuid REFERENCES application_subcategories(id) ON DELETE CASCADE;
 ```
 
-**After (without Collapsible - fixed):**
-```jsx
-<>
-  <TableRow key={item.id}>
-    <TableCell>
-      <Button onClick={() => setExpandedId(isExpanded ? null : item.id)}>
-        ...
-      </Button>
-    </TableCell>
-    ...
-  </TableRow>
-  {isExpanded && (
-    <TableRow>...</TableRow>
-  )}
-</>
+**Matching Logic:**
+- If a rule has `subcategory_id = NULL`, it applies to **all subcategories** in that category (default/fallback)
+- If a rule has `subcategory_id = 'xyz'`, it applies **only** to that specific subcategory
+
+---
+
+#### 2. Admin UI Changes (CategoryApplicantRulesTab.tsx)
+
+**Updated Selector Flow:**
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  Category: [Visa                    ▼]                         │
+│  Subcategory: [Family and Partner   ▼] or [All Subcategories]  │
+│                                                                 │
+│  [+ Add Applicant Type]                                         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+| Change | Description |
+|--------|-------------|
+| Add state | `selectedSubcategoryId` (nullable - null means "all subcategories") |
+| Add query | Fetch subcategories filtered by selected category |
+| Add second dropdown | Show subcategories + "All Subcategories (default)" option |
+| Update queries | Filter rules by both `category_id` AND `subcategory_id` |
+| Update mutations | Include `subcategory_id` when saving rules |
+| Update interface | Add `subcategory_id` to `CategoryApplicantType` interface |
+
+---
+
+#### 3. Consumer Component Changes
+
+**ApplicantSelector.tsx** - Used in application creation:
+| Change | Description |
+|--------|-------------|
+| Add prop | `subcategoryId?: string` |
+| Update query | Fetch rules matching either exact subcategory OR null subcategory (fallback) |
+| Update query key | Include subcategoryId for cache separation |
+
+**ApplicantsSection.tsx** - Used in application detail:
+| Change | Description |
+|--------|-------------|
+| Add prop | `subcategoryId: string \| null` |
+| Update query | Same logic - match specific OR fallback to null |
+
+**Applications.tsx** - Pass subcategoryId:
+```tsx
+<ApplicantSelector
+  categoryId={newApplication.categoryId}
+  subcategoryId={newApplication.subcategoryId}  // NEW
+  primaryClientId={newApplication.clientId}
+  selections={applicantSelections}
+  onSelectionsChange={setApplicantSelections}
+/>
+```
+
+**ApplicationDetail.tsx** - Pass subcategoryId:
+```tsx
+<ApplicantsSection
+  visaApplicationId={visaApplication.id}
+  categoryId={visaApplication.category_id}
+  subcategoryId={visaApplication.subcategory_id}  // NEW
+  companyId={currentCompany.id}
+/>
 ```
 
 ---
 
-### Summary of Changes
+### Rule Matching Logic
 
-1. **Remove Collapsible imports** - No longer needed
-2. **Replace Collapsible wrapper** with React Fragment (`<>...</>`)
-3. **Change CollapsibleTrigger** to regular Button with onClick
-4. **Replace CollapsibleContent** with conditional rendering (`{isExpanded && ...}`)
-5. **Fix colSpan** from 7 to 8 to match the number of columns
+When fetching rules for an application:
 
-This will restore proper table alignment while keeping the expand/collapse functionality working correctly.
+```sql
+-- Get rules for this category where:
+-- 1. subcategory_id matches exactly, OR
+-- 2. subcategory_id is NULL (category-wide default)
+SELECT * FROM category_applicant_types
+WHERE category_id = $categoryId
+  AND (subcategory_id = $subcategoryId OR subcategory_id IS NULL)
+ORDER BY 
+  subcategory_id NULLS LAST,  -- Prefer specific over default
+  sort_order;
+```
+
+**Priority Logic:**
+- If specific subcategory rules exist → use those only
+- If no specific rules → fall back to category-wide defaults (where `subcategory_id IS NULL`)
+
+---
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| Database migration | Add `subcategory_id` column to `category_applicant_types` |
+| `src/components/admin/CategoryApplicantRulesTab.tsx` | Add subcategory selector, update queries/mutations |
+| `src/components/visa-application/ApplicantSelector.tsx` | Add `subcategoryId` prop, update query logic |
+| `src/components/visa-application/ApplicantsSection.tsx` | Add `subcategoryId` prop, update query logic |
+| `src/pages/migration/Applications.tsx` | Pass `subcategoryId` to ApplicantSelector |
+| `src/pages/migration/ApplicationDetail.tsx` | Pass `subcategoryId` to ApplicantsSection |
+| `src/integrations/supabase/types.ts` | Will auto-update after migration |
+
+---
+
+### Updated Admin UI Wireframe
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Configure which applicant types are required for each category/subcategory │
+│                                                                             │
+│ Category: [Visa                    ▼]                                       │
+│ Subcategory: [Family and Partner   ▼]    [+ Add Applicant Type]             │
+│              ☐ All Subcategories (default rules)                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Order │ Applicant Type          │ Required │ Multiple │ Min │ Max │ Actions │
+├───────┼─────────────────────────┼──────────┼──────────┼─────┼─────┼─────────┤
+│   0   │ Primary Applicant       │   ●───   │   ───○   │  1  │  1  │   🗑    │
+│  10   │ Partner                 │   ●───   │   ───○   │  1  │  1  │   🗑    │
+│  20   │ Dependant               │   ───○   │   ●───   │  0  │ 10  │   🗑    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
