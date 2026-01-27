@@ -1,128 +1,173 @@
 
+## What’s happening (confirmed in Live DB)
 
-## Fix Remaining Duplicate Document Initialization in Applications.tsx
+For application **3975a8c4-a9bb-4f43-bc57-5ed969943179**, the `document_checklist` table shows the same documents inserted **twice**:
 
-### Problem Summary
+- First batch around **2026-01-27 04:51:32 UTC**
+- Second batch around **2026-01-27 04:51:54 UTC**
 
-The previous fix removed document initialization from `ClientDetail.tsx` but missed the identical initialization logic in `Applications.tsx`. When creating an application from the Applications list:
+Example duplicates (each has `cnt = 2`): Passport, Name Change Certificate, and even the “(Translation)” rows.
 
-1. `Applications.tsx` inserts documents immediately in `onSuccess` (lines 395-498)
-2. User navigates to `ApplicationDetail.tsx` 
-3. `ApplicationDetail.tsx` also tries to initialize (sometimes winning the race against the first batch appearing in the database)
+This means the checklist initialization is still being executed more than once for the same application, and the current prevention check is not reliably stopping the second run.
 
-Result: Documents created twice, ~8 seconds apart.
+## Why it’s still duplicating (root cause)
+
+Even after removing the redundant initialization from `ClientDetail.tsx` and `Applications.tsx`, duplicates can still occur because:
+
+1. **The “duplicate prevention” check in `ApplicationDetail.tsx` is not reliable**
+   - It uses:
+     - `select("id", { count: "exact", head: true })`
+   - In practice, this can return `count = null` (or be skipped if an error occurs), and the code currently does **not** check/throw on error.  
+   - Result: the “if count > 0 then return” guard can silently fail and allow reinsertion.
+
+2. **There is no database-level uniqueness constraint**
+   - So even if the UI accidentally runs initialization twice (refresh, double navigation, multiple tabs, etc.), the database happily accepts duplicates.
+
+The fix needs to be **idempotent** (safe to run multiple times) and backed by the database.
 
 ---
 
-### Solution
+## Implementation plan (code + database hard-stop)
 
-Remove the document template copying logic from `Applications.tsx` `onSuccess`, matching what was done for `ClientDetail.tsx`. This makes `ApplicationDetail.tsx` the **single source of truth** for document initialization.
+### 1) Strengthen the pre-check in `ApplicationDetail.tsx` (stop relying on `head: true` count)
+**File:** `src/pages/migration/ApplicationDetail.tsx`
 
----
+Replace the current count check:
 
-### Changes
+- Current:
+  - `.select("id", { count: "exact", head: true })`
 
-| File | Action |
-|------|--------|
-| `src/pages/migration/Applications.tsx` | Remove document template copying from `onSuccess` (lines 395-498) |
+With a simpler, reliable existence query:
 
----
+- Use:
+  - `.select("id").eq("visa_application_id", visaApplicationId).limit(1)`
+- And **throw if error**.
+- If `data.length > 0`, return early.
 
-### Code to Remove
+This makes it extremely unlikely the app will reinitialize if documents already exist.
 
-In `src/pages/migration/Applications.tsx`, delete lines 395-498 (the entire document template copying block):
+### 2) Make inserts safe even if initialization runs twice (use upsert/ignore duplicates)
+**File:** `src/pages/migration/ApplicationDetail.tsx`
 
-```typescript
-onSuccess: async (data) => {
-  // DELETE THIS ENTIRE BLOCK (lines 396-498):
-  // Copy document templates to document_checklist based on linked application types
-  // try {
-  //   if (data.visa_type_id && currentCompany?.id) {
-  //     ...
-  //   }
-  // } catch (templateError) {
-  //   console.error("Failed to copy document templates:", templateError);
-  // }
+Once we add the unique index (step 3), update both insert blocks:
 
-  // KEEP everything after line 498 (webhook dispatch, applicant insertion, etc.)
-  // Dispatch webhook for visa_application.created event
-  try {
-    // ... existing webhook code ...
-  }
+- Original docs insertion
+- Translation docs insertion
+
+…to use either:
+- `upsert(..., { onConflict: "...", ignoreDuplicates: true })`, or
+- `insert()` and handle conflict errors gracefully (less ideal because it will throw user-facing errors).
+
+Goal: if the init runs twice, the second run becomes a no-op.
+
+### 3) Add a DB-level unique index to prevent duplicates forever
+**File:** new migration under `supabase/migrations/`
+
+Create a unique index on the natural “document identity”:
+
+- `(visa_application_id, document_name, applicant_type, age_condition)`  
+- Use `NULLS NOT DISTINCT` so NULL applicant_type / age_condition still conflicts (Postgres 17 supports this).
+
+This ensures duplicates cannot be inserted even if the UI or multiple browsers race.
+
+Important: this migration will fail if duplicates already exist, so cleanup must happen first (step 4).
+
+### 4) Clean up existing duplicates (Live DB)
+You currently have duplicates already (including for `3975a8c4-a9bb-4f43-bc57-5ed969943179`), so we need a cleanup before adding the unique index.
+
+#### 4a) Targeted cleanup for the single application (safer first step)
+Run this in **Supabase SQL Editor (Live)**.
+
+**Preview what would be deleted:**
+```sql
+WITH attachment_counts AS (
+  SELECT document_checklist_id, COUNT(*) AS attachment_count
+  FROM public.document_attachments
+  GROUP BY document_checklist_id
+),
+ranked AS (
+  SELECT
+    dc.id,
+    dc.visa_application_id,
+    dc.document_name,
+    dc.applicant_type,
+    dc.age_condition,
+    dc.created_at,
+    COALESCE(ac.attachment_count, 0) AS attachment_count,
+    ROW_NUMBER() OVER (
+      PARTITION BY dc.visa_application_id, dc.document_name, dc.applicant_type, dc.age_condition
+      ORDER BY
+        (COALESCE(ac.attachment_count, 0) > 0) DESC,
+        (dc.file_path IS NOT NULL) DESC,
+        dc.is_applicable DESC,
+        dc.created_at ASC
+    ) AS rn
+  FROM public.document_checklist dc
+  LEFT JOIN attachment_counts ac ON ac.document_checklist_id = dc.id
+  WHERE dc.visa_application_id = '3975a8c4-a9bb-4f43-bc57-5ed969943179'
+)
+SELECT *
+FROM ranked
+WHERE rn > 1
+ORDER BY document_name, created_at;
 ```
 
-The `onSuccess` should start directly with the webhook dispatch code (currently line 500).
-
----
-
-### Cleanup Existing Duplicates
-
-After fixing the code, we need to clean up the existing duplicates in the database. Here's a SQL script to run in the Supabase SQL Editor (targeting Live environment):
-
+**Delete duplicates (keeps the “best” row per document):**
 ```sql
--- Preview: See which duplicates would be deleted (run first to verify)
-WITH ranked AS (
-  SELECT 
-    id,
-    visa_application_id,
-    document_name,
-    applicant_type,
-    age_condition,
-    coalesce(translation_of_id::text, '') as trans_key,
-    created_at,
-    is_applicable,
+WITH attachment_counts AS (
+  SELECT document_checklist_id, COUNT(*) AS attachment_count
+  FROM public.document_attachments
+  GROUP BY document_checklist_id
+),
+ranked AS (
+  SELECT
+    dc.id,
     ROW_NUMBER() OVER (
-      PARTITION BY visa_application_id, document_name, applicant_type, 
-                   age_condition, coalesce(translation_of_id::text, '')
-      ORDER BY 
-        -- Prefer documents with is_applicable = true, then earliest created
-        is_applicable DESC,
-        created_at ASC
-    ) as rn
-  FROM public.document_checklist
-)
-SELECT id, visa_application_id, document_name, is_applicable, created_at, rn
-FROM ranked 
-WHERE rn > 1
-ORDER BY visa_application_id, document_name;
-
--- Actual cleanup: Delete duplicates (keep the one with is_applicable=true or earliest)
-WITH ranked AS (
-  SELECT 
-    id,
-    ROW_NUMBER() OVER (
-      PARTITION BY visa_application_id, document_name, applicant_type, 
-                   age_condition, coalesce(translation_of_id::text, '')
-      ORDER BY 
-        is_applicable DESC,
-        created_at ASC
-    ) as rn
-  FROM public.document_checklist
+      PARTITION BY dc.visa_application_id, dc.document_name, dc.applicant_type, dc.age_condition
+      ORDER BY
+        (COALESCE(ac.attachment_count, 0) > 0) DESC,
+        (dc.file_path IS NOT NULL) DESC,
+        dc.is_applicable DESC,
+        dc.created_at ASC
+    ) AS rn
+  FROM public.document_checklist dc
+  LEFT JOIN attachment_counts ac ON ac.document_checklist_id = dc.id
+  WHERE dc.visa_application_id = '3975a8c4-a9bb-4f43-bc57-5ed969943179'
 )
 DELETE FROM public.document_checklist
 WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
 ```
 
+#### 4b) Global cleanup (needed before creating a global unique index)
+After verifying the targeted cleanup works, we’ll run a similar dedupe query **without** the `WHERE visa_application_id = ...` filter, so the unique index can be created successfully.
+
+### 5) Verification steps
+After the code + DB fixes:
+
+1. Create a brand-new application.
+2. Open its Application Detail page.
+3. Refresh the page a few times.
+4. Confirm the checklist count stays stable (no doubling).
+5. Confirm no new duplicates appear with:
+   - `group by document_name, applicant_type, age_condition having count(*) > 1`.
+
 ---
 
-### Why This Works
+## Deliverables (what will change)
 
-1. **Single initialization path**: Only `ApplicationDetail.tsx` handles document creation
-2. **Race condition protection**: Already has `useRef` guard + database count check
-3. **Consistent behavior**: Whether creating from Clients page or Applications page, documents are always initialized when viewing the application detail
+### Code changes
+- `src/pages/migration/ApplicationDetail.tsx`
+  - Replace unreliable `head: true` count check with `select('id').limit(1)` + proper error handling.
+  - Change inserts to `upsert(ignoreDuplicates)` once the unique index exists.
+
+### Database changes
+- New migration adding unique index:
+  - Prevents duplicates permanently.
+
+### Ops / maintenance
+- One-time SQL cleanup to remove existing duplicates (starting with the specific application you shared, then global).
 
 ---
 
-### Affected Applications
-
-Based on database analysis, these applications have duplicates and will be cleaned:
-
-| Application ID | Total Docs | Estimated Duplicates |
-|----------------|------------|---------------------|
-| de514e29-a33a-... | 156 | 102 |
-| 69c1cf8e-57d8-... | 153 | 99 |
-| dd6b81b9-56f3-... | 77 | 33 |
-| 7e70363f-dd5e-... | 27 | 18 |
-| **c8223cbd-30e6-...** (your app) | 26 | 11 |
-| + 3 more apps | - | - |
-
+## Notes / expectations
+- If your custom domain is pointing at a deployment that hasn’t been updated yet, the behavior won’t change until you deploy/publish the updated build. The DB-level unique index ensures that even if an older build runs the init twice, duplicates still cannot be created.
