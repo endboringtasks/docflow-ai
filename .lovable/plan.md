@@ -1,78 +1,92 @@
 
-
-# Fix: Translation Documents Should Follow Parent's Applicability
+# Fix: Translation Documents Should Inherit `is_applicable` from Original at Creation
 
 ## Problem Summary
 
-When a user toggles a document (e.g., "Divorce Certificate") to **N/A** (not applicable), the linked translation document (e.g., "Divorce Certificate (Translation)") is **not updated** and remains `is_applicable = true`.
+For **newly created applications**, translation documents are still appearing in the Client Portal even when their parent original document is already marked as N/A.
 
-This causes the translation document to still appear in the **Client Portal** - even though the original document it translates is marked as N/A.
+**Database evidence for application `2f27e9e6-4fda-49bd-a6c4-77dc7cf4a61e`:**
 
-**Current behavior in database:**
-
-| Document | is_applicable |
-|----------|---------------|
-| Divorce Certificate | **false** (N/A) |
-| Divorce Certificate (Translation) | **true** (showing in portal) |
-| Military Service or Discharge Records | **false** (N/A) |
-| Military Service or Discharge Records (Translation) | **true** (showing in portal) |
-
----
+| Document | is_applicable | Parent is_applicable |
+|----------|---------------|---------------------|
+| Divorce Certificate | false | - |
+| Divorce Certificate (Translation) | **true** (wrong!) | false |
+| Military Service or Discharge Records | false | - |
+| Military Service or Discharge Records (Translation) | **true** (wrong!) | false |
 
 ## Root Cause
 
-The `toggleApplicabilityMutation` (lines 801-817 in `ApplicationDetail.tsx`) only updates the single document that was toggled:
+The previous fix (cascading `is_applicable` on toggle) only works when someone **manually toggles** a document. But in this case:
 
+1. The original documents are created with `is_applicable = false` from the template (because `requirement_type === "conditional"`)
+2. Translation documents are created in a separate pass that does **not inherit** `is_applicable` from the original
+3. No explicit `is_applicable` is set, so it defaults to `true`
+
+**Current code (lines 642-661):**
 ```typescript
-const { error } = await supabase
-  .from("document_checklist")
-  .update({ is_applicable: isApplicable })
-  .eq("id", docId);  // Only updates ONE document
+const translationDocs = (originalsNeedingTranslation || []).map((originalDoc: any) => {
+  return {
+    visa_application_id: visaApplicationId,
+    // ... other fields ...
+    // is_applicable is MISSING - defaults to true!
+  };
+});
 ```
-
-It does not propagate the change to any translation documents that reference this original via `translation_of_id`.
-
----
 
 ## Solution
 
-When toggling a document's applicability, **also update any translation documents** that have `translation_of_id` pointing to this document.
+When creating translation documents during initialization, **explicitly set `is_applicable` to match the original document's value**.
 
 ### Changes Required
 
 **File:** `src/pages/migration/ApplicationDetail.tsx`
 
-Update `toggleApplicabilityMutation` to:
-1. Update the target document's `is_applicable` as before
-2. Also update any documents where `translation_of_id = docId` to match the same `is_applicable` value
+1. Modify the query that fetches originals needing translation to also include `is_applicable` (line 632-637)
+2. When building translation docs, set `is_applicable: originalDoc.is_applicable` (line 644-660)
+
+### Code Change
+
+**Step 1: Update the fetch query to include `is_applicable`**
 
 ```typescript
-mutationFn: async ({ docId, isApplicable }: { docId: string; isApplicable: boolean }) => {
-  // Update the original document
-  const { error: originalError } = await supabase
-    .from("document_checklist")
-    .update({ is_applicable: isApplicable })
-    .eq("id", docId);
-  
-  if (originalError) throw originalError;
-  
-  // Also update any translation documents that reference this original
-  const { error: translationError } = await supabase
-    .from("document_checklist")
-    .update({ is_applicable: isApplicable })
-    .eq("translation_of_id", docId);
-  
-  if (translationError) throw translationError;
-},
+// Re-fetch originals that require translation from DB
+const { data: originalsNeedingTranslation, error: fetchOriginalsError } = await supabase
+  .from("document_checklist")
+  .select("id, document_name, category, description, applicant_type, age_condition, requires_translation, translation_target_language, translation_certification_type_id, translation_notes, is_applicable")  // ADD is_applicable
+  .eq("visa_application_id", visaApplicationId)
+  .eq("requires_translation", true)
+  .is("translation_of_id", null);
 ```
 
----
+**Step 2: Set `is_applicable` when creating translation docs**
+
+```typescript
+const translationDocs = (originalsNeedingTranslation || []).map((originalDoc: any) => {
+  const translationName = `[${originalDoc.category || "General"}:required] ${originalDoc.document_name.replace(/^\[[^\]]+\]\s*/, "")} (Translation)`;
+  return {
+    visa_application_id: visaApplicationId,
+    company_id: visaApplication.company_id,
+    document_name: translationName,
+    category: originalDoc.category,
+    description: `Certified translation of: ${originalDoc.document_name.replace(/^\[[^\]]+\]\s*/, "")}`,
+    applicant_type: originalDoc.applicant_type,
+    age_condition: originalDoc.age_condition,
+    is_completed: false,
+    is_standard_for_client: true,
+    review_status: "pending_client",
+    requires_translation: false,
+    translation_of_id: originalDoc.id,
+    translation_target_language: originalDoc.translation_target_language,
+    translation_certification_type_id: originalDoc.translation_certification_type_id,
+    translation_notes: originalDoc.translation_notes,
+    is_applicable: originalDoc.is_applicable,  // INHERIT from original
+  };
+});
+```
 
 ## Data Cleanup (Existing Records)
 
-After fixing the code, you need to clean up existing data where translation documents have `is_applicable = true` but their parent original has `is_applicable = false`.
-
-**Run this in Supabase SQL Editor (Production):**
+After fixing the code, run this SQL in **Supabase SQL Editor** to fix existing translation documents that should be N/A:
 
 ```sql
 -- Preview: Show translation docs that should be N/A
@@ -96,47 +110,26 @@ WHERE trans.translation_of_id = orig.id
   AND orig.is_applicable = false;
 ```
 
----
-
-## Technical Details
-
-### Why This Happens
-
-1. **Document creation:** Translation documents are created with `is_applicable` defaulting to `true` (not inherited from the original at creation time)
-2. **Toggle mutation:** Only updates the clicked document, not its linked translations
-3. **Portal filter:** `get_portal_documents` correctly filters by `is_applicable = true`, but sees the translation as applicable even though its parent isn't
-
-### Alternative Considered
-
-We could update `get_portal_documents` to check the parent's applicability:
-
-```sql
-WHERE dc.is_applicable = true
-  AND (dc.translation_of_id IS NULL 
-       OR EXISTS (SELECT 1 FROM document_checklist parent 
-                  WHERE parent.id = dc.translation_of_id 
-                  AND parent.is_applicable = true))
-```
-
-However, the proposed solution (updating translation docs when toggling) is simpler and keeps the data consistent, making it easier to understand the checklist state at a glance.
-
----
-
 ## Files to Change
 
 | File | Change |
 |------|--------|
-| `src/pages/migration/ApplicationDetail.tsx` | Update `toggleApplicabilityMutation` to cascade to translation documents |
+| `src/pages/migration/ApplicationDetail.tsx` | Add `is_applicable` to translation doc creation, inheriting from original |
 
----
+## Summary of All Translation Applicability Fixes
+
+With this change, we now have **complete coverage**:
+
+| Scenario | Fix |
+|----------|-----|
+| User toggles original to N/A | `toggleApplicabilityMutation` cascades to translations (already implemented) |
+| Original created as N/A from template | Translation inherits `is_applicable` at creation time (this fix) |
 
 ## Verification
 
 After implementing:
-1. Go to the application detail page
-2. Toggle "Divorce Certificate" to N/A
-3. Verify "Divorce Certificate (Translation)" automatically becomes N/A
-4. Toggle "Divorce Certificate" back to Applies
-5. Verify "Divorce Certificate (Translation)" automatically becomes applicable again
-6. Check the Client Portal - N/A documents and their translations should no longer appear
-
+1. Create a new visa application with a subclass that has conditional documents (like Divorce Certificate)
+2. Open the Client Portal link
+3. Verify that translations for N/A documents do NOT appear
+4. Toggle an N/A document to "Applies" in the admin view
+5. Verify the translation now appears in the Client Portal
