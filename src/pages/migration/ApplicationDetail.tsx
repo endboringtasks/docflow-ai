@@ -516,13 +516,16 @@ const VisaApplicationDetail = () => {
     mutationFn: async () => {
       if (!visaApplicationId || !visaApplication?.company_id) throw new Error("Missing IDs");
 
-      // Double-check no documents exist (prevents race condition duplicates)
-      const { count } = await supabase
+      // Double-check no documents exist (reliable existence query - not using head:true count)
+      const { data: existingDocs, error: existingError } = await supabase
         .from("document_checklist")
-        .select("id", { count: "exact", head: true })
-        .eq("visa_application_id", visaApplicationId);
+        .select("id")
+        .eq("visa_application_id", visaApplicationId)
+        .limit(1);
 
-      if (count && count > 0) {
+      if (existingError) throw existingError;
+      
+      if (existingDocs && existingDocs.length > 0) {
         console.log("Documents already exist, skipping initialization");
         return; // Exit early, documents already exist
       }
