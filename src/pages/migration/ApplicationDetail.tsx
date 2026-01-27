@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Switch } from "@/components/ui/switch";
 import { useParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
@@ -308,7 +308,7 @@ const VisaApplicationDetail = () => {
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isMergeOpen, setIsMergeOpen] = useState(false);
   const [newDocName, setNewDocName] = useState("");
-  const [documentsInitialized, setDocumentsInitialized] = useState(false);
+  const documentsInitializedRef = useRef(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
   const [reviewFilter, setReviewFilter] = useState<"all" | ReviewStatus>("all");
   const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
@@ -516,6 +516,17 @@ const VisaApplicationDetail = () => {
     mutationFn: async () => {
       if (!visaApplicationId || !visaApplication?.company_id) throw new Error("Missing IDs");
 
+      // Double-check no documents exist (prevents race condition duplicates)
+      const { count } = await supabase
+        .from("document_checklist")
+        .select("id", { count: "exact", head: true })
+        .eq("visa_application_id", visaApplicationId);
+
+      if (count && count > 0) {
+        console.log("Documents already exist, skipping initialization");
+        return; // Exit early, documents already exist
+      }
+
       // 1) Try to initialize from configured templates (preferred)
       const visaTypeQuery = supabase
         .from("visa_types")
@@ -662,11 +673,10 @@ const VisaApplicationDetail = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
-      setDocumentsInitialized(true);
+      // ref is already set before mutation to prevent race conditions
     },
     onError: (error) => {
-      // Prevent infinite retries, and surface the problem
-      setDocumentsInitialized(true);
+      // ref is already set, prevent infinite retries
       console.error("Failed to initialize documents:", error);
       toast.error("Couldn't generate document checklist", {
         description: error instanceof Error ? error.message : "Please try again.",
@@ -680,12 +690,13 @@ const VisaApplicationDetail = () => {
       visaApplication &&
       dbDocuments !== undefined &&
       dbDocuments.length === 0 &&
-      !documentsInitialized &&
+      !documentsInitializedRef.current &&
       !initializeDocumentsMutation.isPending
     ) {
+      documentsInitializedRef.current = true; // Set immediately to prevent race
       initializeDocumentsMutation.mutate();
     }
-  }, [visaApplication, dbDocuments, documentsInitialized]);
+  }, [visaApplication, dbDocuments]);
 
   // Transform DB documents to UI format
   const documents: DocumentItem[] = (dbDocuments || []).map(doc => {
