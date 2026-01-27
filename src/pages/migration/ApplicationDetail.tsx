@@ -84,6 +84,7 @@ interface VisaApplication {
   visa_subclass: string | null;
   country_id: string | null;
   category_id: string | null;
+  subcategory_id: string | null;
   status: "draft" | "active" | "done";
   visa_application_folder_id: string | null;
   folder_status: "pending" | "creating" | "created" | "failed";
@@ -1632,6 +1633,7 @@ const VisaApplicationDetail = () => {
           <ApplicantsSection
             visaApplicationId={visaApplication.id}
             categoryId={visaApplication.category_id}
+            subcategoryId={visaApplication.subcategory_id}
             companyId={currentCompany.id}
           />
         )}

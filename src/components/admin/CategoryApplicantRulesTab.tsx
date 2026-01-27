@@ -50,6 +50,13 @@ interface ApplicationCategory {
   country_id: string | null;
 }
 
+interface ApplicationSubcategory {
+  id: string;
+  code: string;
+  name: string;
+  category_id: string;
+}
+
 interface ApplicantType {
   id: string;
   code: string;
@@ -60,6 +67,7 @@ interface ApplicantType {
 interface CategoryApplicantType {
   id: string;
   category_id: string;
+  subcategory_id: string | null;
   applicant_type_id: string;
   is_required: boolean;
   allow_multiple: boolean;
@@ -72,6 +80,7 @@ interface CategoryApplicantType {
 export function CategoryApplicantRulesTab() {
   const queryClient = useQueryClient();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<CategoryApplicantType | null>(null);
   const [deleteRule, setDeleteRule] = useState<CategoryApplicantType | null>(null);
@@ -98,6 +107,23 @@ export function CategoryApplicantRulesTab() {
     },
   });
 
+  // Fetch subcategories for selected category
+  const { data: subcategories = [] } = useQuery({
+    queryKey: ["admin-subcategories-for-rules", selectedCategoryId],
+    queryFn: async () => {
+      if (!selectedCategoryId) return [];
+      const { data, error } = await supabase
+        .from("application_subcategories")
+        .select("id, code, name, category_id")
+        .eq("category_id", selectedCategoryId)
+        .eq("is_active", true)
+        .order("sort_order");
+      if (error) throw error;
+      return data as ApplicationSubcategory[];
+    },
+    enabled: !!selectedCategoryId,
+  });
+
   // Fetch applicant types
   const { data: applicantTypes = [], isLoading: isLoadingTypes } = useQuery({
     queryKey: ["admin-applicant-types-for-rules"],
@@ -112,16 +138,26 @@ export function CategoryApplicantRulesTab() {
     },
   });
 
-  // Fetch category applicant rules for selected category
+  // Fetch category applicant rules for selected category/subcategory
   const { data: rules = [], isLoading: isLoadingRules } = useQuery({
-    queryKey: ["category-applicant-rules", selectedCategoryId],
+    queryKey: ["category-applicant-rules-admin", selectedCategoryId, selectedSubcategoryId],
     queryFn: async () => {
       if (!selectedCategoryId) return [];
-      const { data, error } = await supabase
+      
+      let query = supabase
         .from("category_applicant_types")
         .select("*, applicant_type:applicant_types(id, code, name, is_active)")
         .eq("category_id", selectedCategoryId)
         .order("sort_order");
+      
+      // Filter by subcategory - either exact match or null for "all subcategories"
+      if (selectedSubcategoryId === null) {
+        query = query.is("subcategory_id", null);
+      } else {
+        query = query.eq("subcategory_id", selectedSubcategoryId);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data as CategoryApplicantType[];
     },
@@ -136,6 +172,7 @@ export function CategoryApplicantRulesTab() {
   const saveMutation = useMutation({
     mutationFn: async (data: {
       category_id: string;
+      subcategory_id: string | null;
       applicant_type_id: string;
       is_required: boolean;
       allow_multiple: boolean;
@@ -161,7 +198,7 @@ export function CategoryApplicantRulesTab() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["category-applicant-rules", selectedCategoryId] });
+      queryClient.invalidateQueries({ queryKey: ["category-applicant-rules-admin", selectedCategoryId, selectedSubcategoryId] });
       toast.success(editingRule ? "Rule updated" : "Applicant type added to category");
       closeDialog();
     },
@@ -174,7 +211,7 @@ export function CategoryApplicantRulesTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["category-applicant-rules", selectedCategoryId] });
+      queryClient.invalidateQueries({ queryKey: ["category-applicant-rules-admin", selectedCategoryId, selectedSubcategoryId] });
       toast.success("Applicant type removed from category");
       setDeleteRule(null);
     },
@@ -190,7 +227,7 @@ export function CategoryApplicantRulesTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["category-applicant-rules", selectedCategoryId] });
+      queryClient.invalidateQueries({ queryKey: ["category-applicant-rules-admin", selectedCategoryId, selectedSubcategoryId] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -233,6 +270,7 @@ export function CategoryApplicantRulesTab() {
     }
     saveMutation.mutate({
       category_id: selectedCategoryId,
+      subcategory_id: selectedSubcategoryId,
       applicant_type_id: form.applicant_type_id,
       is_required: form.is_required,
       allow_multiple: form.allow_multiple,
@@ -264,26 +302,37 @@ export function CategoryApplicantRulesTab() {
   }
 
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+  const selectedSubcategory = subcategories.find((s) => s.id === selectedSubcategoryId);
+  const scopeLabel = selectedSubcategoryId 
+    ? `${selectedCategory?.name} → ${selectedSubcategory?.name}`
+    : `${selectedCategory?.name} (all subcategories)`;
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-start">
         <div className="space-y-1">
           <p className="text-sm text-muted-foreground">
-            Configure which applicant types are required or optional for each application category.
+            Configure which applicant types are required or optional for each application category and subcategory.
           </p>
           <p className="text-xs text-muted-foreground">
-            Example: A Sponsorship category might require a Sponsor and allow multiple Dependants.
+            Select "All Subcategories" to set default rules for the category. Rules for specific subcategories override the defaults.
           </p>
         </div>
       </div>
 
-      {/* Category Selector */}
-      <div className="flex items-center gap-4">
-        <div className="w-80">
-          <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+      {/* Category and Subcategory Selectors */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="w-64">
+          <Label className="text-xs text-muted-foreground mb-1.5 block">Category</Label>
+          <Select 
+            value={selectedCategoryId} 
+            onValueChange={(value) => {
+              setSelectedCategoryId(value);
+              setSelectedSubcategoryId(null); // Reset subcategory when category changes
+            }}
+          >
             <SelectTrigger>
-              <SelectValue placeholder="Select a category to configure..." />
+              <SelectValue placeholder="Select a category..." />
             </SelectTrigger>
             <SelectContent>
               {categories.map((category) => (
@@ -294,11 +343,38 @@ export function CategoryApplicantRulesTab() {
             </SelectContent>
           </Select>
         </div>
+        
         {selectedCategoryId && (
-          <Button onClick={openAddDialog} size="sm" disabled={availableTypes.length === 0}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Applicant Type
-          </Button>
+          <div className="w-64">
+            <Label className="text-xs text-muted-foreground mb-1.5 block">Subcategory</Label>
+            <Select 
+              value={selectedSubcategoryId ?? "__all__"} 
+              onValueChange={(value) => setSelectedSubcategoryId(value === "__all__" ? null : value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select subcategory..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">
+                  All Subcategories (default)
+                </SelectItem>
+                {subcategories.map((sub) => (
+                  <SelectItem key={sub.id} value={sub.id}>
+                    {sub.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        
+        {selectedCategoryId && (
+          <div className="flex items-end">
+            <Button onClick={openAddDialog} size="sm" disabled={availableTypes.length === 0}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Applicant Type
+            </Button>
+          </div>
         )}
       </div>
 
@@ -312,7 +388,7 @@ export function CategoryApplicantRulesTab() {
             <h3 className="font-medium mb-2">No Applicant Types Configured</h3>
             <p className="text-sm text-muted-foreground mb-4">
               Add applicant types to define which roles are required or optional for{" "}
-              <strong>{selectedCategory?.name}</strong> applications.
+              <strong>{scopeLabel}</strong>.
             </p>
             {availableTypes.length > 0 ? (
               <Button onClick={openAddDialog} size="sm">
@@ -426,7 +502,7 @@ export function CategoryApplicantRulesTab() {
             <DialogDescription>
               {editingRule
                 ? `Update settings for ${editingRule.applicant_type?.name}`
-                : `Configure how this applicant type applies to ${selectedCategory?.name} applications`}
+                : `Configure how this applicant type applies to ${scopeLabel}`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
