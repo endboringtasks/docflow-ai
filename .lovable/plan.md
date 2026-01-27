@@ -1,76 +1,49 @@
 
+Goal
+- Fix “Couldn't generate document checklist” when creating/viewing a new application by making the database’s unique index match the `onConflict: "visa_application_id,document_name,applicant_type,age_condition"` used by the frontend.
 
-# Fix: Missing Unique Constraint Causing Document Checklist Initialization Failure
+What I found (root cause)
+- The app uses `upsert(..., { onConflict: "visa_application_id,document_name,applicant_type,age_condition" })`.
+- The database currently has this unique index:
+  - `idx_document_checklist_unique_doc (visa_application_id, document_name, COALESCE(applicant_type,''), COALESCE(age_condition,''))`
+- Postgres requires the `ON CONFLICT (col1, col2, ...)` target to match a UNIQUE constraint/index on those exact columns (not expressions).
+- So the error persists even though an index exists, because it’s an expression index and does not satisfy the ON CONFLICT spec.
 
-## Problem Summary
+Solution approach
+- Replace the expression-based unique index with a proper unique index on the exact columns:
+  - `(visa_application_id, document_name, applicant_type, age_condition)`
+- Because `applicant_type` and `age_condition` can be NULL, we will use Postgres’s `NULLS NOT DISTINCT` so NULLs are treated as equal (prevents duplicates even when those fields are NULL) and still matches the ON CONFLICT column list.
+  - Your DB is Postgres 17.6, so `NULLS NOT DISTINCT` is supported.
 
-When creating a new visa application, the error **"Couldn't generate document checklist"** appears. The database logs show:
+Implementation steps (DB migration)
+1) Safety dedupe (data-preserving)
+   - Before creating the new unique index, run a “safe dedupe” that:
+     - For any duplicate groups by (visa_application_id, document_name, applicant_type, age_condition):
+       - Pick a single “winner” row to keep (prefer rows with more attachments, then completed, then newest).
+       - Re-point any attachments from losing rows to the winner row (so we don’t delete user uploads).
+       - Delete the losing duplicate rows.
+   - This step should be idempotent and safe even if there are currently no duplicates.
 
-> "there is no unique or exclusion constraint matching the ON CONFLICT specification"
+2) Drop the current (wrong-shape) index
+   - `DROP INDEX IF EXISTS public.idx_document_checklist_unique_doc;`
 
-## Root Cause
+3) Create the correct unique index that matches the app’s ON CONFLICT clause
+   - `CREATE UNIQUE INDEX idx_document_checklist_unique_doc`
+     `ON public.document_checklist (visa_application_id, document_name, applicant_type, age_condition)`
+     `NULLS NOT DISTINCT;`
 
-The code in `ApplicationDetail.tsx` uses Supabase's `upsert` with an `onConflict` clause:
+Frontend/code changes
+- No frontend changes should be required for this specific error, because the code already uses the correct column list; the database just needs a matching unique index.
+- (Optional follow-up) Add a clearer error message if initialization fails, but not necessary once the DB is fixed.
 
-```typescript
-const onConflictCols = "visa_application_id,document_name,applicant_type,age_condition";
+Verification checklist
+1) Create a new application.
+2) Navigate to its detail page (the checklist initialization runs there).
+3) Confirm:
+   - No “Couldn't generate document checklist” toast.
+   - Rows are inserted into `public.document_checklist` for that application.
+4) (Optional) Re-test “delete + recreate application” flow.
 
-await supabase
-  .from("document_checklist")
-  .upsert(documentsToInsert, { 
-    onConflict: onConflictCols,
-    ignoreDuplicates: true 
-  });
-```
-
-However, **there is no unique constraint** on these columns in the database. The only index on `document_checklist` is the primary key (`id`).
-
-PostgreSQL requires a matching unique constraint to use `ON CONFLICT`. Without it, the upsert fails.
-
-## Solution
-
-Create the missing unique index on the `document_checklist` table. This must handle `NULL` values in `applicant_type` and `age_condition` using `COALESCE` or `NULLS NOT DISTINCT`.
-
-### Database Migration
-
-A new migration file will add the unique constraint:
-
-```sql
--- Create unique index for idempotent document checklist upserts
--- Uses COALESCE to handle NULL values (PostgreSQL treats NULLs as distinct by default)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_document_checklist_unique_doc 
-ON public.document_checklist (
-  visa_application_id, 
-  document_name, 
-  COALESCE(applicant_type, ''), 
-  COALESCE(age_condition, '')
-);
-```
-
-**Note**: Using `COALESCE` converts NULL to empty string for uniqueness comparison, so `NULL` and `''` will be treated as the same. This matches the application logic where these fields are optional.
-
-## Files to Change
-
-| File | Change |
-|------|--------|
-| `supabase/migrations/[timestamp]_add_document_checklist_unique_constraint.sql` | Add unique index on `(visa_application_id, document_name, applicant_type, age_condition)` |
-
-## Technical Notes
-
-- The index uses `COALESCE` because PostgreSQL treats NULL values as distinct in unique constraints by default
-- This enables the existing `upsert` logic with `ignoreDuplicates: true` to work correctly
-- The index will also improve query performance for lookups by these columns
-
-## After Implementation
-
-1. The migration will run automatically when deployed
-2. New applications will be created successfully
-3. The translation document inheritance fix from the previous change will work correctly
-
-## Verification
-
-1. Create a new visa application
-2. Confirm the document checklist is generated without errors
-3. Verify that conditional documents (like Divorce Certificate) are marked N/A
-4. Verify their translations are also marked N/A
-
+Risk/notes
+- The earlier migration used `COALESCE(...)` in the index. That shape cannot be used by `ON CONFLICT (visa_application_id, document_name, applicant_type, age_condition)`.
+- The new migration will correct the index shape and should immediately unblock checklist generation across all environments using this same database.
