@@ -1,27 +1,22 @@
 
-## Fix Duplicate Document Initialization Bug
 
-### Root Cause
+## Fix Remaining Duplicate Document Initialization in Applications.tsx
 
-Documents are being initialized **twice** because there are two separate initialization paths:
+### Problem Summary
 
-1. **ClientDetail.tsx**: Inserts documents in the `onSuccess` handler of `createApplicationMutation` (lines 273-328)
-2. **ApplicationDetail.tsx**: Has a `useEffect` that triggers `initializeDocumentsMutation` when `dbDocuments.length === 0` (lines 678-688)
+The previous fix removed document initialization from `ClientDetail.tsx` but missed the identical initialization logic in `Applications.tsx`. When creating an application from the Applications list:
 
-**Race condition**: When navigating to ApplicationDetail after creating an application:
-- The `useEffect` fires before the query cache has the documents
-- The `documentsInitialized` state is `false` on each page mount
-- Result: duplicate documents inserted
+1. `Applications.tsx` inserts documents immediately in `onSuccess` (lines 395-498)
+2. User navigates to `ApplicationDetail.tsx` 
+3. `ApplicationDetail.tsx` also tries to initialize (sometimes winning the race against the first batch appearing in the database)
+
+Result: Documents created twice, ~8 seconds apart.
 
 ---
 
 ### Solution
 
-**Single Source of Truth**: Remove the document initialization from ClientDetail.tsx and keep it only in ApplicationDetail.tsx with proper guards.
-
-**Race Condition Prevention**: Replace `useState` with `useRef` for the initialized flag, which persists synchronously and doesn't cause re-renders.
-
-**Duplicate Check**: Add a database check before inserting to ensure documents don't already exist.
+Remove the document template copying logic from `Applications.tsx` `onSuccess`, matching what was done for `ClientDetail.tsx`. This makes `ApplicationDetail.tsx` the **single source of truth** for document initialization.
 
 ---
 
@@ -29,117 +24,105 @@ Documents are being initialized **twice** because there are two separate initial
 
 | File | Action |
 |------|--------|
-| `src/pages/migration/ClientDetail.tsx` | Remove document template copying from `onSuccess` (lines 273-328) |
-| `src/pages/migration/ApplicationDetail.tsx` | Use `useRef` instead of `useState` for initialization tracking, add duplicate check |
+| `src/pages/migration/Applications.tsx` | Remove document template copying from `onSuccess` (lines 395-498) |
 
 ---
 
-### Technical Details
+### Code to Remove
 
-#### 1. ClientDetail.tsx - Remove duplicate initialization
-
-**Remove lines 273-328** (the entire document template copying block in `onSuccess`):
+In `src/pages/migration/Applications.tsx`, delete lines 395-498 (the entire document template copying block):
 
 ```typescript
 onSuccess: async (data) => {
-  // REMOVE THIS ENTIRE BLOCK (lines 273-328):
+  // DELETE THIS ENTIRE BLOCK (lines 396-498):
   // Copy document templates to document_checklist based on linked application types
   // try {
   //   if (data.visa_type_id && currentCompany?.id) {
   //     ...
   //   }
   // } catch (templateError) {
-  //   ...
+  //   console.error("Failed to copy document templates:", templateError);
   // }
 
-  // Keep webhook dispatch and query invalidation below
+  // KEEP everything after line 498 (webhook dispatch, applicant insertion, etc.)
   // Dispatch webhook for visa_application.created event
   try {
     // ... existing webhook code ...
   }
 ```
 
-#### 2. ApplicationDetail.tsx - Fix race condition
+The `onSuccess` should start directly with the webhook dispatch code (currently line 500).
 
-**Line 311**: Change `useState` to `useRef`:
+---
 
-```typescript
-// Before
-const [documentsInitialized, setDocumentsInitialized] = useState(false);
+### Cleanup Existing Duplicates
 
-// After
-const documentsInitializedRef = useRef(false);
-```
+After fixing the code, we need to clean up the existing duplicates in the database. Here's a SQL script to run in the Supabase SQL Editor (targeting Live environment):
 
-**Lines 678-688**: Update the useEffect to use the ref and add duplicate protection:
+```sql
+-- Preview: See which duplicates would be deleted (run first to verify)
+WITH ranked AS (
+  SELECT 
+    id,
+    visa_application_id,
+    document_name,
+    applicant_type,
+    age_condition,
+    coalesce(translation_of_id::text, '') as trans_key,
+    created_at,
+    is_applicable,
+    ROW_NUMBER() OVER (
+      PARTITION BY visa_application_id, document_name, applicant_type, 
+                   age_condition, coalesce(translation_of_id::text, '')
+      ORDER BY 
+        -- Prefer documents with is_applicable = true, then earliest created
+        is_applicable DESC,
+        created_at ASC
+    ) as rn
+  FROM public.document_checklist
+)
+SELECT id, visa_application_id, document_name, is_applicable, created_at, rn
+FROM ranked 
+WHERE rn > 1
+ORDER BY visa_application_id, document_name;
 
-```typescript
-// Initialize documents when visa application loads and no documents exist
-useEffect(() => {
-  if (
-    visaApplication &&
-    dbDocuments !== undefined &&
-    dbDocuments.length === 0 &&
-    !documentsInitializedRef.current &&
-    !initializeDocumentsMutation.isPending
-  ) {
-    documentsInitializedRef.current = true; // Set immediately to prevent race
-    initializeDocumentsMutation.mutate();
-  }
-}, [visaApplication, dbDocuments]);
-```
-
-**Lines 663-669**: Update mutation callbacks to use the ref:
-
-```typescript
-onSuccess: () => {
-  queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
-  // Remove: setDocumentsInitialized(true); - ref is already set before mutation
-},
-onError: (error) => {
-  // ref is already set, no need to update it
-  console.error("Failed to initialize documents:", error);
-  toast.error("Couldn't generate document checklist", {
-    description: error instanceof Error ? error.message : "Please try again.",
-  });
-},
-```
-
-**Lines 516-520**: Add duplicate check at the start of the mutation:
-
-```typescript
-mutationFn: async () => {
-  if (!visaApplicationId || !visaApplication?.company_id) throw new Error("Missing IDs");
-
-  // Double-check no documents exist (prevents race condition duplicates)
-  const { count } = await supabase
-    .from("document_checklist")
-    .select("id", { count: "exact", head: true })
-    .eq("visa_application_id", visaApplicationId);
-
-  if (count && count > 0) {
-    console.log("Documents already exist, skipping initialization");
-    return; // Exit early, documents already exist
-  }
-
-  // Continue with existing initialization logic...
+-- Actual cleanup: Delete duplicates (keep the one with is_applicable=true or earliest)
+WITH ranked AS (
+  SELECT 
+    id,
+    ROW_NUMBER() OVER (
+      PARTITION BY visa_application_id, document_name, applicant_type, 
+                   age_condition, coalesce(translation_of_id::text, '')
+      ORDER BY 
+        is_applicable DESC,
+        created_at ASC
+    ) as rn
+  FROM public.document_checklist
+)
+DELETE FROM public.document_checklist
+WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
 ```
 
 ---
 
 ### Why This Works
 
-1. **Single initialization path**: Only ApplicationDetail.tsx handles document creation
-2. **Synchronous guard**: `useRef` prevents the useEffect from running twice during renders
-3. **Database verification**: The duplicate check in the mutation ensures even if the mutation fires twice, documents won't be duplicated
-4. **Simplified ClientDetail**: The create mutation just creates the application; document initialization is handled when the user views the application
+1. **Single initialization path**: Only `ApplicationDetail.tsx` handles document creation
+2. **Race condition protection**: Already has `useRef` guard + database count check
+3. **Consistent behavior**: Whether creating from Clients page or Applications page, documents are always initialized when viewing the application detail
 
 ---
 
-### Import Changes
+### Affected Applications
 
-**ApplicationDetail.tsx**: Add `useRef` to the React import:
+Based on database analysis, these applications have duplicates and will be cleaned:
 
-```typescript
-import { useState, useEffect, useMemo, useRef } from "react";
-```
+| Application ID | Total Docs | Estimated Duplicates |
+|----------------|------------|---------------------|
+| de514e29-a33a-... | 156 | 102 |
+| 69c1cf8e-57d8-... | 153 | 99 |
+| dd6b81b9-56f3-... | 77 | 33 |
+| 7e70363f-dd5e-... | 27 | 18 |
+| **c8223cbd-30e6-...** (your app) | 26 | 11 |
+| + 3 more apps | - | - |
+
