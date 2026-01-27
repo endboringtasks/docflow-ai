@@ -798,14 +798,27 @@ const VisaApplicationDetail = () => {
   });
 
   // Toggle document applicability (for conditional documents)
+  // Also cascades to translation documents that reference this original
   const toggleApplicabilityMutation = useMutation({
     mutationFn: async ({ docId, isApplicable }: { docId: string; isApplicable: boolean }) => {
-      const { error } = await supabase
+      // Update the original document
+      const { error: originalError } = await supabase
         .from("document_checklist")
         .update({ is_applicable: isApplicable })
         .eq("id", docId);
       
-      if (error) throw error;
+      if (originalError) throw originalError;
+      
+      // Also update any translation documents that reference this original
+      const { error: translationError } = await supabase
+        .from("document_checklist")
+        .update({ is_applicable: isApplicable })
+        .eq("translation_of_id", docId);
+      
+      // Ignore translation update errors (may not have any translations)
+      if (translationError) {
+        console.warn("Failed to update translation documents:", translationError.message);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
