@@ -512,11 +512,12 @@ const VisaApplicationDetail = () => {
   }));
 
   // Initialize documents in database if none exist
+  // Uses upsert with ignoreDuplicates for idempotency - safe under concurrent access
   const initializeDocumentsMutation = useMutation({
     mutationFn: async () => {
       if (!visaApplicationId || !visaApplication?.company_id) throw new Error("Missing IDs");
 
-      // Double-check no documents exist (reliable existence query - not using head:true count)
+      // Quick existence check to skip unnecessary work (not relied upon for correctness)
       const { data: existingDocs, error: existingError } = await supabase
         .from("document_checklist")
         .select("id")
@@ -529,6 +530,9 @@ const VisaApplicationDetail = () => {
         console.log("Documents already exist, skipping initialization");
         return; // Exit early, documents already exist
       }
+
+      // The unique constraint columns for upsert
+      const onConflictCols = "visa_application_id,document_name,applicant_type,age_condition";
 
       // 1) Try to initialize from configured templates (preferred)
       const visaTypeQuery = supabase
@@ -584,7 +588,7 @@ const VisaApplicationDetail = () => {
           if (templatesError) throw templatesError;
 
           if (templates && templates.length > 0) {
-            // First pass: create all original documents
+            // First pass: create all original documents (upsert for idempotency)
             const documentsToInsert = templates.map((template: any) => {
               const category = template.category || "General";
               const required = !!template.is_required;
@@ -610,45 +614,59 @@ const VisaApplicationDetail = () => {
                 translation_notes: template.translation_notes,
                 requirement_type: template.requirement_type ?? "required",
                 applicability_condition: template.applicability_condition ?? null,
-                is_applicable: template.requirement_type === "conditional" ? false : true, // Conditional docs default to N/A
+                is_applicable: template.requirement_type === "conditional" ? false : true,
               };
             });
 
-            const { data: insertedDocs, error: insertError } = await supabase
+            // Upsert originals - ignoreDuplicates means concurrent inserts become no-ops
+            const { error: insertError } = await supabase
               .from("document_checklist")
-              .insert(documentsToInsert)
-              .select("id, document_name, category, description, applicant_type, age_condition, requires_translation, translation_target_language, translation_certification_type_id, translation_notes");
+              .upsert(documentsToInsert, { 
+                onConflict: onConflictCols,
+                ignoreDuplicates: true 
+              });
 
             if (insertError) throw insertError;
 
+            // Re-fetch originals that require translation from DB (robust even if another client inserted)
+            const { data: originalsNeedingTranslation, error: fetchOriginalsError } = await supabase
+              .from("document_checklist")
+              .select("id, document_name, category, description, applicant_type, age_condition, requires_translation, translation_target_language, translation_certification_type_id, translation_notes")
+              .eq("visa_application_id", visaApplicationId)
+              .eq("requires_translation", true)
+              .is("translation_of_id", null); // Only originals, not translations
+
+            if (fetchOriginalsError) throw fetchOriginalsError;
+
             // Second pass: create translation documents for those that require it
-            const translationDocs = (insertedDocs || [])
-              .filter((doc: any) => doc.requires_translation)
-              .map((originalDoc: any) => {
-                const translationName = `[${originalDoc.category || "General"}:required] ${originalDoc.document_name.replace(/^\[[^\]]+\]\s*/, "")} (Translation)`;
-                return {
-                  visa_application_id: visaApplicationId,
-                  company_id: visaApplication.company_id,
-                  document_name: translationName,
-                  category: originalDoc.category,
-                  description: `Certified translation of: ${originalDoc.document_name.replace(/^\[[^\]]+\]\s*/, "")}`,
-                  applicant_type: originalDoc.applicant_type,
-                  age_condition: originalDoc.age_condition,
-                  is_completed: false,
-                  is_standard_for_client: true,
-                  review_status: "pending_client",
-                  requires_translation: false,
-                  translation_of_id: originalDoc.id,
-                  translation_target_language: originalDoc.translation_target_language,
-                  translation_certification_type_id: originalDoc.translation_certification_type_id,
-                  translation_notes: originalDoc.translation_notes,
-                };
-              });
+            const translationDocs = (originalsNeedingTranslation || []).map((originalDoc: any) => {
+              const translationName = `[${originalDoc.category || "General"}:required] ${originalDoc.document_name.replace(/^\[[^\]]+\]\s*/, "")} (Translation)`;
+              return {
+                visa_application_id: visaApplicationId,
+                company_id: visaApplication.company_id,
+                document_name: translationName,
+                category: originalDoc.category,
+                description: `Certified translation of: ${originalDoc.document_name.replace(/^\[[^\]]+\]\s*/, "")}`,
+                applicant_type: originalDoc.applicant_type,
+                age_condition: originalDoc.age_condition,
+                is_completed: false,
+                is_standard_for_client: true,
+                review_status: "pending_client",
+                requires_translation: false,
+                translation_of_id: originalDoc.id,
+                translation_target_language: originalDoc.translation_target_language,
+                translation_certification_type_id: originalDoc.translation_certification_type_id,
+                translation_notes: originalDoc.translation_notes,
+              };
+            });
 
             if (translationDocs.length > 0) {
               const { error: translationInsertError } = await supabase
                 .from("document_checklist")
-                .insert(translationDocs);
+                .upsert(translationDocs, {
+                  onConflict: onConflictCols,
+                  ignoreDuplicates: true
+                });
 
               if (translationInsertError) throw translationInsertError;
             }
@@ -658,7 +676,7 @@ const VisaApplicationDetail = () => {
         }
       }
 
-      // 2) Fallback: initialize with generic default docs
+      // 2) Fallback: initialize with generic default docs (upsert for idempotency)
       const defaultDocs = getDefaultDocuments(visaApplication.visa_subclass);
       const documentsToInsert = defaultDocs.map((doc) => ({
         visa_application_id: visaApplicationId,
@@ -666,11 +684,16 @@ const VisaApplicationDetail = () => {
         document_name: formatDocumentForStorage(doc),
         is_completed: false,
         review_status: "pending_client",
+        applicant_type: null,
+        age_condition: null,
       }));
 
       const { error: fallbackError } = await supabase
         .from("document_checklist")
-        .insert(documentsToInsert);
+        .upsert(documentsToInsert, {
+          onConflict: onConflictCols,
+          ignoreDuplicates: true
+        });
 
       if (fallbackError) throw fallbackError;
     },
