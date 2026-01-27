@@ -1931,12 +1931,6 @@ const VisaApplicationDetail = () => {
                                   Optional
                                 </Badge>
                               )}
-                              {/* Not Applicable indicator for conditional documents */}
-                              {doc.requirementType === "conditional" && !doc.isApplicable && (
-                                <Badge variant="outline" className="text-xs text-muted-foreground bg-muted/50">
-                                  Not Applicable
-                                </Badge>
-                              )}
                               {/* Multi-file indicator */}
                               {(doc.maxFiles === null || doc.maxFiles > 1) && (
                                 <Badge variant="outline" className="text-xs">
