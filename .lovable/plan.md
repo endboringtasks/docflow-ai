@@ -1,104 +1,145 @@
 
-## Replace "Applies" Button with Toggle Switch
+## Fix Duplicate Document Initialization Bug
 
-### Summary
-Replace the current button-based toggle with a proper Switch component for conditional documents. The switch will have clear labels showing "Applies" (ON) and "N/A" (OFF), with N/A as the default state.
+### Root Cause
 
----
+Documents are being initialized **twice** because there are two separate initialization paths:
 
-### Changes Overview
+1. **ClientDetail.tsx**: Inserts documents in the `onSuccess` handler of `createApplicationMutation` (lines 273-328)
+2. **ApplicationDetail.tsx**: Has a `useEffect` that triggers `initializeDocumentsMutation` when `dbDocuments.length === 0` (lines 678-688)
 
-| Change | Description |
-|--------|-------------|
-| Replace button with Switch | Use the existing Radix Switch component for clearer ON/OFF interaction |
-| Change default value | New conditional documents default to `is_applicable: false` (N/A) |
-| Add inline labels | Show "N/A" and "Applies" labels next to the switch |
-| Update visual styling | Remove the "Not Applicable" badge since the switch state is now obvious |
+**Race condition**: When navigating to ApplicationDetail after creating an application:
+- The `useEffect` fires before the query cache has the documents
+- The `documentsInitialized` state is `false` on each page mount
+- Result: duplicate documents inserted
 
 ---
 
-### UI Design
+### Solution
 
-**Current:**
-```
-[Applies] button → click → [N/A] button with strikethrough
-```
+**Single Source of Truth**: Remove the document initialization from ClientDetail.tsx and keep it only in ApplicationDetail.tsx with proper guards.
 
-**New:**
-```
-N/A  [○────]  Applies    (OFF state - default)
-N/A  [────●]  Applies    (ON state)
-```
+**Race Condition Prevention**: Replace `useState` with `useRef` for the initialized flag, which persists synchronously and doesn't cause re-renders.
+
+**Duplicate Check**: Add a database check before inserting to ensure documents don't already exist.
+
+---
+
+### Changes
+
+| File | Action |
+|------|--------|
+| `src/pages/migration/ClientDetail.tsx` | Remove document template copying from `onSuccess` (lines 273-328) |
+| `src/pages/migration/ApplicationDetail.tsx` | Use `useRef` instead of `useState` for initialization tracking, add duplicate check |
 
 ---
 
 ### Technical Details
 
-#### 1. Update Default Value (line 598)
+#### 1. ClientDetail.tsx - Remove duplicate initialization
+
+**Remove lines 273-328** (the entire document template copying block in `onSuccess`):
+
+```typescript
+onSuccess: async (data) => {
+  // REMOVE THIS ENTIRE BLOCK (lines 273-328):
+  // Copy document templates to document_checklist based on linked application types
+  // try {
+  //   if (data.visa_type_id && currentCompany?.id) {
+  //     ...
+  //   }
+  // } catch (templateError) {
+  //   ...
+  // }
+
+  // Keep webhook dispatch and query invalidation below
+  // Dispatch webhook for visa_application.created event
+  try {
+    // ... existing webhook code ...
+  }
+```
+
+#### 2. ApplicationDetail.tsx - Fix race condition
+
+**Line 311**: Change `useState` to `useRef`:
 
 ```typescript
 // Before
-is_applicable: true, // Default to applicable, staff can toggle off
+const [documentsInitialized, setDocumentsInitialized] = useState(false);
 
-// After  
-is_applicable: false, // Default to N/A for conditional docs, staff toggles on if applicable
+// After
+const documentsInitializedRef = useRef(false);
 ```
 
-#### 2. Replace Button with Switch (lines 2056-2082)
+**Lines 678-688**: Update the useEffect to use the ref and add duplicate protection:
 
-```tsx
-{doc.requirementType === "conditional" && (
-  <TooltipProvider>
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div className="flex items-center gap-1.5">
-          <span className={`text-xs ${!doc.isApplicable ? 'text-muted-foreground font-medium' : 'text-muted-foreground'}`}>
-            N/A
-          </span>
-          <Switch
-            checked={doc.isApplicable}
-            onCheckedChange={(checked) => 
-              toggleApplicabilityMutation.mutate({ docId: doc.id, isApplicable: checked })
-            }
-            disabled={toggleApplicabilityMutation.isPending}
-            className="data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-muted h-5 w-9"
-          />
-          <span className={`text-xs ${doc.isApplicable ? 'text-amber-600 font-medium' : 'text-muted-foreground'}`}>
-            Applies
-          </span>
-        </div>
-      </TooltipTrigger>
-      <TooltipContent side="top">
-        <p className="text-xs">
-          Toggle whether this document applies to this case
-        </p>
-        {doc.applicabilityCondition && (
-          <p className="text-xs text-muted-foreground mt-1">{doc.applicabilityCondition}</p>
-        )}
-      </TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
-)}
+```typescript
+// Initialize documents when visa application loads and no documents exist
+useEffect(() => {
+  if (
+    visaApplication &&
+    dbDocuments !== undefined &&
+    dbDocuments.length === 0 &&
+    !documentsInitializedRef.current &&
+    !initializeDocumentsMutation.isPending
+  ) {
+    documentsInitializedRef.current = true; // Set immediately to prevent race
+    initializeDocumentsMutation.mutate();
+  }
+}, [visaApplication, dbDocuments]);
 ```
 
-#### 3. Keep "Not Applicable" Badge (optional)
-The badge at lines 1934-1938 can remain as a visual indicator in the document name area, or be removed since the switch state is now obvious. I recommend keeping it for quick scanning of the checklist.
+**Lines 663-669**: Update mutation callbacks to use the ref:
+
+```typescript
+onSuccess: () => {
+  queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
+  // Remove: setDocumentsInitialized(true); - ref is already set before mutation
+},
+onError: (error) => {
+  // ref is already set, no need to update it
+  console.error("Failed to initialize documents:", error);
+  toast.error("Couldn't generate document checklist", {
+    description: error instanceof Error ? error.message : "Please try again.",
+  });
+},
+```
+
+**Lines 516-520**: Add duplicate check at the start of the mutation:
+
+```typescript
+mutationFn: async () => {
+  if (!visaApplicationId || !visaApplication?.company_id) throw new Error("Missing IDs");
+
+  // Double-check no documents exist (prevents race condition duplicates)
+  const { count } = await supabase
+    .from("document_checklist")
+    .select("id", { count: "exact", head: true })
+    .eq("visa_application_id", visaApplicationId);
+
+  if (count && count > 0) {
+    console.log("Documents already exist, skipping initialization");
+    return; // Exit early, documents already exist
+  }
+
+  // Continue with existing initialization logic...
+```
 
 ---
 
-### Files to Modify
+### Why This Works
 
-| File | Changes |
-|------|---------|
-| `src/pages/migration/ApplicationDetail.tsx` | Replace button with Switch, update default value |
+1. **Single initialization path**: Only ApplicationDetail.tsx handles document creation
+2. **Synchronous guard**: `useRef` prevents the useEffect from running twice during renders
+3. **Database verification**: The duplicate check in the mutation ensures even if the mutation fires twice, documents won't be duplicated
+4. **Simplified ClientDetail**: The create mutation just creates the application; document initialization is handled when the user views the application
 
 ---
 
-### Visual Behavior
+### Import Changes
 
-| State | Switch | Left Label | Right Label | Row Styling |
-|-------|--------|------------|-------------|-------------|
-| N/A (default) | OFF (left) | **N/A** (bold) | Applies (muted) | Normal |
-| Applies | ON (right) | N/A (muted) | **Applies** (amber, bold) | Normal |
+**ApplicationDetail.tsx**: Add `useRef` to the React import:
 
-The switch uses amber color when ON to match the existing "If Applicable" badge styling.
+```typescript
+import { useState, useEffect, useMemo, useRef } from "react";
+```
