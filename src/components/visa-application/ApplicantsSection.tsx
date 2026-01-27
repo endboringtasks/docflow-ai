@@ -61,6 +61,7 @@ interface CategoryApplicantRule {
 interface ApplicantsSectionProps {
   visaApplicationId: string;
   categoryId: string | null;
+  subcategoryId?: string | null;
   companyId: string;
 }
 
@@ -76,6 +77,7 @@ const getClientName = (client: Client) => {
 export const ApplicantsSection = ({
   visaApplicationId,
   categoryId,
+  subcategoryId,
   companyId,
 }: ApplicantsSectionProps) => {
   const queryClient = useQueryClient();
@@ -106,9 +108,9 @@ export const ApplicantsSection = ({
     enabled: !!visaApplicationId,
   });
 
-  // Fetch category applicant rules
+  // Fetch category applicant rules (with subcategory support)
   const { data: categoryRules = [] } = useQuery({
-    queryKey: ["category-applicant-rules", categoryId],
+    queryKey: ["category-applicant-rules", categoryId, subcategoryId],
     queryFn: async () => {
       if (!categoryId) return [];
       const { data, error } = await supabase
@@ -117,7 +119,14 @@ export const ApplicantsSection = ({
         .eq("category_id", categoryId)
         .order("sort_order");
       if (error) throw error;
-      return data as CategoryApplicantRule[];
+      
+      // Filter: prefer specific subcategory rules, fall back to null (category-wide)
+      const rules = data as (CategoryApplicantRule & { subcategory_id: string | null })[];
+      const specificRules = rules.filter(r => r.subcategory_id === subcategoryId);
+      const fallbackRules = rules.filter(r => r.subcategory_id === null);
+      
+      // If there are specific rules for this subcategory, use those; otherwise use fallback
+      return specificRules.length > 0 ? specificRules : fallbackRules;
     },
     enabled: !!categoryId,
   });

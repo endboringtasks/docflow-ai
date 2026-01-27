@@ -307,6 +307,7 @@ export type Database = {
           max_count: number | null
           min_count: number
           sort_order: number
+          subcategory_id: string | null
         }
         Insert: {
           allow_multiple?: boolean
@@ -318,6 +319,7 @@ export type Database = {
           max_count?: number | null
           min_count?: number
           sort_order?: number
+          subcategory_id?: string | null
         }
         Update: {
           allow_multiple?: boolean
@@ -329,6 +331,7 @@ export type Database = {
           max_count?: number | null
           min_count?: number
           sort_order?: number
+          subcategory_id?: string | null
         }
         Relationships: [
           {
@@ -343,6 +346,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "application_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_applicant_types_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "application_subcategories"
             referencedColumns: ["id"]
           },
         ]

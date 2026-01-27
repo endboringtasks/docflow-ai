@@ -1122,6 +1122,7 @@ const MigrationVisaApplications = () => {
                 {newApplication.categoryId && newApplication.clientId && (
                   <ApplicantSelector
                     categoryId={newApplication.categoryId}
+                    subcategoryId={newApplication.subcategoryId || undefined}
                     primaryClientId={newApplication.clientId}
                     selections={applicantSelections}
                     onSelectionsChange={setApplicantSelections}
