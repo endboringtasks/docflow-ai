@@ -105,13 +105,24 @@ export const ApplicantSelector = ({
         .order("sort_order");
       if (error) throw error;
       
-      // Filter: prefer specific subcategory rules, fall back to null (category-wide)
       const rules = data as (CategoryApplicantRule & { subcategory_id: string | null })[];
-      const specificRules = rules.filter(r => r.subcategory_id === subcategoryId);
-      const fallbackRules = rules.filter(r => r.subcategory_id === null);
-      
-      // If there are specific rules for this subcategory, use those; otherwise use fallback
-      return specificRules.length > 0 ? specificRules : fallbackRules;
+
+      // Merge rules: fallback first, then override with specific subcategory rules
+      const rulesByType = new Map<string, (typeof rules)[0]>();
+
+      // Add fallback rules (subcategory_id = null)
+      rules
+        .filter(r => r.subcategory_id === null)
+        .forEach(r => rulesByType.set(r.applicant_type_id, r));
+
+      // Override with specific subcategory rules
+      rules
+        .filter(r => r.subcategory_id === subcategoryId)
+        .forEach(r => rulesByType.set(r.applicant_type_id, r));
+
+      // Return merged rules sorted by sort_order
+      return Array.from(rulesByType.values())
+        .sort((a, b) => a.sort_order - b.sort_order);
     },
     enabled: !!categoryId,
   });
