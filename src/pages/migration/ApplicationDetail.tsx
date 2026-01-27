@@ -631,7 +631,7 @@ const VisaApplicationDetail = () => {
             // Re-fetch originals that require translation from DB (robust even if another client inserted)
             const { data: originalsNeedingTranslation, error: fetchOriginalsError } = await supabase
               .from("document_checklist")
-              .select("id, document_name, category, description, applicant_type, age_condition, requires_translation, translation_target_language, translation_certification_type_id, translation_notes")
+              .select("id, document_name, category, description, applicant_type, age_condition, requires_translation, translation_target_language, translation_certification_type_id, translation_notes, is_applicable")
               .eq("visa_application_id", visaApplicationId)
               .eq("requires_translation", true)
               .is("translation_of_id", null); // Only originals, not translations
@@ -657,6 +657,7 @@ const VisaApplicationDetail = () => {
                 translation_target_language: originalDoc.translation_target_language,
                 translation_certification_type_id: originalDoc.translation_certification_type_id,
                 translation_notes: originalDoc.translation_notes,
+                is_applicable: originalDoc.is_applicable, // Inherit applicability from original
               };
             });
 
