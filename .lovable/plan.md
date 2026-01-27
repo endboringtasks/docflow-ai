@@ -1,173 +1,136 @@
 
-## What’s happening (confirmed in Live DB)
+<context>
+User reports duplicates still appearing in Migration application detail pages. User asked to “check this application”:
+- https://docflowai.endboringtasks.com/app/migration/applications/99b71a4d-45ba-4022-9939-8727eb8a9e02
+They still see duplicated checklist documents.
+We are in read-only planning mode and will propose the next implementation steps to permanently stop duplicates.
+</context>
 
-For application **3975a8c4-a9bb-4f43-bc57-5ed969943179**, the `document_checklist` table shows the same documents inserted **twice**:
+<what-i-checked-and-what-i-found>
+1) Database confirms duplicates for visa_application_id = 99b71a4d-45ba-4022-9939-8727eb8a9e02
+- Total rows: 26
+- Pattern: 13 “template docs” inserted twice, in two batches about 8 seconds apart:
+  - Batch A: 2026-01-27 05:26:56 UTC (11 originals) + 05:26:56.629 (2 translations)
+  - Batch B: 2026-01-27 05:27:04 UTC (11 originals) + 05:27:04.553 (2 translations)
+- Duplicates include the “(Translation)” items as well (they appear duplicated in UI because document_name matches, even if translation_of_id differs).
 
-- First batch around **2026-01-27 04:51:32 UTC**
-- Second batch around **2026-01-27 04:51:54 UTC**
+2) There is currently NO database-level uniqueness constraint preventing duplicates
+- Only unique index is the primary key on id.
+- This means any race condition or concurrent initialization will insert duplicates successfully.
 
-Example duplicates (each has `cnt = 2`): Passport, Name Change Certificate, and even the “(Translation)” rows.
+3) Why duplicates can still happen even after the “exists” check change
+- The current guard in ApplicationDetail.tsx is a read-then-write pattern:
+  - “check if any docs exist” then “insert”
+- If two initializations start before either one has inserted/committed rows (e.g., two users open the same application within seconds, or two tabs, or a quick remount), BOTH checks can see “0 rows” and BOTH will insert.
+- This explains two batches separated by seconds: two runs started near the same time; one finished later.
 
-This means the checklist initialization is still being executed more than once for the same application, and the current prevention check is not reliably stopping the second run.
+4) Edge Functions are not inserting into document_checklist
+- Edge functions only update existing checklist rows after uploads; they do not create checklist rows.
+</what-i-checked-and-what-i-found>
 
-## Why it’s still duplicating (root cause)
+<root-cause>
+The checklist initialization is not atomic. Client-side checks cannot fully prevent duplicates under concurrency. A database-level unique constraint is required as the “hard stop”, and frontend inserts should become idempotent (upsert/ignore duplicates) to avoid user-facing errors.
+</root-cause>
 
-Even after removing the redundant initialization from `ClientDetail.tsx` and `Applications.tsx`, duplicates can still occur because:
+<goals>
+- Permanently prevent duplicate checklist rows for the same application + document identity, even under concurrent initialization.
+- Make initialization safe to run multiple times (no-op on second run).
+- Clean up existing duplicates so the unique index can be created.
+</goals>
 
-1. **The “duplicate prevention” check in `ApplicationDetail.tsx` is not reliable**
-   - It uses:
-     - `select("id", { count: "exact", head: true })`
-   - In practice, this can return `count = null` (or be skipped if an error occurs), and the code currently does **not** check/throw on error.  
-   - Result: the “if count > 0 then return” guard can silently fail and allow reinsertion.
+<plan-overview>
+We will implement 3 parts:
+A) Database hard-stop (unique index)
+B) Make initialization inserts idempotent (upsert/ignore duplicates + safer translation creation)
+C) One-time cleanup of existing duplicates (required before adding the unique index)
+</plan-overview>
 
-2. **There is no database-level uniqueness constraint**
-   - So even if the UI accidentally runs initialization twice (refresh, double navigation, multiple tabs, etc.), the database happily accepts duplicates.
+<implementation-steps>
+<step id="A1" title="Add database-level unique index (hard stop)">
+Create a new migration that adds a unique index on the natural document identity:
+- (visa_application_id, document_name, applicant_type, age_condition) with NULLS NOT DISTINCT
 
-The fix needs to be **idempotent** (safe to run multiple times) and backed by the database.
+Why:
+- This prevents duplicates forever, regardless of how many times initialization runs or how many users/tabs race.
 
----
+Notes:
+- Postgres 17 supports NULLS NOT DISTINCT (so NULL applicant_type/age_condition still collide correctly).
+- This migration will fail until existing duplicates are removed (Step C).
+</step>
 
-## Implementation plan (code + database hard-stop)
+<step id="B1" title="Change ApplicationDetail initialization to use upsert(ignoreDuplicates)">
+File: src/pages/migration/ApplicationDetail.tsx
 
-### 1) Strengthen the pre-check in `ApplicationDetail.tsx` (stop relying on `head: true` count)
-**File:** `src/pages/migration/ApplicationDetail.tsx`
+Replace the two sequential inserts:
+- insert(documentsToInsert).select(...)
+- insert(translationDocs)
 
-Replace the current count check:
+With idempotent upserts:
+1) Upsert originals with:
+   - onConflict: "visa_application_id,document_name,applicant_type,age_condition"
+   - ignoreDuplicates: true
+2) Fetch the originals that require translation from the DB (not just from “returned insertedDocs”), so it works even if another client inserted some/all originals first.
+3) Build translation docs from the fetched originals (needs original ids for translation_of_id), then upsert translations with the same onConflict + ignoreDuplicates.
 
-- Current:
-  - `.select("id", { count: "exact", head: true })`
+Why this matters:
+- With the unique index in place, even if two initializations race, the second becomes a harmless no-op (no duplicates, no errors).
+- Fetching originals before building translations avoids missing translations when an upsert returns partial/empty data.
 
-With a simpler, reliable existence query:
+We will also update the fallback “default docs” insert to use upsert(ignoreDuplicates) for consistency.
 
-- Use:
-  - `.select("id").eq("visa_application_id", visaApplicationId).limit(1)`
-- And **throw if error**.
-- If `data.length > 0`, return early.
+Optional (nice-to-have):
+- Keep the “exists” check to avoid unnecessary work, but it will no longer be relied upon for correctness.
+</step>
 
-This makes it extremely unlikely the app will reinitialize if documents already exist.
+<step id="B2" title="Make manual bulk-add safer (optional but recommended)">
+File: src/pages/migration/ApplicationDetail.tsx
 
-### 2) Make inserts safe even if initialization runs twice (use upsert/ignore duplicates)
-**File:** `src/pages/migration/ApplicationDetail.tsx`
+Update addMultipleDocumentsMutation (and possibly addDocumentMutation) to use upsert(ignoreDuplicates) as well, so even if two users bulk-add the same “standard docs” simultaneously it won’t error.
+This is not the main source of duplicates, but it aligns with the new uniqueness rule and avoids rare conflict errors.
+</step>
 
-Once we add the unique index (step 3), update both insert blocks:
+<step id="C1" title="One-time dedupe cleanup (required before creating the unique index)">
+Because duplicates already exist globally (we detected many duplicate groups), the unique index cannot be created until the data is deduplicated.
 
-- Original docs insertion
-- Translation docs insertion
+We will provide 2 SQL scripts (user runs in Supabase SQL Editor on the production DB):
+1) A “preview” query showing which rows would be removed.
+2) A “dedupe + preserve data” script that:
+   - Picks a single “keeper” row per duplicate group (prefers rows with attachments/file_path, then is_applicable, then earliest created)
+   - Reassigns document_attachments from duplicate rows to the keeper row (so uploads are not lost)
+   - Reassigns translation_of_id to point at the keeper original before deleting duplicate originals (prevents cascade deleting translations unintentionally)
+   - Deletes the remaining duplicates
 
-…to use either:
-- `upsert(..., { onConflict: "...", ignoreDuplicates: true })`, or
-- `insert()` and handle conflict errors gracefully (less ideal because it will throw user-facing errors).
+We will also provide a targeted per-application cleanup variant (like for 99b71a4d...) for quick validation before running global.
+</step>
 
-Goal: if the init runs twice, the second run becomes a no-op.
+<step id="D1" title="Verification">
+After C1 + A1 + B1 are completed:
+1) Create a new application and open its Application Detail page.
+2) Refresh the page multiple times.
+3) Open the same application in 2 tabs quickly (or have two team members open it).
+4) Confirm row counts stay stable.
 
-### 3) Add a DB-level unique index to prevent duplicates forever
-**File:** new migration under `supabase/migrations/`
+DB verification query:
+- Group by (visa_application_id, document_name, applicant_type, age_condition) and confirm no groups have count(*) > 1.
+</step>
+</implementation-steps>
 
-Create a unique index on the natural “document identity”:
+<files-to-change>
+- src/pages/migration/ApplicationDetail.tsx
+- supabase/migrations/<new_migration>_unique_document_checklist_per_application.sql
+</files-to-change>
 
-- `(visa_application_id, document_name, applicant_type, age_condition)`  
-- Use `NULLS NOT DISTINCT` so NULL applicant_type / age_condition still conflicts (Postgres 17 supports this).
+<risks-and-mitigations>
+- Risk: Adding a unique index will cause future duplicate insert attempts to conflict.
+  Mitigation: Use upsert(ignoreDuplicates) so the app does not show errors; it simply no-ops.
+- Risk: Cleanup could delete rows that have uploads.
+  Mitigation: Cleanup script will explicitly preserve/move attachments and prefer rows with attachments/file_path.
+- Risk: Cleanup could cascade-delete translations because translation_of_id has ON DELETE CASCADE.
+  Mitigation: Cleanup script will first re-point translation_of_id to the keeper original, then delete duplicates.
+</risks-and-mitigations>
 
-This ensures duplicates cannot be inserted even if the UI or multiple browsers race.
-
-Important: this migration will fail if duplicates already exist, so cleanup must happen first (step 4).
-
-### 4) Clean up existing duplicates (Live DB)
-You currently have duplicates already (including for `3975a8c4-a9bb-4f43-bc57-5ed969943179`), so we need a cleanup before adding the unique index.
-
-#### 4a) Targeted cleanup for the single application (safer first step)
-Run this in **Supabase SQL Editor (Live)**.
-
-**Preview what would be deleted:**
-```sql
-WITH attachment_counts AS (
-  SELECT document_checklist_id, COUNT(*) AS attachment_count
-  FROM public.document_attachments
-  GROUP BY document_checklist_id
-),
-ranked AS (
-  SELECT
-    dc.id,
-    dc.visa_application_id,
-    dc.document_name,
-    dc.applicant_type,
-    dc.age_condition,
-    dc.created_at,
-    COALESCE(ac.attachment_count, 0) AS attachment_count,
-    ROW_NUMBER() OVER (
-      PARTITION BY dc.visa_application_id, dc.document_name, dc.applicant_type, dc.age_condition
-      ORDER BY
-        (COALESCE(ac.attachment_count, 0) > 0) DESC,
-        (dc.file_path IS NOT NULL) DESC,
-        dc.is_applicable DESC,
-        dc.created_at ASC
-    ) AS rn
-  FROM public.document_checklist dc
-  LEFT JOIN attachment_counts ac ON ac.document_checklist_id = dc.id
-  WHERE dc.visa_application_id = '3975a8c4-a9bb-4f43-bc57-5ed969943179'
-)
-SELECT *
-FROM ranked
-WHERE rn > 1
-ORDER BY document_name, created_at;
-```
-
-**Delete duplicates (keeps the “best” row per document):**
-```sql
-WITH attachment_counts AS (
-  SELECT document_checklist_id, COUNT(*) AS attachment_count
-  FROM public.document_attachments
-  GROUP BY document_checklist_id
-),
-ranked AS (
-  SELECT
-    dc.id,
-    ROW_NUMBER() OVER (
-      PARTITION BY dc.visa_application_id, dc.document_name, dc.applicant_type, dc.age_condition
-      ORDER BY
-        (COALESCE(ac.attachment_count, 0) > 0) DESC,
-        (dc.file_path IS NOT NULL) DESC,
-        dc.is_applicable DESC,
-        dc.created_at ASC
-    ) AS rn
-  FROM public.document_checklist dc
-  LEFT JOIN attachment_counts ac ON ac.document_checklist_id = dc.id
-  WHERE dc.visa_application_id = '3975a8c4-a9bb-4f43-bc57-5ed969943179'
-)
-DELETE FROM public.document_checklist
-WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
-```
-
-#### 4b) Global cleanup (needed before creating a global unique index)
-After verifying the targeted cleanup works, we’ll run a similar dedupe query **without** the `WHERE visa_application_id = ...` filter, so the unique index can be created successfully.
-
-### 5) Verification steps
-After the code + DB fixes:
-
-1. Create a brand-new application.
-2. Open its Application Detail page.
-3. Refresh the page a few times.
-4. Confirm the checklist count stays stable (no doubling).
-5. Confirm no new duplicates appear with:
-   - `group by document_name, applicant_type, age_condition having count(*) > 1`.
-
----
-
-## Deliverables (what will change)
-
-### Code changes
-- `src/pages/migration/ApplicationDetail.tsx`
-  - Replace unreliable `head: true` count check with `select('id').limit(1)` + proper error handling.
-  - Change inserts to `upsert(ignoreDuplicates)` once the unique index exists.
-
-### Database changes
-- New migration adding unique index:
-  - Prevents duplicates permanently.
-
-### Ops / maintenance
-- One-time SQL cleanup to remove existing duplicates (starting with the specific application you shared, then global).
-
----
-
-## Notes / expectations
-- If your custom domain is pointing at a deployment that hasn’t been updated yet, the behavior won’t change until you deploy/publish the updated build. The DB-level unique index ensures that even if an older build runs the init twice, duplicates still cannot be created.
+<expected-outcome>
+After these changes:
+- Duplicates will stop permanently, including under races/concurrency.
+- Existing duplicated applications (like 99b71a4d...) can be cleaned once, and will not re-duplicate again.
+</expected-outcome>
