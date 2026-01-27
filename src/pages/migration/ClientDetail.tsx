@@ -270,62 +270,8 @@ const ClientDetail = () => {
       return { ...data, visa_type_id: applicationData.visa_type_id };
     },
     onSuccess: async (data) => {
-      // Copy document templates to document_checklist based on linked application types
-      try {
-        if (data.visa_type_id && currentCompany?.id) {
-          // Fetch template IDs linked to this application type via junction table
-          const { data: linkedTemplates } = await supabase
-            .from("document_template_applications")
-            .select("document_template_id")
-            .eq("visa_type_id", data.visa_type_id);
-
-          const templateIds = linkedTemplates?.map(t => t.document_template_id) || [];
-
-          if (templateIds.length > 0) {
-            const { data: templates } = await supabase
-              .from("document_checklist_templates")
-              .select(`
-                document_name, 
-                category, 
-                description,
-                age_condition,
-                is_required, 
-                sort_order,
-                applicant_type:applicant_types(name)
-              `)
-              .in("id", templateIds)
-              .order("sort_order");
-
-            if (templates && templates.length > 0) {
-              const documentsToInsert = templates.map((template: any) => {
-                const category = template.category || "General";
-                const required = !!template.is_required;
-                const rawName = String(template.document_name || "").trim();
-                const formattedName = rawName.startsWith("[")
-                  ? rawName
-                  : `[${category}:${required ? "required" : "optional"}] ${rawName}`;
-
-                return {
-                  visa_application_id: data.id,
-                  company_id: currentCompany.id,
-                  document_name: formattedName,
-                  category: template.category,
-                  description: template.description,
-                  applicant_type: template.applicant_type?.name || null,
-                  age_condition: template.age_condition,
-                  is_completed: false,
-                  is_standard_for_client: true,
-                  review_status: "pending_client",
-                };
-              });
-
-              await supabase.from("document_checklist").insert(documentsToInsert);
-            }
-          }
-        }
-      } catch (templateError) {
-        console.error("Failed to copy document templates:", templateError);
-      }
+      // Document initialization is now handled by ApplicationDetail.tsx when the user views the application
+      // This prevents duplicate documents from race conditions between the two initialization paths
 
       // Dispatch webhook for visa_application.created event
       try {
