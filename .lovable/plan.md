@@ -1,49 +1,45 @@
 
-Goal
-- Fix “Couldn't generate document checklist” when creating/viewing a new application by making the database’s unique index match the `onConflict: "visa_application_id,document_name,applicant_type,age_condition"` used by the frontend.
+# Fix: Remove `[Category:optional]` Prefix from Document Names
 
-What I found (root cause)
-- The app uses `upsert(..., { onConflict: "visa_application_id,document_name,applicant_type,age_condition" })`.
-- The database currently has this unique index:
-  - `idx_document_checklist_unique_doc (visa_application_id, document_name, COALESCE(applicant_type,''), COALESCE(age_condition,''))`
-- Postgres requires the `ON CONFLICT (col1, col2, ...)` target to match a UNIQUE constraint/index on those exact columns (not expressions).
-- So the error persists even though an index exists, because it’s an expression index and does not satisfy the ON CONFLICT spec.
+## Problem
 
-Solution approach
-- Replace the expression-based unique index with a proper unique index on the exact columns:
-  - `(visa_application_id, document_name, applicant_type, age_condition)`
-- Because `applicant_type` and `age_condition` can be NULL, we will use Postgres’s `NULLS NOT DISTINCT` so NULLs are treated as equal (prevents duplicates even when those fields are NULL) and still matches the ON CONFLICT column list.
-  - Your DB is Postgres 17.6, so `NULLS NOT DISTINCT` is supported.
+In the client portal, document names display a prefix like `[Identity Documents:optional]` before the actual document name (e.g., "Name Change Certificate"). This happens because the current regex only strips the `:required` pattern but not `:optional`.
 
-Implementation steps (DB migration)
-1) Safety dedupe (data-preserving)
-   - Before creating the new unique index, run a “safe dedupe” that:
-     - For any duplicate groups by (visa_application_id, document_name, applicant_type, age_condition):
-       - Pick a single “winner” row to keep (prefer rows with more attachments, then completed, then newest).
-       - Re-point any attachments from losing rows to the winner row (so we don’t delete user uploads).
-       - Delete the losing duplicate rows.
-   - This step should be idempotent and safe even if there are currently no duplicates.
+**Current regex:**
+```javascript
+doc.document_name.replace(/\s*\[[^\]]*:required\]\s*/gi, " ").trim()
+```
 
-2) Drop the current (wrong-shape) index
-   - `DROP INDEX IF EXISTS public.idx_document_checklist_unique_doc;`
+This only matches patterns like `[Category:required]` but NOT `[Category:optional]`.
 
-3) Create the correct unique index that matches the app’s ON CONFLICT clause
-   - `CREATE UNIQUE INDEX idx_document_checklist_unique_doc`
-     `ON public.document_checklist (visa_application_id, document_name, applicant_type, age_condition)`
-     `NULLS NOT DISTINCT;`
+## Solution
 
-Frontend/code changes
-- No frontend changes should be required for this specific error, because the code already uses the correct column list; the database just needs a matching unique index.
-- (Optional follow-up) Add a clearer error message if initialization fails, but not necessary once the DB is fixed.
+Update the regex to match both `:required` and `:optional` patterns using an alternation:
 
-Verification checklist
-1) Create a new application.
-2) Navigate to its detail page (the checklist initialization runs there).
-3) Confirm:
-   - No “Couldn't generate document checklist” toast.
-   - Rows are inserted into `public.document_checklist` for that application.
-4) (Optional) Re-test “delete + recreate application” flow.
+```javascript
+doc.document_name.replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ").trim()
+```
 
-Risk/notes
-- The earlier migration used `COALESCE(...)` in the index. That shape cannot be used by `ON CONFLICT (visa_application_id, document_name, applicant_type, age_condition)`.
-- The new migration will correct the index shape and should immediately unblock checklist generation across all environments using this same database.
+## Files to Change
+
+| File | Line | Change |
+|------|------|--------|
+| `src/pages/client-portal/ClientPortal.tsx` | 1003 | Update regex for document name display |
+| `src/pages/client-portal/ClientPortal.tsx` | 1081 | Update regex for description display |
+
+## Technical Details
+
+The regex breakdown:
+- `\s*` - Match optional leading whitespace
+- `\[` - Match opening bracket
+- `[^\]]*` - Match any characters except closing bracket (the category name)
+- `:(?:required|optional)` - Match either `:required` or `:optional` (non-capturing group)
+- `\]` - Match closing bracket
+- `\s*` - Match optional trailing whitespace
+- `gi` - Global and case-insensitive flags
+
+## Result
+
+After the fix, documents will display as:
+- **Before:** `[Identity Documents:optional] Name Change Certificate`
+- **After:** `Name Change Certificate`
