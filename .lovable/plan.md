@@ -1,68 +1,129 @@
 
-# Remove "If Applicable" Badge from Document Checklists
+
+# Group Translations with Parent Documents and Clean Up Display
 
 ## Problem
 
-The "If Applicable" badge is showing next to conditional documents on both:
-1. The internal application detail page (`ApplicationDetail.tsx`)
-2. The client portal (`ClientPortal.tsx`)
+Currently in the client portal, translation documents are displayed:
+1. With the "(Translation)" suffix in their names (e.g., "Divorce Certificate (Translation)")
+2. Scattered in the document list rather than grouped with their parent original document
 
-The user wants these badges removed from both views.
+The user wants:
+- Remove "(Translation)" suffix from document names
+- Show translations immediately after their parent document for a cleaner, grouped view
 
 ## Solution
 
-Remove the badge rendering code for `requirement_type === "conditional"` from both pages while keeping the rest of the document display logic intact.
+Modify both the client portal and application detail page to:
+1. Sort documents so translations appear right after their parent (using `translation_of_id`)
+2. Strip the "(Translation)" suffix from document names
+3. Keep the existing translation badge to identify translations (it already shows "Translation • NAATI Certified")
 
 ## Files to Change
 
-| File | Lines | Change |
-|------|-------|--------|
-| `src/pages/migration/ApplicationDetail.tsx` | 1966-1979 | Remove the "If Applicable" badge with its tooltip wrapper |
-| `src/pages/client-portal/ClientPortal.tsx` | 1006-1019 | Remove the "If Applicable" badge with its tooltip wrapper |
+| File | Change |
+|------|--------|
+| `src/pages/client-portal/ClientPortal.tsx` | Add sorting logic + strip "(Translation)" from names |
+| `src/pages/migration/ApplicationDetail.tsx` | Add sorting logic + strip "(Translation)" from names |
 
-## Code Changes
+## Implementation
 
-### ApplicationDetail.tsx (lines 1966-1979)
-Remove this block:
-```tsx
-{doc.requirementType === "conditional" && (
-  <TooltipProvider>
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Badge variant="outline" className={`text-xs border-amber-500 text-amber-600 dark:text-amber-400 ${!doc.isApplicable ? 'opacity-50' : ''}`}>
-          If Applicable
-        </Badge>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs">
-        <p className="text-xs">{doc.applicabilityCondition || "Submit this document if it applies to this case"}</p>
-      </TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
-)}
+### 1. Client Portal - Group translations with parents
+
+In the `groupedByApplicantType` useMemo (lines 658-673), modify to sort documents within each category so translations follow their parent:
+
+```typescript
+const groupedByApplicantType = useMemo(() => {
+  const groups: Record<string, Record<string, DocumentItem[]>> = {};
+  documents.forEach(doc => {
+    const applicantType = doc.applicant_type || "General";
+    const category = doc.category || "Other Documents";
+    
+    if (!groups[applicantType]) {
+      groups[applicantType] = {};
+    }
+    if (!groups[applicantType][category]) {
+      groups[applicantType][category] = [];
+    }
+    groups[applicantType][category].push(doc);
+  });
+  
+  // Sort each category so translations follow their parent document
+  Object.keys(groups).forEach(applicantType => {
+    Object.keys(groups[applicantType]).forEach(category => {
+      const docs = groups[applicantType][category];
+      // Separate originals and translations
+      const originals = docs.filter(d => !d.translation_of_id);
+      const translations = docs.filter(d => d.translation_of_id);
+      
+      // Rebuild array: original followed by its translation(s)
+      const sorted: DocumentItem[] = [];
+      originals.forEach(original => {
+        sorted.push(original);
+        // Find and add any translations for this original
+        translations
+          .filter(t => t.translation_of_id === original.id)
+          .forEach(t => sorted.push(t));
+      });
+      // Add any orphan translations at the end
+      translations
+        .filter(t => !originals.some(o => o.id === t.translation_of_id))
+        .forEach(t => sorted.push(t));
+      
+      groups[applicantType][category] = sorted;
+    });
+  });
+  
+  return groups;
+}, [documents]);
 ```
 
-### ClientPortal.tsx (lines 1006-1019)
-Remove this block:
-```tsx
-{doc.requirement_type === "conditional" && (
-  <TooltipProvider>
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Badge variant="outline" className="text-xs border-amber-500 text-amber-600 dark:text-amber-400">
-          If Applicable
-        </Badge>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs">
-        <p className="text-xs">{doc.applicability_condition || "Submit this document if it applies to your situation"}</p>
-      </TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
-)}
+### 2. Client Portal - Strip "(Translation)" from document names
+
+Update the document name display (line 1003) to also remove "(Translation)":
+
+```typescript
+{doc.document_name
+  .replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ")
+  .replace(/\s*\(Translation\)\s*/gi, "")
+  .trim()}
 ```
 
-## Result
+### 3. Application Detail - Same grouping logic
 
-After the changes:
-- Documents will no longer show the "If Applicable" badge
-- Other badges like "Pending Client", "Has Translation", "Optional", and file count badges will remain
-- The applicability toggle functionality in the admin area remains unchanged
+Apply the same sorting logic to `groupedByApplicantType` in ApplicationDetail.tsx (lines 1486-1503).
+
+### 4. Application Detail - Strip "(Translation)" from names
+
+Update the document name display (around line 1963) to remove "(Translation)":
+
+```typescript
+{doc.name.replace(/\s*\(Translation\)\s*/gi, "").trim()}
+```
+
+## Visual Result
+
+**Before:**
+```
+○ National ID Card               ⏳ Pending Client
+○ Passport                       ⏳ Pending Client
+○ Name Change Certificate        ⏳ Pending Client
+○ Divorce Certificate           ↔ Has Translation  ⏳ Pending Client
+○ Driver's License               ⏳ Pending Client
+○ Birth Certificate              ⏳ Pending Client
+○ Divorce Certificate (Translation)  文 Translation • NAATI Certified  ⏳ Pending Client
+```
+
+**After:**
+```
+○ National ID Card               ⏳ Pending Client
+○ Passport                       ⏳ Pending Client
+○ Name Change Certificate        ⏳ Pending Client
+○ Divorce Certificate           ↔ Has Translation  ⏳ Pending Client
+○ Divorce Certificate            文 Translation • NAATI Certified  ⏳ Pending Client
+○ Driver's License               ⏳ Pending Client
+○ Birth Certificate              ⏳ Pending Client
+```
+
+The translation badge clearly identifies it as a translation, so the "(Translation)" suffix becomes redundant and can be removed.
+
