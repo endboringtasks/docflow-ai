@@ -1499,6 +1499,32 @@ const VisaApplicationDetail = () => {
       grouped[applicantType][category].push(doc);
     });
     
+    // Sort each category so translations follow their parent document
+    Object.keys(grouped).forEach(applicantType => {
+      Object.keys(grouped[applicantType]).forEach(category => {
+        const docs = grouped[applicantType][category];
+        // Separate originals and translations
+        const originals = docs.filter(d => !d.translationOfId);
+        const translations = docs.filter(d => d.translationOfId);
+        
+        // Rebuild array: original followed by its translation(s)
+        const sorted: DocumentItem[] = [];
+        originals.forEach(original => {
+          sorted.push(original);
+          // Find and add any translations for this original
+          translations
+            .filter(t => t.translationOfId === original.id)
+            .forEach(t => sorted.push(t));
+        });
+        // Add any orphan translations at the end
+        translations
+          .filter(t => !originals.some(o => o.id === t.translationOfId))
+          .forEach(t => sorted.push(t));
+        
+        grouped[applicantType][category] = sorted;
+      });
+    });
+    
     return grouped;
   }, [filteredDocuments]);
 
@@ -1960,7 +1986,7 @@ const VisaApplicationDetail = () => {
                                 disabled={toggleDocumentMutation.isPending}
                               />
                               <span className={doc.completed ? "line-through text-muted-foreground" : ""}>
-                                {doc.name}
+                              {doc.name.replace(/\s*\(Translation\)\s*/gi, "").trim()}
                               </span>
                               {/* Requirement Type Badge */}
                               {doc.requirementType === "optional" && (
