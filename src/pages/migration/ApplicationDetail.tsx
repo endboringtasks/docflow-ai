@@ -1963,20 +1963,6 @@ const VisaApplicationDetail = () => {
                                 {doc.name}
                               </span>
                               {/* Requirement Type Badge */}
-                              {doc.requirementType === "conditional" && (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Badge variant="outline" className={`text-xs border-amber-500 text-amber-600 dark:text-amber-400 ${!doc.isApplicable ? 'opacity-50' : ''}`}>
-                                        If Applicable
-                                      </Badge>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" className="max-w-xs">
-                                      <p className="text-xs">{doc.applicabilityCondition || "Submit this document if it applies to this case"}</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
                               {doc.requirementType === "optional" && (
                                 <Badge variant="secondary" className="text-xs">
                                   Optional
