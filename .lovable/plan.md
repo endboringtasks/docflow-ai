@@ -1,45 +1,68 @@
 
-# Fix: Remove `[Category:optional]` Prefix from Document Names
+# Remove "If Applicable" Badge from Document Checklists
 
 ## Problem
 
-In the client portal, document names display a prefix like `[Identity Documents:optional]` before the actual document name (e.g., "Name Change Certificate"). This happens because the current regex only strips the `:required` pattern but not `:optional`.
+The "If Applicable" badge is showing next to conditional documents on both:
+1. The internal application detail page (`ApplicationDetail.tsx`)
+2. The client portal (`ClientPortal.tsx`)
 
-**Current regex:**
-```javascript
-doc.document_name.replace(/\s*\[[^\]]*:required\]\s*/gi, " ").trim()
-```
-
-This only matches patterns like `[Category:required]` but NOT `[Category:optional]`.
+The user wants these badges removed from both views.
 
 ## Solution
 
-Update the regex to match both `:required` and `:optional` patterns using an alternation:
-
-```javascript
-doc.document_name.replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ").trim()
-```
+Remove the badge rendering code for `requirement_type === "conditional"` from both pages while keeping the rest of the document display logic intact.
 
 ## Files to Change
 
-| File | Line | Change |
-|------|------|--------|
-| `src/pages/client-portal/ClientPortal.tsx` | 1003 | Update regex for document name display |
-| `src/pages/client-portal/ClientPortal.tsx` | 1081 | Update regex for description display |
+| File | Lines | Change |
+|------|-------|--------|
+| `src/pages/migration/ApplicationDetail.tsx` | 1966-1979 | Remove the "If Applicable" badge with its tooltip wrapper |
+| `src/pages/client-portal/ClientPortal.tsx` | 1006-1019 | Remove the "If Applicable" badge with its tooltip wrapper |
 
-## Technical Details
+## Code Changes
 
-The regex breakdown:
-- `\s*` - Match optional leading whitespace
-- `\[` - Match opening bracket
-- `[^\]]*` - Match any characters except closing bracket (the category name)
-- `:(?:required|optional)` - Match either `:required` or `:optional` (non-capturing group)
-- `\]` - Match closing bracket
-- `\s*` - Match optional trailing whitespace
-- `gi` - Global and case-insensitive flags
+### ApplicationDetail.tsx (lines 1966-1979)
+Remove this block:
+```tsx
+{doc.requirementType === "conditional" && (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge variant="outline" className={`text-xs border-amber-500 text-amber-600 dark:text-amber-400 ${!doc.isApplicable ? 'opacity-50' : ''}`}>
+          If Applicable
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        <p className="text-xs">{doc.applicabilityCondition || "Submit this document if it applies to this case"}</p>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+)}
+```
+
+### ClientPortal.tsx (lines 1006-1019)
+Remove this block:
+```tsx
+{doc.requirement_type === "conditional" && (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge variant="outline" className="text-xs border-amber-500 text-amber-600 dark:text-amber-400">
+          If Applicable
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        <p className="text-xs">{doc.applicability_condition || "Submit this document if it applies to your situation"}</p>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+)}
+```
 
 ## Result
 
-After the fix, documents will display as:
-- **Before:** `[Identity Documents:optional] Name Change Certificate`
-- **After:** `Name Change Certificate`
+After the changes:
+- Documents will no longer show the "If Applicable" badge
+- Other badges like "Pending Client", "Has Translation", "Optional", and file count badges will remain
+- The applicability toggle functionality in the admin area remains unchanged
