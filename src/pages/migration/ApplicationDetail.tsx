@@ -2043,7 +2043,7 @@ const VisaApplicationDetail = () => {
                                   <TooltipTrigger asChild>
                                     <Badge variant="outline" className="text-xs text-purple-600 border-purple-400 bg-purple-50 dark:bg-purple-950/30">
                                       <Link2 className="w-3 h-3 mr-1" />
-                                      Has Translation
+                                      Original
                                     </Badge>
                                   </TooltipTrigger>
                                   <TooltipContent>
