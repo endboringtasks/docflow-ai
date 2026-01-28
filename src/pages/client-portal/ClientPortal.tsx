@@ -1000,7 +1000,7 @@ export default function ClientPortal() {
                                                       <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                           <p className={`font-medium text-sm ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
-                                                            {doc.document_name.replace(/\s*\[[^\]]*:required\]\s*/gi, " ").trim()}
+                                                            {doc.document_name.replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ").trim()}
                                                           </p>
                                                           {/* Requirement Type Badge */}
                                                           {doc.requirement_type === "conditional" && (
@@ -1078,7 +1078,7 @@ export default function ClientPortal() {
                                                         
                                                         {!doc.is_completed && (() => {
                                                           const cleaned = doc.description
-                                                            ?.replace(/\s*\[[^\]]*:required\]\s*/gi, " ")
+                                                            ?.replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ")
                                                             .trim();
                                                           return cleaned ? (
                                                             <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
