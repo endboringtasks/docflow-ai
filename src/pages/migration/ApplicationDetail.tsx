@@ -2117,7 +2117,7 @@ const VisaApplicationDetail = () => {
                                     <TooltipTrigger asChild>
                                       <div className="flex items-center gap-1.5">
                                         <span className={`text-xs ${!doc.isApplicable ? 'text-muted-foreground font-medium' : 'text-muted-foreground/60'}`}>
-                                          N/A
+                                          Disable
                                         </span>
                                         <Switch
                                           checked={doc.isApplicable}
@@ -2128,7 +2128,7 @@ const VisaApplicationDetail = () => {
                                           className="data-[state=checked]:bg-amber-500 data-[state=unchecked]:bg-muted h-5 w-9"
                                         />
                                         <span className={`text-xs ${doc.isApplicable ? 'text-amber-600 font-medium' : 'text-muted-foreground/60'}`}>
-                                          Applies
+                                          Enable
                                         </span>
                                       </div>
                                     </TooltipTrigger>
