@@ -1,61 +1,56 @@
 
 
-# Rename "Has Translation" Badge to "Original"
+# Rename Toggle Labels from "N/A - Applies" to "Disable - Enable"
 
 ## Problem
 
-In the admin application detail page, documents that have a linked translation are marked with a "Has Translation" badge. The user wants this renamed to "Original" to better indicate that this is the original document (with its translation appearing right below it now).
+The applicability toggle for conditional documents currently shows "N/A" and "Applies" as labels. The user wants these renamed to "Disable" and "Enable" for clearer understanding of what the toggle does (disable/enable the document requirement).
 
 ## Solution
 
-Update the badge text from "Has Translation" to "Original" in the ApplicationDetail.tsx file.
+Update the toggle label text in ApplicationDetail.tsx from:
+- "N/A" → "Disable"
+- "Applies" → "Enable"
 
 ## File to Change
 
-| File | Line | Change |
-|------|------|--------|
-| `src/pages/migration/ApplicationDetail.tsx` | 2046 | Change "Has Translation" to "Original" |
+| File | Lines | Change |
+|------|-------|--------|
+| `src/pages/migration/ApplicationDetail.tsx` | 2119-2131 | Rename toggle labels |
 
-## Code Change
+## Code Changes
 
 ```tsx
-// Before (line 2046):
-Has Translation
+// Before (lines 2119-2131):
+<span className={`text-xs ${!doc.isApplicable ? 'text-muted-foreground font-medium' : 'text-muted-foreground/60'}`}>
+  N/A
+</span>
+<Switch ... />
+<span className={`text-xs ${doc.isApplicable ? 'text-amber-600 font-medium' : 'text-muted-foreground/60'}`}>
+  Applies
+</span>
 
 // After:
-Original
-```
-
-The full context:
-```tsx
-{doc.requiresTranslation && !doc.translationOfId && (
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <Badge variant="outline" className="text-xs text-purple-600 border-purple-400 bg-purple-50 dark:bg-purple-950/30">
-        <Link2 className="w-3 h-3 mr-1" />
-        Original  {/* Changed from "Has Translation" */}
-      </Badge>
-    </TooltipTrigger>
-    <TooltipContent>
-      <p>A translation document was auto-created for this original</p>
-    </TooltipContent>
-  </Tooltip>
-)}
+<span className={`text-xs ${!doc.isApplicable ? 'text-muted-foreground font-medium' : 'text-muted-foreground/60'}`}>
+  Disable
+</span>
+<Switch ... />
+<span className={`text-xs ${doc.isApplicable ? 'text-amber-600 font-medium' : 'text-muted-foreground/60'}`}>
+  Enable
+</span>
 ```
 
 ## Visual Result
 
 **Before:**
 ```
-○ Divorce Certificate           ↔ Has Translation  ⏳ Pending Client
-○ Divorce Certificate           文 Translation • NAATI Certified  ⏳ Pending Client
+[Divorce Certificate]  [ N/A ○──── Applies ]
 ```
 
 **After:**
 ```
-○ Divorce Certificate           ↔ Original  ⏳ Pending Client
-○ Divorce Certificate           文 Translation • NAATI Certified  ⏳ Pending Client
+[Divorce Certificate]  [ Disable ○──── Enable ]
 ```
 
-This creates a clearer visual pairing: "Original" followed by its "Translation".
+This makes the toggle action clearer - "Disable" means the document requirement is disabled (not needed), and "Enable" means it's enabled (required from the client).
 
