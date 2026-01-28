@@ -1003,20 +1003,6 @@ export default function ClientPortal() {
                                                             {doc.document_name.replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ").trim()}
                                                           </p>
                                                           {/* Requirement Type Badge */}
-                                                          {doc.requirement_type === "conditional" && (
-                                                            <TooltipProvider>
-                                                              <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                  <Badge variant="outline" className="text-xs border-amber-500 text-amber-600 dark:text-amber-400">
-                                                                    If Applicable
-                                                                  </Badge>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent side="top" className="max-w-xs">
-                                                                  <p className="text-xs">{doc.applicability_condition || "Submit this document if it applies to your situation"}</p>
-                                                                </TooltipContent>
-                                                              </Tooltip>
-                                                            </TooltipProvider>
-                                                          )}
                                                           {doc.requirement_type === "optional" && (
                                                             <Badge variant="secondary" className="text-xs">
                                                               Optional
