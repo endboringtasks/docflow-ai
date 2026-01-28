@@ -669,6 +669,33 @@ export default function ClientPortal() {
       }
       groups[applicantType][category].push(doc);
     });
+    
+    // Sort each category so translations follow their parent document
+    Object.keys(groups).forEach(applicantType => {
+      Object.keys(groups[applicantType]).forEach(category => {
+        const docs = groups[applicantType][category];
+        // Separate originals and translations
+        const originals = docs.filter(d => !d.translation_of_id);
+        const translations = docs.filter(d => d.translation_of_id);
+        
+        // Rebuild array: original followed by its translation(s)
+        const sorted: DocumentItem[] = [];
+        originals.forEach(original => {
+          sorted.push(original);
+          // Find and add any translations for this original
+          translations
+            .filter(t => t.translation_of_id === original.id)
+            .forEach(t => sorted.push(t));
+        });
+        // Add any orphan translations at the end
+        translations
+          .filter(t => !originals.some(o => o.id === t.translation_of_id))
+          .forEach(t => sorted.push(t));
+        
+        groups[applicantType][category] = sorted;
+      });
+    });
+    
     return groups;
   }, [documents]);
 
@@ -1000,7 +1027,7 @@ export default function ClientPortal() {
                                                       <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                           <p className={`font-medium text-sm ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
-                                                            {doc.document_name.replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ").trim()}
+                                                            {doc.document_name.replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ").replace(/\s*\(Translation\)\s*/gi, "").trim()}
                                                           </p>
                                                           {/* Requirement Type Badge */}
                                                           {doc.requirement_type === "optional" && (
