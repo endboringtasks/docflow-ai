@@ -885,6 +885,18 @@ const VisaApplicationDetail = () => {
     enabled: !!visaApplicationId,
   });
 
+  // Create a map from applicant type name to display name for headers
+  const applicantTypeToName = useMemo(() => {
+    const mapping: Record<string, string> = {};
+    applicationApplicants.forEach(applicant => {
+      const typeName = applicant.applicant_type?.name;
+      if (typeName && applicant.displayName) {
+        mapping[typeName] = applicant.displayName;
+      }
+    });
+    return mapping;
+  }, [applicationApplicants]);
+
   const defaultDocCategories = [
     "Identity", "Character", "Health", "Employment", "Skills",
     "English", "Education", "Financial", "Relationship",
@@ -2007,7 +2019,14 @@ const VisaApplicationDetail = () => {
                   <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center">
                     <User className="w-4 h-4 text-primary-foreground" />
                   </div>
-                  <h2 className="text-lg font-semibold">{applicantType}</h2>
+                  <h2 className="text-lg font-semibold">
+                    {applicantType}
+                    {applicantTypeToName[applicantType] && (
+                      <span className="text-muted-foreground font-normal ml-2">
+                        – {applicantTypeToName[applicantType]}
+                      </span>
+                    )}
+                  </h2>
                   <Badge variant="outline">
                     {Object.values(groupedByApplicantType[applicantType]).flat().filter(d => d.completed).length}/
                     {Object.values(groupedByApplicantType[applicantType]).flat().length}
