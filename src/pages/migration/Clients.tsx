@@ -4,6 +4,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { NationalitySelect } from "@/components/ui/nationality-select";
 import { 
   Plus, 
   Search, 
@@ -89,6 +90,9 @@ const MigrationClients = () => {
     email: "",
     phoneCountryCode: "+61",
     phoneNumber: "",
+    dateOfBirth: "",
+    passportNumber: "",
+    nationality: "",
   });
   const [newClient, setNewClient] = useState({
     clientType: "personal" as "personal" | "corporate",
@@ -98,6 +102,9 @@ const MigrationClients = () => {
     email: "",
     phoneCountryCode: "+61",
     phoneNumber: "",
+    dateOfBirth: "",
+    passportNumber: "",
+    nationality: "",
   });
 
   // Email validation helper
@@ -161,6 +168,9 @@ const MigrationClients = () => {
       company_name: string | null;
       email: string | null;
       phone: string | null;
+      date_of_birth: string | null;
+      passport_number: string | null;
+      nationality: string | null;
     }) => {
       if (!currentCompany?.id) throw new Error("No company selected");
       
@@ -174,6 +184,9 @@ const MigrationClients = () => {
           company_name: clientData.company_name,
           email: clientData.email,
           phone: clientData.phone,
+          date_of_birth: clientData.date_of_birth,
+          passport_number: clientData.passport_number,
+          nationality: clientData.nationality,
         })
         .select()
         .single();
@@ -215,7 +228,7 @@ const MigrationClients = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
       setIsCreateOpen(false);
-      setNewClient({ clientType: "personal", firstName: "", lastName: "", companyName: "", email: "", phoneCountryCode: "+61", phoneNumber: "" });
+      setNewClient({ clientType: "personal", firstName: "", lastName: "", companyName: "", email: "", phoneCountryCode: "+61", phoneNumber: "", dateOfBirth: "", passportNumber: "", nationality: "" });
       toast.success("Client created!");
     },
     onError: (error) => {
@@ -281,6 +294,9 @@ const MigrationClients = () => {
       company_name: string | null;
       email: string | null;
       phone: string | null;
+      date_of_birth: string | null;
+      passport_number: string | null;
+      nationality: string | null;
     }) => {
       const { data, error } = await supabase
         .from("clients")
@@ -291,6 +307,9 @@ const MigrationClients = () => {
           company_name: clientData.company_name,
           email: clientData.email,
           phone: clientData.phone,
+          date_of_birth: clientData.date_of_birth,
+          passport_number: clientData.passport_number,
+          nationality: clientData.nationality,
         })
         .eq("id", clientData.id)
         .select()
@@ -414,6 +433,9 @@ const MigrationClients = () => {
       company_name: isCorporate ? newClient.companyName.trim() : null,
       email: newClient.email.trim() || null,
       phone: formatPhoneNumber(newClient.phoneCountryCode, newClient.phoneNumber) || null,
+      date_of_birth: isCorporate ? null : (newClient.dateOfBirth || null),
+      passport_number: isCorporate ? null : (newClient.passportNumber.trim() || null),
+      nationality: isCorporate ? null : (newClient.nationality || null),
     });
   };
 
@@ -427,6 +449,9 @@ const MigrationClients = () => {
       email: client.email || "",
       phoneCountryCode: countryCode,
       phoneNumber: phoneNumber,
+      dateOfBirth: (client as any).date_of_birth || "",
+      passportNumber: (client as any).passport_number || "",
+      nationality: (client as any).nationality || "",
     });
     setClientToEdit(client);
   };
@@ -446,6 +471,9 @@ const MigrationClients = () => {
       last_name: isCorporate ? null : (editForm.lastName.trim() || null),
       company_name: isCorporate ? editForm.companyName.trim() : null,
       email: editForm.email.trim() || null,
+      date_of_birth: isCorporate ? null : (editForm.dateOfBirth || null),
+      passport_number: isCorporate ? null : (editForm.passportNumber.trim() || null),
+      nationality: isCorporate ? null : (editForm.nationality || null),
       phone: formatPhoneNumber(editForm.phoneCountryCode, editForm.phoneNumber) || null,
     });
   };
@@ -528,6 +556,32 @@ const MigrationClients = () => {
                         onChange={(e) => setNewClient({...newClient, lastName: e.target.value})}
                         placeholder="Smith"
                         className="bg-secondary border-border"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Date of Birth</Label>
+                      <Input
+                        type="date"
+                        value={newClient.dateOfBirth}
+                        onChange={(e) => setNewClient({...newClient, dateOfBirth: e.target.value})}
+                        className="bg-secondary border-border"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Passport Number</Label>
+                      <Input
+                        value={newClient.passportNumber}
+                        onChange={(e) => setNewClient({...newClient, passportNumber: e.target.value})}
+                        placeholder="Enter passport number"
+                        className="bg-secondary border-border"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Nationality</Label>
+                      <NationalitySelect
+                        value={newClient.nationality}
+                        onValueChange={(value) => setNewClient({...newClient, nationality: value})}
+                        placeholder="Select nationality..."
                       />
                     </div>
                   </>
@@ -850,6 +904,32 @@ const MigrationClients = () => {
                         onChange={(e) => setEditForm({...editForm, lastName: e.target.value})}
                         placeholder="Smith"
                         className="bg-secondary border-border"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Date of Birth</Label>
+                      <Input
+                        type="date"
+                        value={editForm.dateOfBirth}
+                        onChange={(e) => setEditForm({...editForm, dateOfBirth: e.target.value})}
+                        className="bg-secondary border-border"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Passport Number</Label>
+                      <Input
+                        value={editForm.passportNumber}
+                        onChange={(e) => setEditForm({...editForm, passportNumber: e.target.value})}
+                        placeholder="Enter passport number"
+                        className="bg-secondary border-border"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Nationality</Label>
+                      <NationalitySelect
+                        value={editForm.nationality}
+                        onValueChange={(value) => setEditForm({...editForm, nationality: value})}
+                        placeholder="Select nationality..."
                       />
                     </div>
                   </>
