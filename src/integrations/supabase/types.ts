@@ -48,6 +48,7 @@ export type Database = {
           created_at: string
           id: string
           is_primary: boolean
+          related_applicant_id: string | null
           sort_order: number
           visa_application_id: string
         }
@@ -57,6 +58,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_primary?: boolean
+          related_applicant_id?: string | null
           sort_order?: number
           visa_application_id: string
         }
@@ -66,6 +68,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_primary?: boolean
+          related_applicant_id?: string | null
           sort_order?: number
           visa_application_id?: string
         }

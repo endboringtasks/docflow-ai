@@ -22,12 +22,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, User, Users, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-interface Client {
+interface RelatedApplicant {
   id: string;
-  client_type: "personal" | "corporate";
-  first_name: string | null;
-  last_name: string | null;
-  company_name: string | null;
+  type: "partner" | "dependant" | "witness";
+  first_name: string;
+  last_name: string;
+  relationship: string;
 }
 
 interface ApplicantType {
@@ -42,8 +42,9 @@ interface ApplicationApplicant {
   applicant_type_id: string;
   is_primary: boolean;
   sort_order: number;
+  related_applicant_id: string | null;
   applicant_type: ApplicantType;
-  client: Client;
+  displayName: string;
 }
 
 interface CategoryApplicantRule {
@@ -63,27 +64,48 @@ interface ApplicantsSectionProps {
   categoryId: string | null;
   subcategoryId?: string | null;
   companyId: string;
+  primaryClientId: string;
 }
-
-const getClientName = (client: Client) => {
-  if (client.client_type === "corporate") {
-    return client.company_name || "Unnamed Company";
-  }
-  return client.last_name 
-    ? `${client.first_name} ${client.last_name}` 
-    : (client.first_name || "Unnamed Client");
-};
 
 export const ApplicantsSection = ({
   visaApplicationId,
   categoryId,
   subcategoryId,
   companyId,
+  primaryClientId,
 }: ApplicantsSectionProps) => {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedTypeId, setSelectedTypeId] = useState("");
-  const [selectedClientId, setSelectedClientId] = useState("");
+  const [selectedRelatedApplicantId, setSelectedRelatedApplicantId] = useState("");
+
+  // Fetch primary client's related applicants from JSONB
+  const { data: primaryClientData } = useQuery({
+    queryKey: ["client-related-applicants", primaryClientId],
+    queryFn: async () => {
+      if (!primaryClientId) return null;
+      const { data, error } = await supabase
+        .from("clients")
+        .select("first_name, last_name, company_name, client_type, related_applicants")
+        .eq("id", primaryClientId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!primaryClientId,
+  });
+
+  const relatedApplicants = Array.isArray(primaryClientData?.related_applicants) 
+    ? (primaryClientData.related_applicants as unknown as RelatedApplicant[])
+    : [];
+
+  const getPrimaryClientName = () => {
+    if (!primaryClientData) return "Primary Applicant";
+    if (primaryClientData.client_type === "corporate") {
+      return primaryClientData.company_name || "Unnamed Company";
+    }
+    return `${primaryClientData.first_name || ""} ${primaryClientData.last_name || ""}`.trim() || "Primary Applicant";
+  };
 
   // Fetch application applicants
   const { data: applicationApplicants = [], isLoading: isLoadingApplicants } = useQuery({
@@ -97,15 +119,35 @@ export const ApplicantsSection = ({
           applicant_type_id,
           is_primary,
           sort_order,
-          applicant_type:applicant_types(id, code, name),
-          client:clients(id, first_name, last_name, company_name, client_type)
+          related_applicant_id,
+          applicant_type:applicant_types(id, code, name)
         `)
         .eq("visa_application_id", visaApplicationId)
         .order("sort_order");
       if (error) throw error;
-      return data as unknown as ApplicationApplicant[];
+      
+      // Transform to include display names
+      return (data || []).map(applicant => {
+        let displayName = "";
+        
+        if (applicant.is_primary) {
+          displayName = getPrimaryClientName();
+        } else if (applicant.related_applicant_id) {
+          const relatedPerson = relatedApplicants.find(
+            ra => ra.id === applicant.related_applicant_id
+          );
+          if (relatedPerson) {
+            displayName = `${relatedPerson.first_name || ""} ${relatedPerson.last_name || ""}`.trim();
+          }
+        }
+        
+        return {
+          ...applicant,
+          displayName: displayName || applicant.applicant_type?.name || "Unknown",
+        } as ApplicationApplicant;
+      });
     },
-    enabled: !!visaApplicationId,
+    enabled: !!visaApplicationId && !!primaryClientData,
   });
 
   // Fetch category applicant rules (with subcategory support)
@@ -142,18 +184,6 @@ export const ApplicantsSection = ({
     enabled: !!categoryId,
   });
 
-  // Fetch all clients for dropdown
-  const { data: clients = [] } = useQuery({
-    queryKey: ["clients", companyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .rpc("get_clients_secure", { p_company_id: companyId });
-      if (error) throw error;
-      return data as Client[];
-    },
-    enabled: !!companyId,
-  });
-
   // Get available applicant types (types that can still be added)
   const availableApplicantTypes = categoryRules.filter(rule => {
     // Skip primary type (can't add more primary applicants)
@@ -170,32 +200,50 @@ export const ApplicantsSection = ({
     return true;
   });
 
-  // Get available clients (exclude already added clients for same type)
-  const getAvailableClients = () => {
-    if (!selectedTypeId) return clients;
+  // Get available related applicants for a specific type
+  const getAvailableRelatedApplicants = () => {
+    if (!selectedTypeId) return [];
     
-    // Get client IDs already added for this type
-    const existingClientIds = applicationApplicants
+    const rule = categoryRules.find(r => r.applicant_type_id === selectedTypeId);
+    if (!rule) return [];
+    
+    // Map applicant type code to related_applicants type
+    const typeMapping: Record<string, string> = {
+      partner: "partner",
+      dependant: "dependant",
+      witness: "witness",
+    };
+    
+    const typeCode = rule.applicant_type?.code?.toLowerCase() || "";
+    const matchingType = typeMapping[typeCode];
+    if (!matchingType) return [];
+    
+    // Filter related applicants by type
+    const applicantsOfType = relatedApplicants.filter(a => a.type === matchingType);
+    
+    // Exclude already added ones
+    const existingIds = applicationApplicants
       .filter(a => a.applicant_type_id === selectedTypeId)
-      .map(a => a.client_id);
+      .map(a => a.related_applicant_id);
     
-    return clients.filter(c => !existingClientIds.includes(c.id));
+    return applicantsOfType.filter(a => !existingIds.includes(a.id));
   };
 
   // Add applicant mutation
   const addApplicantMutation = useMutation({
-    mutationFn: async ({ clientId, applicantTypeId }: { 
-      clientId: string; 
+    mutationFn: async ({ relatedApplicantId, applicantTypeId }: { 
+      relatedApplicantId: string; 
       applicantTypeId: string;
     }) => {
       const { error } = await supabase
         .from("application_applicants")
         .insert({
           visa_application_id: visaApplicationId,
-          client_id: clientId,
+          client_id: primaryClientId, // Always references primary client
           applicant_type_id: applicantTypeId,
           is_primary: false,
           sort_order: (applicationApplicants.length + 1) * 10,
+          related_applicant_id: relatedApplicantId, // Reference to JSONB entry
         });
       if (error) throw error;
     },
@@ -203,7 +251,7 @@ export const ApplicantsSection = ({
       queryClient.invalidateQueries({ queryKey: ["application-applicants", visaApplicationId] });
       setIsAddOpen(false);
       setSelectedTypeId("");
-      setSelectedClientId("");
+      setSelectedRelatedApplicantId("");
       toast.success("Applicant added");
     },
     onError: (error) => {
@@ -230,9 +278,9 @@ export const ApplicantsSection = ({
   });
 
   const handleAddApplicant = () => {
-    if (!selectedClientId || !selectedTypeId) return;
+    if (!selectedRelatedApplicantId || !selectedTypeId) return;
     addApplicantMutation.mutate({
-      clientId: selectedClientId,
+      relatedApplicantId: selectedRelatedApplicantId,
       applicantTypeId: selectedTypeId,
     });
   };
@@ -254,6 +302,8 @@ export const ApplicantsSection = ({
       </Card>
     );
   }
+
+  const availableForSelectedType = getAvailableRelatedApplicants();
 
   return (
     <>
@@ -292,7 +342,7 @@ export const ApplicantsSection = ({
                   <User className="w-4 h-4 text-muted-foreground" />
                   <div>
                     <p className="text-sm font-medium">
-                      {getClientName(applicant.client)}
+                      {applicant.displayName}
                     </p>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">
@@ -329,7 +379,7 @@ export const ApplicantsSection = ({
           <DialogHeader>
             <DialogTitle>Add Applicant</DialogTitle>
             <DialogDescription>
-              Add an applicant to this application.
+              Add an applicant from the primary client's related persons.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -339,7 +389,7 @@ export const ApplicantsSection = ({
                 value={selectedTypeId}
                 onValueChange={(value) => {
                   setSelectedTypeId(value);
-                  setSelectedClientId("");
+                  setSelectedRelatedApplicantId("");
                 }}
               >
                 <SelectTrigger>
@@ -356,21 +406,27 @@ export const ApplicantsSection = ({
             </div>
             
             <div className="space-y-2">
-              <Label>Client</Label>
+              <Label>Person</Label>
               <Select
-                value={selectedClientId}
-                onValueChange={setSelectedClientId}
+                value={selectedRelatedApplicantId}
+                onValueChange={setSelectedRelatedApplicantId}
                 disabled={!selectedTypeId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder={selectedTypeId ? "Select client..." : "Select type first"} />
+                  <SelectValue placeholder={selectedTypeId ? "Select person..." : "Select type first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {getAvailableClients().map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {getClientName(client)}
+                  {availableForSelectedType.map((person) => (
+                    <SelectItem key={person.id} value={person.id}>
+                      {person.first_name} {person.last_name}
+                      {person.relationship && ` (${person.relationship})`}
                     </SelectItem>
                   ))}
+                  {availableForSelectedType.length === 0 && selectedTypeId && (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      No available {categoryRules.find(r => r.applicant_type_id === selectedTypeId)?.applicant_type?.name?.toLowerCase() || "persons"} in client's profile
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -381,7 +437,7 @@ export const ApplicantsSection = ({
             </Button>
             <Button
               onClick={handleAddApplicant}
-              disabled={!selectedClientId || !selectedTypeId || addApplicantMutation.isPending}
+              disabled={!selectedRelatedApplicantId || !selectedTypeId || addApplicantMutation.isPending}
             >
               {addApplicantMutation.isPending ? (
                 <>

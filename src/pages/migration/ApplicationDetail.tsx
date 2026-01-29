@@ -840,17 +840,47 @@ const VisaApplicationDetail = () => {
   const { data: applicationApplicants = [] } = useQuery({
     queryKey: ["application-applicants", visaApplicationId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch application applicants with their types
+      const { data: applicantData, error: applicantError } = await supabase
         .from("application_applicants")
         .select(`
           id, 
+          is_primary,
+          related_applicant_id,
           applicant_type:applicant_types(id, code, name),
-          client:clients(id, first_name, last_name)
+          client:clients(id, first_name, last_name, related_applicants)
         `)
         .eq("visa_application_id", visaApplicationId)
         .order("sort_order");
-      if (error) throw error;
-      return data;
+      if (applicantError) throw applicantError;
+      
+      // Transform data to include proper names
+      return (applicantData || []).map(applicant => {
+        let displayName = "";
+        
+        if (applicant.is_primary && applicant.client) {
+          // Primary applicant - use client name
+          displayName = `${applicant.client.first_name || ""} ${applicant.client.last_name || ""}`.trim() || "Primary Applicant";
+        } else if (applicant.related_applicant_id && applicant.client?.related_applicants) {
+          // Related applicant - find in JSONB array
+          const relatedApplicants = applicant.client.related_applicants as Array<{
+            id: string;
+            first_name: string;
+            last_name: string;
+            type: string;
+          }>;
+          const relatedPerson = relatedApplicants.find(ra => ra.id === applicant.related_applicant_id);
+          if (relatedPerson) {
+            displayName = `${relatedPerson.first_name || ""} ${relatedPerson.last_name || ""}`.trim();
+          }
+        }
+        
+        return {
+          id: applicant.id,
+          applicant_type: applicant.applicant_type,
+          displayName: displayName || applicant.applicant_type?.name || "Unknown",
+        };
+      });
     },
     enabled: !!visaApplicationId,
   });
@@ -1746,6 +1776,7 @@ const VisaApplicationDetail = () => {
             categoryId={visaApplication.category_id}
             subcategoryId={visaApplication.subcategory_id}
             companyId={currentCompany.id}
+            primaryClientId={visaApplication.client_id}
           />
         )}
 
@@ -2343,15 +2374,19 @@ const VisaApplicationDetail = () => {
                         <SelectValue placeholder="Select applicant (optional)..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {applicationApplicants.map((applicant: any) => (
+                        {applicationApplicants.map((applicant) => (
                           <SelectItem 
                             key={applicant.id} 
                             value={applicant.applicant_type?.name || "Unknown"}
                           >
-                            {applicant.applicant_type?.name} 
-                            {applicant.client && ` - ${applicant.client.first_name} ${applicant.client.last_name || ""}`}
+                            {applicant.applicant_type?.name} - {applicant.displayName}
                           </SelectItem>
                         ))}
+                        {applicationApplicants.length === 0 && (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                            No applicants found for this application
+                          </div>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>

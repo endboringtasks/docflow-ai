@@ -454,17 +454,18 @@ const MigrationVisaApplications = () => {
           });
         }
 
-        // Add other selected applicants
+        // Add other selected applicants (related applicants from client's JSONB)
         Object.entries(applicantSelections).forEach(([typeId, selection], index) => {
           if (selection.enabled && selection.clients.length > 0) {
-            selection.clients.forEach((clientId, clientIndex) => {
-              if (clientId) {
+            selection.clients.forEach((relatedApplicantId, clientIndex) => {
+              if (relatedApplicantId) {
                 applicantRecords.push({
                   visa_application_id: data.id,
-                  client_id: clientId,
+                  client_id: data.client_id, // Primary client's ID
                   applicant_type_id: typeId,
                   is_primary: false,
                   sort_order: (index + 1) * 10 + clientIndex,
+                  related_applicant_id: relatedApplicantId, // ID from related_applicants JSONB
                 });
               }
             });
