@@ -307,7 +307,12 @@ const VisaApplicationDetail = () => {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isMergeOpen, setIsMergeOpen] = useState(false);
-  const [newDocName, setNewDocName] = useState("");
+  const [isAddDocOpen, setIsAddDocOpen] = useState(false);
+  const [newDocForm, setNewDocForm] = useState({
+    name: "",
+    category: "",
+    applicantType: "",
+  });
   const documentsInitializedRef = useRef(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
   const [reviewFilter, setReviewFilter] = useState<"all" | ReviewStatus>("all");
@@ -831,8 +836,33 @@ const VisaApplicationDetail = () => {
   });
 
 
+  // Fetch application applicants for the custom document form
+  const { data: applicationApplicants = [] } = useQuery({
+    queryKey: ["application-applicants", visaApplicationId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("application_applicants")
+        .select(`
+          id, 
+          applicant_type:applicant_types(id, code, name),
+          client:clients(id, first_name, last_name)
+        `)
+        .eq("visa_application_id", visaApplicationId)
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!visaApplicationId,
+  });
+
+  const defaultDocCategories = [
+    "Identity", "Character", "Health", "Employment", "Skills",
+    "English", "Education", "Financial", "Relationship",
+    "Sponsor", "Insurance", "Nomination", "Other",
+  ];
+
   const addDocumentMutation = useMutation({
-    mutationFn: async (docName: string) => {
+    mutationFn: async (doc: { name: string; category: string; applicantType: string }) => {
       if (!visaApplicationId || !visaApplication?.company_id) throw new Error("Missing IDs");
       
         const { data, error } = await supabase
@@ -840,7 +870,9 @@ const VisaApplicationDetail = () => {
           .insert({
             visa_application_id: visaApplicationId,
             company_id: visaApplication.company_id,
-            document_name: `[Custom] ${docName}`,
+            document_name: `[Custom] ${doc.name}`,
+            category: doc.category || "Other",
+            applicant_type: doc.applicantType || null,
             is_completed: false,
             review_status: "pending_client",
           })
@@ -852,7 +884,8 @@ const VisaApplicationDetail = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
-      setNewDocName("");
+      setNewDocForm({ name: "", category: "", applicantType: "" });
+      setIsAddDocOpen(false);
       toast.success("Document added to checklist");
     },
     onError: (error) => {
@@ -1345,8 +1378,8 @@ const VisaApplicationDetail = () => {
   };
 
   const handleAddDocument = () => {
-    if (!newDocName.trim()) return;
-    addDocumentMutation.mutate(newDocName.trim());
+    if (!newDocForm.name.trim()) return;
+    addDocumentMutation.mutate(newDocForm);
   };
 
   const handleRemoveDocument = (docId: string) => {
@@ -2252,29 +2285,95 @@ const VisaApplicationDetail = () => {
 
             {/* Add Custom Document */}
             <div className="card-gradient rounded-xl border border-border/50 p-6">
-              <h3 className="font-semibold mb-4">Add Custom Document</h3>
-              <div className="flex gap-3">
-                <Input
-                  value={newDocName}
-                  onChange={(e) => setNewDocName(e.target.value)}
-                  placeholder="Document name..."
-                  className="bg-secondary border-border"
-                  onKeyDown={(e) => e.key === "Enter" && handleAddDocument()}
-                />
-                <Button 
-                  variant="outline" 
-                  onClick={handleAddDocument} 
-                  disabled={!newDocName.trim() || addDocumentMutation.isPending}
-                >
-                  {addDocumentMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Plus className="w-4 h-4 mr-2" />
-                  )}
-                  Add
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Add Custom Document</h3>
+                <Button variant="outline" onClick={() => setIsAddDocOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Document
                 </Button>
               </div>
             </div>
+
+            {/* Add Custom Document Dialog */}
+            <Dialog open={isAddDocOpen} onOpenChange={setIsAddDocOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Custom Document</DialogTitle>
+                  <DialogDescription>
+                    Add a custom document to the checklist.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  {/* Document Name */}
+                  <div className="space-y-2">
+                    <Label>Document Name</Label>
+                    <Input
+                      value={newDocForm.name}
+                      onChange={(e) => setNewDocForm({ ...newDocForm, name: e.target.value })}
+                      placeholder="Enter document name..."
+                    />
+                  </div>
+                  
+                  {/* Category Dropdown */}
+                  <div className="space-y-2">
+                    <Label>Category</Label>
+                    <Select
+                      value={newDocForm.category}
+                      onValueChange={(value) => setNewDocForm({ ...newDocForm, category: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {defaultDocCategories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Applicant Type Dropdown */}
+                  <div className="space-y-2">
+                    <Label>For Applicant</Label>
+                    <Select
+                      value={newDocForm.applicantType}
+                      onValueChange={(value) => setNewDocForm({ ...newDocForm, applicantType: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select applicant (optional)..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {applicationApplicants.map((applicant: any) => (
+                          <SelectItem 
+                            key={applicant.id} 
+                            value={applicant.applicant_type?.name || "Unknown"}
+                          >
+                            {applicant.applicant_type?.name} 
+                            {applicant.client && ` - ${applicant.client.first_name} ${applicant.client.last_name || ""}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsAddDocOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleAddDocument}
+                    disabled={!newDocForm.name.trim() || addDocumentMutation.isPending}
+                  >
+                    {addDocumentMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Plus className="w-4 h-4 mr-2" />
+                    )}
+                    Add Document
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           <TabsContent value="status" className="space-y-6">
