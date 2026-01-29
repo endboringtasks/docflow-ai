@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { NationalitySelect } from "@/components/ui/nationality-select";
 
 interface RelatedApplicantFormData {
   type: "partner" | "dependant" | "witness";
@@ -168,11 +169,10 @@ const AddRelatedApplicantDialog = ({
           {/* Nationality */}
           <div className="space-y-2">
             <Label>Nationality</Label>
-            <Input
+            <NationalitySelect
               value={form.nationality}
-              onChange={(e) => setForm(prev => ({ ...prev, nationality: e.target.value }))}
-              placeholder="Enter nationality"
-              className="bg-secondary border-border"
+              onValueChange={(value) => setForm(prev => ({ ...prev, nationality: value }))}
+              placeholder="Select nationality..."
             />
           </div>
 
