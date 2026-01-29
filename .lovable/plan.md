@@ -1,124 +1,180 @@
 
 
-# Add Nationality Dropdown to Add Related Applicant Dialog
+# Add Date of Birth, Passport Number, and Nationality to Client Form
 
-## Problem
+## Overview
 
-The "Nationality" field in the Add Related Applicant dialog is currently a simple text input where users have to type the nationality manually. This is prone to typos and inconsistencies.
+Add three new personal information fields to the Create New Client and Edit Client dialogs. These fields are optional and only shown for personal (non-corporate) clients.
 
-## Solution
+## Database Changes
 
-Replace the text input with a searchable dropdown (combobox) that uses the existing country list. The dropdown will:
-1. Show country flags alongside names for better visual recognition
-2. Be searchable so users can quickly find their nationality
-3. Use the existing `COUNTRY_CODES` list from `phone-input.tsx` (already has 60+ countries)
+Add three new nullable columns to the `clients` table:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `date_of_birth` | `date` | Client's date of birth |
+| `passport_number` | `text` | Client's passport number |
+| `nationality` | `text` | Client's nationality (e.g., "Australian") |
+
+## UI Changes
+
+### Create Client Dialog (Personal clients only)
+
+New field order after the current fields:
+
+```
+First Name *        [________________]
+Last Name *         [________________]
+Date of Birth       [____-__-__      ]    ← NEW
+Passport Number     [________________]    ← NEW  
+Nationality         [🇦🇺 Australian  ▼]    ← NEW (reusing NationalitySelect)
+Email *             [________________]
+Phone *             [🇦🇺 +61 ▼][____]
+```
+
+### Edit Client Dialog
+
+Same fields added in the same location.
 
 ## Files to Change
 
 | File | Change |
 |------|--------|
-| `src/lib/nationalities.ts` | Create a new file with nationality list and utility |
-| `src/components/ui/nationality-select.tsx` | Create reusable NationalitySelect component |
-| `src/components/client/AddRelatedApplicantDialog.tsx` | Replace text input with NationalitySelect |
+| `supabase/migrations/...` | Add 3 new columns to clients table |
+| `src/integrations/supabase/types.ts` | Add new fields to types (auto-generated) |
+| `src/pages/migration/Clients.tsx` | Update form state, create/edit handlers, add form fields |
 
 ## Implementation Details
 
-### 1. Create Nationalities List (`src/lib/nationalities.ts`)
+### 1. Database Migration
 
-Create a comprehensive list of nationalities (derived from countries) that can be reused across the app:
+```sql
+ALTER TABLE clients
+ADD COLUMN date_of_birth date,
+ADD COLUMN passport_number text,
+ADD COLUMN nationality text;
+```
+
+### 2. Form State Updates
+
+Update `newClient` and `editForm` state to include:
 
 ```typescript
-export interface Nationality {
-  code: string;  // ISO country code (AU, US, etc.)
-  name: string;  // Nationality name (Australian, American, etc.)
-  country: string; // Country name (Australia, United States, etc.)
-}
-
-// Priority nationalities at top, then alphabetical
-export const NATIONALITIES: Nationality[] = [
-  { code: "AU", name: "Australian", country: "Australia" },
-  { code: "GB", name: "British", country: "United Kingdom" },
-  { code: "US", name: "American", country: "United States" },
-  // ... ~100+ nationalities
-];
+const [newClient, setNewClient] = useState({
+  clientType: "personal" as "personal" | "corporate",
+  firstName: "",
+  lastName: "",
+  companyName: "",
+  email: "",
+  phoneCountryCode: "+61",
+  phoneNumber: "",
+  dateOfBirth: "",        // NEW
+  passportNumber: "",      // NEW
+  nationality: "",         // NEW
+});
 ```
 
-### 2. Create NationalitySelect Component (`src/components/ui/nationality-select.tsx`)
+### 3. Create Handler Update
 
-A searchable combobox following the same pattern as the phone input:
-
-```tsx
-<Popover>
-  <PopoverTrigger>
-    <Button variant="outline">
-      {selectedFlag} {selectedNationality}
-    </Button>
-  </PopoverTrigger>
-  <PopoverContent>
-    <Command>
-      <CommandInput placeholder="Search nationality..." />
-      <CommandList>
-        {NATIONALITIES.map((nat) => (
-          <CommandItem key={nat.code}>
-            {getCountryFlag(nat.code)} {nat.name}
-          </CommandItem>
-        ))}
-      </CommandList>
-    </Command>
-  </PopoverContent>
-</Popover>
+```typescript
+createClientMutation.mutate({
+  // ... existing fields
+  date_of_birth: isCorporate ? null : (newClient.dateOfBirth || null),
+  passport_number: isCorporate ? null : (newClient.passportNumber.trim() || null),
+  nationality: isCorporate ? null : (newClient.nationality || null),
+});
 ```
 
-### 3. Update AddRelatedApplicantDialog
+### 4. Form Fields (for personal clients)
 
-Replace the Input with NationalitySelect:
+After Last Name, before Email:
 
 ```tsx
-// Before
-<Input
-  value={form.nationality}
-  onChange={(e) => setForm(prev => ({ ...prev, nationality: e.target.value }))}
-  placeholder="Enter nationality"
-/>
+{/* Date of Birth */}
+<div className="space-y-2">
+  <Label>Date of Birth</Label>
+  <Input
+    type="date"
+    value={newClient.dateOfBirth}
+    onChange={(e) => setNewClient({...newClient, dateOfBirth: e.target.value})}
+    className="bg-secondary border-border"
+  />
+</div>
 
-// After
-<NationalitySelect
-  value={form.nationality}
-  onValueChange={(value) => setForm(prev => ({ ...prev, nationality: value }))}
-  placeholder="Select nationality..."
-/>
+{/* Passport Number */}
+<div className="space-y-2">
+  <Label>Passport Number</Label>
+  <Input
+    value={newClient.passportNumber}
+    onChange={(e) => setNewClient({...newClient, passportNumber: e.target.value})}
+    placeholder="Enter passport number"
+    className="bg-secondary border-border"
+  />
+</div>
+
+{/* Nationality */}
+<div className="space-y-2">
+  <Label>Nationality</Label>
+  <NationalitySelect
+    value={newClient.nationality}
+    onValueChange={(value) => setNewClient({...newClient, nationality: value})}
+    placeholder="Select nationality..."
+  />
+</div>
+```
+
+### 5. Edit Form Population
+
+When opening edit dialog, populate the new fields:
+
+```typescript
+const handleEditClient = (client: Client) => {
+  // ... existing code
+  setEditForm({
+    // ... existing fields
+    dateOfBirth: client.date_of_birth || "",
+    passportNumber: client.passport_number || "",
+    nationality: client.nationality || "",
+  });
+};
 ```
 
 ## Visual Result
 
-**Before:**
+**Create Client Dialog (Personal type):**
+
 ```
-Nationality
-[Enter nationality...          ]
+┌─────────────────────────────────────────┐
+│  Create New Client                    ✕ │
+│  Add a new visa applicant...            │
+├─────────────────────────────────────────┤
+│  Client Type                            │
+│  [Personal                          ▼]  │
+│                                         │
+│  First Name *                           │
+│  [John                               ]  │
+│                                         │
+│  Last Name *                            │
+│  [Smith                              ]  │
+│                                         │
+│  Date of Birth                          │
+│  [1990-05-15                         ]  │
+│                                         │
+│  Passport Number                        │
+│  [PA1234567                          ]  │
+│                                         │
+│  Nationality                            │
+│  [🇦🇺 Australian                     ▼]  │
+│                                         │
+│  Email *                                │
+│  [john@example.com                   ]  │
+│                                         │
+│  Phone *                                │
+│  [🇦🇺 +61 ▼] [412345678             ]  │
+│                                         │
+│    [Cancel]        [Create Client]      │
+└─────────────────────────────────────────┘
 ```
 
-**After:**
-```
-Nationality
-[🇦🇺 Australian              ▼]
-  ↓ Opens searchable dropdown:
-  ┌────────────────────────────┐
-  │ 🔍 Search nationality...   │
-  ├────────────────────────────┤
-  │ 🇦🇺 Australian             │
-  │ 🇬🇧 British                │
-  │ 🇺🇸 American               │
-  │ 🇳🇿 New Zealander          │
-  │ 🇮🇳 Indian                 │
-  │ 🇧🇷 Brazilian              │
-  │ ...                        │
-  └────────────────────────────┘
-```
-
-## Nationalities List
-
-The list will include 100+ nationalities with priority countries first (Australia, UK, US, NZ, India) followed by alphabetical list. Each entry will have:
-- ISO country code for flag display
-- Nationality demonym (Australian, British, etc.)
-- Country name for search fallback
+These fields will help capture essential visa applicant information at the point of client creation, improving data completeness for migration services workflows.
 
