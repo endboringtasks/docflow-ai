@@ -486,6 +486,7 @@ export type Database = {
           company_id: string
           company_name: string | null
           created_at: string
+          date_of_birth: string | null
           documents_received_folder_id: string | null
           email: string | null
           first_name: string | null
@@ -493,6 +494,8 @@ export type Database = {
           folder_status_updated_at: string | null
           id: string
           last_name: string | null
+          nationality: string | null
+          passport_number: string | null
           phone: string | null
           related_applicants: Json | null
         }
@@ -502,6 +505,7 @@ export type Database = {
           company_id: string
           company_name?: string | null
           created_at?: string
+          date_of_birth?: string | null
           documents_received_folder_id?: string | null
           email?: string | null
           first_name?: string | null
@@ -509,6 +513,8 @@ export type Database = {
           folder_status_updated_at?: string | null
           id?: string
           last_name?: string | null
+          nationality?: string | null
+          passport_number?: string | null
           phone?: string | null
           related_applicants?: Json | null
         }
@@ -518,6 +524,7 @@ export type Database = {
           company_id?: string
           company_name?: string | null
           created_at?: string
+          date_of_birth?: string | null
           documents_received_folder_id?: string | null
           email?: string | null
           first_name?: string | null
@@ -525,6 +532,8 @@ export type Database = {
           folder_status_updated_at?: string | null
           id?: string
           last_name?: string | null
+          nationality?: string | null
+          passport_number?: string | null
           phone?: string | null
           related_applicants?: Json | null
         }
