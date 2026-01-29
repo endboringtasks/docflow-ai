@@ -1,115 +1,124 @@
 
 
-# Add Person Names to Applicant Type Headers
+# Add Nationality Dropdown to Add Related Applicant Dialog
 
 ## Problem
 
-Currently, the document checklist groups documents by applicant type (Primary Applicant, Partner, Dependant), but only shows the generic type name without the actual person's name. This makes it difficult for users to identify which person should upload which documents, especially when there are multiple dependants.
-
-**Current Display:**
-```
-Partner           0/10
-Dependant         0/5
-```
-
-**Desired Display:**
-```
-Partner - Jane Smith           0/10
-Dependant - Tom Smith          0/5
-```
+The "Nationality" field in the Add Related Applicant dialog is currently a simple text input where users have to type the nationality manually. This is prone to typos and inconsistencies.
 
 ## Solution
 
-Create a mapping from applicant type to the person's display name using the existing `applicationApplicants` data, then display the person's name alongside the applicant type in the document section headers.
+Replace the text input with a searchable dropdown (combobox) that uses the existing country list. The dropdown will:
+1. Show country flags alongside names for better visual recognition
+2. Be searchable so users can quickly find their nationality
+3. Use the existing `COUNTRY_CODES` list from `phone-input.tsx` (already has 60+ countries)
 
-## File to Change
+## Files to Change
 
 | File | Change |
 |------|--------|
-| `src/pages/migration/ApplicationDetail.tsx` | Add name mapping and update header display |
+| `src/lib/nationalities.ts` | Create a new file with nationality list and utility |
+| `src/components/ui/nationality-select.tsx` | Create reusable NationalitySelect component |
+| `src/components/client/AddRelatedApplicantDialog.tsx` | Replace text input with NationalitySelect |
 
 ## Implementation Details
 
-### 1. Create Applicant Name Mapping
+### 1. Create Nationalities List (`src/lib/nationalities.ts`)
 
-Add a memoized mapping that links applicant types to their display names:
+Create a comprehensive list of nationalities (derived from countries) that can be reused across the app:
 
 ```typescript
-// Create a map from applicant type name to display name
-const applicantTypeToName = useMemo(() => {
-  const mapping: Record<string, string> = {};
-  applicationApplicants.forEach(applicant => {
-    const typeName = applicant.applicant_type?.name;
-    if (typeName && applicant.displayName) {
-      mapping[typeName] = applicant.displayName;
-    }
-  });
-  return mapping;
-}, [applicationApplicants]);
+export interface Nationality {
+  code: string;  // ISO country code (AU, US, etc.)
+  name: string;  // Nationality name (Australian, American, etc.)
+  country: string; // Country name (Australia, United States, etc.)
+}
+
+// Priority nationalities at top, then alphabetical
+export const NATIONALITIES: Nationality[] = [
+  { code: "AU", name: "Australian", country: "Australia" },
+  { code: "GB", name: "British", country: "United Kingdom" },
+  { code: "US", name: "American", country: "United States" },
+  // ... ~100+ nationalities
+];
 ```
 
-### 2. Update Applicant Type Header
+### 2. Create NationalitySelect Component (`src/components/ui/nationality-select.tsx`)
 
-Update the header rendering (around line 2010) to include the person's name:
+A searchable combobox following the same pattern as the phone input:
 
 ```tsx
-{/* Before */}
-<h2 className="text-lg font-semibold">{applicantType}</h2>
+<Popover>
+  <PopoverTrigger>
+    <Button variant="outline">
+      {selectedFlag} {selectedNationality}
+    </Button>
+  </PopoverTrigger>
+  <PopoverContent>
+    <Command>
+      <CommandInput placeholder="Search nationality..." />
+      <CommandList>
+        {NATIONALITIES.map((nat) => (
+          <CommandItem key={nat.code}>
+            {getCountryFlag(nat.code)} {nat.name}
+          </CommandItem>
+        ))}
+      </CommandList>
+    </Command>
+  </PopoverContent>
+</Popover>
+```
 
-{/* After */}
-<h2 className="text-lg font-semibold">
-  {applicantType}
-  {applicantTypeToName[applicantType] && (
-    <span className="text-muted-foreground font-normal ml-2">
-      - {applicantTypeToName[applicantType]}
-    </span>
-  )}
-</h2>
+### 3. Update AddRelatedApplicantDialog
+
+Replace the Input with NationalitySelect:
+
+```tsx
+// Before
+<Input
+  value={form.nationality}
+  onChange={(e) => setForm(prev => ({ ...prev, nationality: e.target.value }))}
+  placeholder="Enter nationality"
+/>
+
+// After
+<NationalitySelect
+  value={form.nationality}
+  onValueChange={(value) => setForm(prev => ({ ...prev, nationality: value }))}
+  placeholder="Select nationality..."
+/>
 ```
 
 ## Visual Result
 
 **Before:**
 ```
-┌────────────────────────────────────────┐
-│ 👤 Primary Applicant          0/21     │
-├────────────────────────────────────────┤
-│   📄 Identity Documents       0/5      │
-└────────────────────────────────────────┘
-
-┌────────────────────────────────────────┐
-│ 👤 Partner                    0/10     │
-├────────────────────────────────────────┤
-│   📄 Identity Documents       0/3      │
-└────────────────────────────────────────┘
-
-┌────────────────────────────────────────┐
-│ 👤 Dependant                  0/5      │
-├────────────────────────────────────────┤
-│   📄 Identity Documents       0/5      │
-└────────────────────────────────────────┘
+Nationality
+[Enter nationality...          ]
 ```
 
 **After:**
 ```
-┌────────────────────────────────────────┐
-│ 👤 Primary Applicant - John Smith  0/21│
-├────────────────────────────────────────┤
-│   📄 Identity Documents       0/5      │
-└────────────────────────────────────────┘
-
-┌────────────────────────────────────────┐
-│ 👤 Partner - Jane Smith       0/10     │
-├────────────────────────────────────────┤
-│   📄 Identity Documents       0/3      │
-└────────────────────────────────────────┘
-
-┌────────────────────────────────────────┐
-│ 👤 Dependant - Tom Smith      0/5      │
-├────────────────────────────────────────┤
-│   📄 Identity Documents       0/5      │
-└────────────────────────────────────────┘
+Nationality
+[🇦🇺 Australian              ▼]
+  ↓ Opens searchable dropdown:
+  ┌────────────────────────────┐
+  │ 🔍 Search nationality...   │
+  ├────────────────────────────┤
+  │ 🇦🇺 Australian             │
+  │ 🇬🇧 British                │
+  │ 🇺🇸 American               │
+  │ 🇳🇿 New Zealander          │
+  │ 🇮🇳 Indian                 │
+  │ 🇧🇷 Brazilian              │
+  │ ...                        │
+  └────────────────────────────┘
 ```
 
-This makes it immediately clear which person needs to provide which documents.
+## Nationalities List
+
+The list will include 100+ nationalities with priority countries first (Australia, UK, US, NZ, India) followed by alphabetical list. Each entry will have:
+- ISO country code for flag display
+- Nationality demonym (Australian, British, etc.)
+- Country name for search fallback
 
