@@ -1,180 +1,96 @@
 
 
-# Add Date of Birth, Passport Number, and Nationality to Client Form
+# Remove "New Application" and "Create Application" Buttons from Client Detail
 
 ## Overview
 
-Add three new personal information fields to the Create New Client and Edit Client dialogs. These fields are optional and only shown for personal (non-corporate) clients.
+Remove the two application creation buttons from the client detail page in the Applications section:
 
-## Database Changes
+1. **"New Application" button** - In the section header (top right of Applications section)
+2. **"Create Application" button** - In the empty state when there are no applications
 
-Add three new nullable columns to the `clients` table:
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `date_of_birth` | `date` | Client's date of birth |
-| `passport_number` | `text` | Client's passport number |
-| `nationality` | `text` | Client's nationality (e.g., "Australian") |
-
-## UI Changes
-
-### Create Client Dialog (Personal clients only)
-
-New field order after the current fields:
-
-```
-First Name *        [________________]
-Last Name *         [________________]
-Date of Birth       [____-__-__      ]    ← NEW
-Passport Number     [________________]    ← NEW  
-Nationality         [🇦🇺 Australian  ▼]    ← NEW (reusing NationalitySelect)
-Email *             [________________]
-Phone *             [🇦🇺 +61 ▼][____]
-```
-
-### Edit Client Dialog
-
-Same fields added in the same location.
-
-## Files to Change
+## File to Change
 
 | File | Change |
 |------|--------|
-| `supabase/migrations/...` | Add 3 new columns to clients table |
-| `src/integrations/supabase/types.ts` | Add new fields to types (auto-generated) |
-| `src/pages/migration/Clients.tsx` | Update form state, create/edit handlers, add form fields |
+| `src/pages/migration/ClientDetail.tsx` | Remove both buttons from the Applications section |
 
-## Implementation Details
+## Changes
 
-### 1. Database Migration
+### 1. Remove "New Application" Button from Header
 
-```sql
-ALTER TABLE clients
-ADD COLUMN date_of_birth date,
-ADD COLUMN passport_number text,
-ADD COLUMN nationality text;
-```
-
-### 2. Form State Updates
-
-Update `newClient` and `editForm` state to include:
-
-```typescript
-const [newClient, setNewClient] = useState({
-  clientType: "personal" as "personal" | "corporate",
-  firstName: "",
-  lastName: "",
-  companyName: "",
-  email: "",
-  phoneCountryCode: "+61",
-  phoneNumber: "",
-  dateOfBirth: "",        // NEW
-  passportNumber: "",      // NEW
-  nationality: "",         // NEW
-});
-```
-
-### 3. Create Handler Update
-
-```typescript
-createClientMutation.mutate({
-  // ... existing fields
-  date_of_birth: isCorporate ? null : (newClient.dateOfBirth || null),
-  passport_number: isCorporate ? null : (newClient.passportNumber.trim() || null),
-  nationality: isCorporate ? null : (newClient.nationality || null),
-});
-```
-
-### 4. Form Fields (for personal clients)
-
-After Last Name, before Email:
-
+**Before (lines 631-637):**
 ```tsx
-{/* Date of Birth */}
-<div className="space-y-2">
-  <Label>Date of Birth</Label>
-  <Input
-    type="date"
-    value={newClient.dateOfBirth}
-    onChange={(e) => setNewClient({...newClient, dateOfBirth: e.target.value})}
-    className="bg-secondary border-border"
-  />
-</div>
-
-{/* Passport Number */}
-<div className="space-y-2">
-  <Label>Passport Number</Label>
-  <Input
-    value={newClient.passportNumber}
-    onChange={(e) => setNewClient({...newClient, passportNumber: e.target.value})}
-    placeholder="Enter passport number"
-    className="bg-secondary border-border"
-  />
-</div>
-
-{/* Nationality */}
-<div className="space-y-2">
-  <Label>Nationality</Label>
-  <NationalitySelect
-    value={newClient.nationality}
-    onValueChange={(value) => setNewClient({...newClient, nationality: value})}
-    placeholder="Select nationality..."
-  />
+<div className="flex items-center justify-between">
+  <h2 className="text-xl font-semibold">Applications</h2>
+  <Button onClick={() => setIsCreateApplicationOpen(true)}>
+    <Plus className="w-4 h-4 mr-2" />
+    New Application
+  </Button>
 </div>
 ```
 
-### 5. Edit Form Population
+**After:**
+```tsx
+<div className="flex items-center justify-between">
+  <h2 className="text-xl font-semibold">Applications</h2>
+</div>
+```
 
-When opening edit dialog, populate the new fields:
+### 2. Remove "Create Application" Button from Empty State
 
-```typescript
-const handleEditClient = (client: Client) => {
-  // ... existing code
-  setEditForm({
-    // ... existing fields
-    dateOfBirth: client.date_of_birth || "",
-    passportNumber: client.passport_number || "",
-    nationality: client.nationality || "",
-  });
-};
+**Before (lines 639-650):**
+```tsx
+{visaApplications.length === 0 ? (
+  <div className="card-gradient rounded-xl border border-border/50 p-8 text-center">
+    <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+    <h3 className="text-lg font-medium mb-2">No Applications</h3>
+    <p className="text-muted-foreground mb-4">
+      Create the first application for this client.
+    </p>
+    <Button onClick={() => setIsCreateApplicationOpen(true)}>
+      <Plus className="w-4 h-4 mr-2" />
+      Create Application
+    </Button>
+  </div>
+) : (
+```
+
+**After:**
+```tsx
+{visaApplications.length === 0 ? (
+  <div className="card-gradient rounded-xl border border-border/50 p-8 text-center">
+    <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+    <h3 className="text-lg font-medium mb-2">No Applications</h3>
+    <p className="text-muted-foreground">
+      This client has no applications yet.
+    </p>
+  </div>
+) : (
 ```
 
 ## Visual Result
 
-**Create Client Dialog (Personal type):**
-
+**Before:**
 ```
-┌─────────────────────────────────────────┐
-│  Create New Client                    ✕ │
-│  Add a new visa applicant...            │
-├─────────────────────────────────────────┤
-│  Client Type                            │
-│  [Personal                          ▼]  │
-│                                         │
-│  First Name *                           │
-│  [John                               ]  │
-│                                         │
-│  Last Name *                            │
-│  [Smith                              ]  │
-│                                         │
-│  Date of Birth                          │
-│  [1990-05-15                         ]  │
-│                                         │
-│  Passport Number                        │
-│  [PA1234567                          ]  │
-│                                         │
-│  Nationality                            │
-│  [🇦🇺 Australian                     ▼]  │
-│                                         │
-│  Email *                                │
-│  [john@example.com                   ]  │
-│                                         │
-│  Phone *                                │
-│  [🇦🇺 +61 ▼] [412345678             ]  │
-│                                         │
-│    [Cancel]        [Create Client]      │
-└─────────────────────────────────────────┘
+Applications                    [+ New Application]
+┌─────────────────────────────────────────────────┐
+│         📄                                      │
+│    No Applications                              │
+│    Create the first application for this client │
+│         [+ Create Application]                  │
+└─────────────────────────────────────────────────┘
 ```
 
-These fields will help capture essential visa applicant information at the point of client creation, improving data completeness for migration services workflows.
+**After:**
+```
+Applications
+┌─────────────────────────────────────────────────┐
+│         📄                                      │
+│    No Applications                              │
+│    This client has no applications yet.         │
+└─────────────────────────────────────────────────┘
+```
+
+Users will need to create applications from the main Applications page (`/app/migration/applications`) instead.
 
