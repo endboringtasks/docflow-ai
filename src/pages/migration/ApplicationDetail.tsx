@@ -2217,7 +2217,7 @@ const VisaApplicationDetail = () => {
                                     </TooltipTrigger>
                                     <TooltipContent side="top">
                                       <p className="text-xs">
-                                        Toggle whether this document applies to this case
+                                        {doc.isApplicable ? "Disable" : "Enable"} this document requirement
                                       </p>
                                       {doc.applicabilityCondition && (
                                         <p className="text-xs text-muted-foreground mt-1">{doc.applicabilityCondition}</p>
