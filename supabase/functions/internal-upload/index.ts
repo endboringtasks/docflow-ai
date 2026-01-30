@@ -507,7 +507,14 @@ Deno.serve(async (req) => {
           }
           
           // Create filename: ClientPrefix_DocumentName.extension
-          const cleanDocName = (documentName || 'Document').replace(/[^a-zA-Z0-9]/g, '_')
+          // Strip category prefix patterns like "[Category:required] " or "[Custom] "
+          const rawDocName = (documentName || 'Document')
+            .replace(/^\[[^\]]+:(required|optional)\]\s*/i, '')  // Remove [Category:required/optional] prefix
+            .replace(/^\[Custom\]\s*/i, '')                       // Remove [Custom] prefix
+          const cleanDocName = rawDocName
+            .replace(/[^a-zA-Z0-9]/g, '_')   // Replace special chars with underscore
+            .replace(/_+/g, '_')              // Collapse multiple underscores
+            .replace(/^_|_$/g, '')            // Trim leading/trailing underscores
           const fileExt = file.name.includes('.') ? file.name.split('.').pop() : ''
           const driveFileName = `${clientPrefix}_${cleanDocName}.${fileExt}`
 
