@@ -428,11 +428,15 @@ Deno.serve(async (req) => {
     // Get the client's documents_received_folder_id for storing original files
     let documentsReceivedFolderId: string | null = null
     let clientFolderId: string | null = null
+    let clientFirstName: string | null = null
+    let clientLastName: string | null = null
+    let clientCompanyName: string | null = null
+    let clientType: string = 'personal'
 
     if (applicationData?.client_id) {
       const { data: clientData } = await supabase
         .from('clients')
-        .select('documents_received_folder_id, client_folder_id')
+        .select('documents_received_folder_id, client_folder_id, first_name, last_name, company_name, client_type')
         .eq('id', applicationData.client_id)
         .single()
 
@@ -444,6 +448,11 @@ Deno.serve(async (req) => {
         documentsReceivedFolderId = clientData.documents_received_folder_id
         console.log('Found documents_received_folder_id:', documentsReceivedFolderId)
       }
+
+      clientFirstName = clientData?.first_name ?? null
+      clientLastName = clientData?.last_name ?? null
+      clientCompanyName = clientData?.company_name ?? null
+      clientType = clientData?.client_type ?? 'personal'
 
       console.log('Client folder IDs:', {
         clientFolderId,
@@ -508,11 +517,27 @@ Deno.serve(async (req) => {
           console.log('Skipping Documents Received upload (disabled by company setting)')
         }
 
-        // Secondary upload: Visa Application folder (renamed file)
+        // Secondary upload: Visa Application folder (renamed file with client prefix)
         if (applicationData?.visa_application_folder_id) {
-          // Create a descriptive filename: DocumentName_OriginalFilename
+          // Build client prefix: LASTNAME_FirstName for personal, CompanyName for corporate
+          let clientPrefix = ''
+          if (clientType === 'corporate' && clientCompanyName) {
+            clientPrefix = clientCompanyName.replace(/[^a-zA-Z0-9]/g, '_')
+          } else {
+            const lastName = clientLastName || 'Unknown'
+            const firstName = clientFirstName || 'Client'
+            // Extract last word of last_name for multi-word surnames (e.g., "Ribeiro dos Santos" → "SANTOS")
+            const lastNameParts = lastName.trim().split(/\s+/)
+            const primaryLastName = lastNameParts[lastNameParts.length - 1].toUpperCase()
+            // Capitalize first letter of first name
+            const formattedFirstName = firstName.charAt(0).toUpperCase() + firstName.slice(1)
+            clientPrefix = `${primaryLastName}_${formattedFirstName}`
+          }
+          
+          // Create filename: ClientPrefix_DocumentName.extension
           const cleanDocName = docData.document_name.replace(/[^a-zA-Z0-9]/g, '_')
-          const driveFileName = `${cleanDocName}_${file.name}`
+          const fileExt = file.name.includes('.') ? file.name.split('.').pop() : ''
+          const driveFileName = `${clientPrefix}_${cleanDocName}.${fileExt}`
 
           console.log('Uploading renamed file to visa_application_folder:', applicationData.visa_application_folder_id)
           const renamedResult = await uploadToGoogleDrive(
