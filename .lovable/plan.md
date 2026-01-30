@@ -1,48 +1,126 @@
 
-# Remove Checkbox from Document Checklist
+
+# Add Confirmation Dialog for Attachment Deletion
 
 ## Summary
 
-Remove the manual completion checkbox from the document checklist in the admin/migration view. The checkbox currently allows agents to manually toggle document completion status, but since completion is now tracked automatically based on file uploads and review status, this control is no longer needed.
+Add a confirmation dialog when users click the "X" button to remove a document attachment. This ensures users are warned that the file will be permanently deleted before proceeding.
 
 ## Current Behavior
 
-Each document item in the checklist displays:
-- A checkbox (circular appearance) to toggle completion
-- Document name (with strikethrough when completed)
-- Status badges (Pending Client, Ready to Review, Approved, Rejected)
-- Action buttons (Preview, Upload, etc.)
+When clicking the X button on an attachment:
+- The file is immediately deleted without confirmation
+- No warning about permanent deletion is shown
 
-## Proposed Change
+## Proposed Solution
 
-Remove the checkbox element from the document list, keeping all other UI elements intact.
+Add an AlertDialog confirmation that:
+1. Warns the user the action will permanently delete the file
+2. Shows the file name being deleted
+3. Requires explicit confirmation before proceeding
 
-## File to Modify
+## Changes Required
+
+### File to Modify
 
 | File | Change |
 |------|--------|
-| `src/pages/migration/ApplicationDetail.tsx` | Remove the Checkbox component from lines 2066-2070 |
+| `src/pages/migration/ApplicationDetail.tsx` | Add state for tracking attachment to delete, add AlertDialog, update X button click handler |
 
-## Code Change
+### Implementation Details
 
-**Remove these lines (approximately 2066-2070):**
+**1. Add new state variable (after line 318):**
 ```typescript
-<Checkbox
-  checked={doc.completed}
-  onCheckedChange={() => handleToggleDocument(doc.id, doc.completed)}
-  disabled={toggleDocumentMutation.isPending}
-/>
+const [attachmentToDelete, setAttachmentToDelete] = useState<{
+  id: string;
+  docId: string;
+  filePath: string;
+  fileName: string;
+} | null>(null);
 ```
 
-## Impact
+**2. Update X button click handler (around line 2284):**
 
-- Document completion will rely solely on automated tracking (file uploads, review status)
-- The `handleToggleDocument` function and `toggleDocumentMutation` can remain in code for now (cleanup optional)
-- The strikethrough styling on document names will continue to work based on `doc.completed` value
+Change from immediate mutation call:
+```typescript
+onClick={() => removeAttachmentMutation.mutate({ 
+  attachmentId: attachment.id, 
+  docId: doc.id, 
+  filePath: attachment.file_path 
+})}
+```
 
-## Visual Result
+To opening the confirmation dialog:
+```typescript
+onClick={() => setAttachmentToDelete({
+  id: attachment.id,
+  docId: doc.id,
+  filePath: attachment.file_path,
+  fileName: attachment.file_name
+})}
+```
 
-Before: `○ Previous Visas [Pending Client]`
-After: `Previous Visas [Pending Client]`
+**3. Add AlertDialog (after the Merge Templates AlertDialog, around line 2653):**
 
-Documents will still show their status badges and checkmarks will still appear when documents are completed, but users cannot manually toggle the status.
+```typescript
+{/* Delete Attachment Confirmation */}
+<AlertDialog 
+  open={!!attachmentToDelete} 
+  onOpenChange={(open) => !open && setAttachmentToDelete(null)}
+>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Delete File</AlertDialogTitle>
+      <AlertDialogDescription>
+        Are you sure you want to delete "{attachmentToDelete?.fileName}"? 
+        This file will be permanently deleted and cannot be recovered.
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <AlertDialogAction
+        onClick={() => {
+          if (attachmentToDelete) {
+            removeAttachmentMutation.mutate({
+              attachmentId: attachmentToDelete.id,
+              docId: attachmentToDelete.docId,
+              filePath: attachmentToDelete.filePath
+            });
+            setAttachmentToDelete(null);
+          }
+        }}
+        disabled={removeAttachmentMutation.isPending}
+        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+      >
+        {removeAttachmentMutation.isPending ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            Deleting...
+          </>
+        ) : (
+          "Delete"
+        )}
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
+```
+
+## User Experience
+
+**Before:**
+- Click X button → File deleted immediately
+
+**After:**
+- Click X button → Confirmation dialog appears
+- Dialog shows: "Are you sure you want to delete 'passport.pdf'? This file will be permanently deleted and cannot be recovered."
+- User clicks Cancel → Dialog closes, nothing happens
+- User clicks Delete → File is deleted, dialog closes
+
+## Visual Consistency
+
+The confirmation dialog follows the same pattern already used in the application for:
+- Delete Application confirmation
+- Merge Templates confirmation
+- Delete Client confirmation (in other pages)
+
