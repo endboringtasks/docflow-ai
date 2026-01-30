@@ -1,163 +1,88 @@
 
-# Fix "Request Different Doc" Workflow
+
+# Fix Review Status Badge Display for "Request Different Doc"
 
 ## Problem
 
-When an agent clicks "Request Different Doc":
-1. The document status is set to `pending_client` with a `review_comment`
-2. But the **client portal doesn't show** the review status or comment
-3. When the client uploads a new file, it **overwrites the status back to `in_review`** without the client ever seeing the feedback
-4. The client has no way to know a different document was requested
+When an agent clicks "Request Different Doc", the database correctly updates to `pending_client` status, but the UI still shows "Ready to Review" badge. This happens because the badge display logic doesn't properly handle the `pending_client` status when there are already attachments.
 
-## Solution Overview
+## Root Cause
 
-Fix the workflow so clients can see when action is needed and why:
-
-1. **Update `get_portal_documents` RPC** to return `review_status` and `review_comment`
-2. **Show review feedback in Client Portal** with a highlighted alert for documents needing attention
-3. **Smart status handling on upload** - only set `in_review` if previous status was `pending_client` (indicating client addressed the feedback)
-4. **Visual highlighting** for documents with `pending_client` or `rejected` status
-
-## Changes
-
-### 1. Database: Update `get_portal_documents` Function
-
-Add `review_status` and `review_comment` to the returned columns:
-
-| Column | Type | Purpose |
-|--------|------|---------|
-| `review_status` | text | Show if document needs attention |
-| `review_comment` | text | Show agent's feedback to client |
-
-```sql
-CREATE OR REPLACE FUNCTION public.get_portal_documents(p_token text)
-RETURNS TABLE(
-  -- existing columns...
-  review_status text,      -- NEW
-  review_comment text      -- NEW
-)
-```
-
-### 2. Client Portal: Add Review Status/Comment to Document Interface
-
-Update `DocumentItem` interface:
-
-```typescript
-interface DocumentItem {
-  // existing fields...
-  review_status: string | null;
-  review_comment: string | null;
-}
-```
-
-### 3. Client Portal: Show Alert for Documents Needing Attention
-
-For documents with `pending_client` or `rejected` status:
+In `ApplicationDetail.tsx`, the badge logic at lines 2138-2161 has this flow:
 
 ```
-┌────────────────────────────────────────────────────┐
-│ ⚠️ Action Required                                 │
-│ ───────────────────────────────────────────────── │
-│ 📄 Tax Returns                                     │
-│                                                    │
-│ ┌──────────────────────────────────────────────┐  │
-│ │ ⚠ Your agent has requested a different       │  │
-│ │   document:                                   │  │
-│ │   "Please provide 2024 tax returns instead   │  │
-│ │    of 2023"                                   │  │
-│ └──────────────────────────────────────────────┘  │
-│                                                    │
-│ [Previously uploaded: tax_returns_2023.pdf  ✕]    │
-│                                                    │
-│ [📤 Upload New Document]                           │
-└────────────────────────────────────────────────────┘
+If attachmentCount === 0 → Show "Pending Client"
+If attachmentCount > 0 && status === approved → Show "Approved"
+If attachmentCount > 0 && status === rejected → Show "Rejected"
+If attachmentCount > 0 && status !== approved && status !== rejected → Show "Ready to Review"
 ```
 
-Visual indicators:
-- Orange/amber border for `pending_client` status
-- Red border for `rejected` status  
-- Alert box with agent's comment prominently displayed
-- Clear indication that a new upload is needed
+The problem: When status is `pending_client` but there ARE attachments (from the previously uploaded wrong document), it falls into the last condition and shows "Ready to Review" instead of the correct "Pending Client" badge.
 
-### 4. Upload Edge Function: Smart Status Handling
+## Solution
 
-Current behavior (problematic):
-```typescript
-// Always resets to in_review
-.update({ 
-  review_status: 'in_review'  // Overwrites pending_client
-})
-```
+Update the badge display logic to properly check for `pending_client` status regardless of attachment count:
 
-New behavior:
-```typescript
-// Only change status if document was pending action from client
-// This acknowledges the client addressed the agent's request
-.update({ 
-  review_status: 'in_review'  // Only when previous was pending_client
-})
-```
+| Condition | Badge |
+|-----------|-------|
+| `attachmentCount === 0` OR `reviewStatus === "pending_client"` | Pending Client (amber) |
+| `attachmentCount > 0` && `reviewStatus === "approved"` | Approved (green) |
+| `attachmentCount > 0` && `reviewStatus === "rejected"` | Rejected (red) |
+| `attachmentCount > 0` && `reviewStatus === "in_review"` | Ready to Review (blue) |
 
-This ensures:
-- Documents in `approved` status stay approved (unless explicitly changed)
-- Documents in `pending_client` move to `in_review` when new file uploaded
-- Documents in `rejected` stay rejected (agent must manually review)
-
-## Files to Change
+## File to Change
 
 | File | Change |
 |------|--------|
-| `supabase/migrations/...` | Update `get_portal_documents` RPC to return review fields |
-| `src/pages/client-portal/ClientPortal.tsx` | Add `review_status` and `review_comment` to interface, render alert for pending docs |
-| `supabase/functions/client-portal-upload/index.ts` | Smart status handling based on previous status |
+| `src/pages/migration/ApplicationDetail.tsx` | Fix badge display conditions around lines 2138-2161 |
 
-## Implementation Details
+## Changes
 
-### Client Portal UI Updates
+### Before (current logic):
+```tsx
+{/* Line 2138-2143: Only shows pending when NO attachments */}
+{doc.attachmentCount === 0 && (
+  <Badge variant="outline" className="text-xs text-amber-600 ...">
+    <Clock className="w-3 h-3 mr-1" />
+    Pending Client
+  </Badge>
+)}
 
-1. **Document card styling based on status**:
-   - `pending_client`: Amber/orange border with warning icon
-   - `rejected`: Red border with error styling
-   - `in_review`: Normal styling
-   - `approved`: Green styling (already exists)
+{/* Line 2156-2161: Catches pending_client incorrectly */}
+{doc.attachmentCount > 0 && doc.reviewStatus !== "approved" && doc.reviewStatus !== "rejected" && (
+  <Badge variant="outline" className="text-xs text-blue-600 ...">
+    <AlertCircle className="w-3 h-3 mr-1" />
+    Ready to Review
+  </Badge>
+)}
+```
 
-2. **Alert component for feedback**:
-   ```tsx
-   {(doc.review_status === 'pending_client' || doc.review_status === 'rejected') && 
-    doc.review_comment && (
-     <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 
-                     dark:border-amber-800 rounded-lg">
-       <div className="flex items-start gap-2">
-         <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-         <div>
-           <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-             {doc.review_status === 'rejected' 
-               ? 'Document Rejected' 
-               : 'Different Document Requested'}
-           </p>
-           <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-             {doc.review_comment}
-           </p>
-         </div>
-       </div>
-     </div>
-   )}
-   ```
+### After (fixed logic):
+```tsx
+{/* Show "Pending Client" when no attachments OR status is pending_client */}
+{(doc.attachmentCount === 0 || doc.reviewStatus === "pending_client") && (
+  <Badge variant="outline" className="text-xs text-amber-600 ...">
+    <Clock className="w-3 h-3 mr-1" />
+    Pending Client
+  </Badge>
+)}
 
-3. **Progress calculation update**: Documents with `pending_client`/`rejected` status should not count as complete in progress calculations
+{/* Only show "Ready to Review" for in_review status */}
+{doc.attachmentCount > 0 && doc.reviewStatus === "in_review" && (
+  <Badge variant="outline" className="text-xs text-blue-600 ...">
+    <AlertCircle className="w-3 h-3 mr-1" />
+    Ready to Review
+  </Badge>
+)}
+```
 
-## Expected Behavior After Fix
+## Visual Result After Fix
 
-1. Agent reviews document → clicks "Request Different Doc" with comment "Please provide 2024 version"
-2. Document status → `pending_client`, comment saved
-3. Client opens portal → sees highlighted document with agent's message
-4. Client uploads new document
-5. Status → `in_review` (ready for agent to review again)
-6. Agent gets notification of new upload
-7. Agent reviews and approves/rejects
+**Document with wrong file + "Request Different Doc" clicked:**
 
-## Technical Notes
+| Before | After |
+|--------|-------|
+| Ready to Review (blue badge) | Pending Client (amber badge) |
 
-- The RPC function change requires a migration
-- No changes to database schema (columns already exist)
-- Edge function change doesn't require redeployment approval (auto-deployed)
+The amber "Pending Client" badge correctly indicates the client needs to take action and upload a different document.
+
