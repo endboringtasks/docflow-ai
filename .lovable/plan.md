@@ -1,14 +1,14 @@
 
 
-# Add Confirmation Dialog for Attachment Deletion
+# Add Confirmation Dialog for Client Portal File Removal
 
 ## Summary
 
-Add a confirmation dialog when users click the "X" button to remove a document attachment. This ensures users are warned that the file will be permanently deleted before proceeding.
+Add a confirmation dialog when users click the "X" button to remove a file in the Client Portal, matching the behavior just implemented in the Application page. This prevents accidental file deletions and warns users about permanent deletion.
 
 ## Current Behavior
 
-When clicking the X button on an attachment:
+When clicking the X button on an attachment in the Client Portal:
 - The file is immediately deleted without confirmation
 - No warning about permanent deletion is shown
 
@@ -19,48 +19,47 @@ Add an AlertDialog confirmation that:
 2. Shows the file name being deleted
 3. Requires explicit confirmation before proceeding
 
-## Changes Required
-
-### File to Modify
+## File to Modify
 
 | File | Change |
 |------|--------|
-| `src/pages/migration/ApplicationDetail.tsx` | Add state for tracking attachment to delete, add AlertDialog, update X button click handler |
+| `src/pages/client-portal/ClientPortal.tsx` | Add state for tracking attachment to delete, add AlertDialog, update X button click handler |
 
-### Implementation Details
+## Implementation Details
 
-**1. Add new state variable (after line 318):**
+**1. Add new state variable (after line 175):**
 ```typescript
 const [attachmentToDelete, setAttachmentToDelete] = useState<{
   id: string;
-  docId: string;
-  filePath: string;
   fileName: string;
 } | null>(null);
 ```
 
-**2. Update X button click handler (around line 2284):**
+**2. Update X button click handler (line 1250):**
 
-Change from immediate mutation call:
+Change from immediate function call:
 ```typescript
-onClick={() => removeAttachmentMutation.mutate({ 
-  attachmentId: attachment.id, 
-  docId: doc.id, 
-  filePath: attachment.file_path 
-})}
+onClick={() => handleRemoveAttachment(attachment.id)}
 ```
 
 To opening the confirmation dialog:
 ```typescript
 onClick={() => setAttachmentToDelete({
   id: attachment.id,
-  docId: doc.id,
-  filePath: attachment.file_path,
   fileName: attachment.file_name
 })}
 ```
 
-**3. Add AlertDialog (after the Merge Templates AlertDialog, around line 2653):**
+**3. Create handler for confirmed deletion:**
+```typescript
+const handleConfirmRemoveAttachment = async () => {
+  if (!attachmentToDelete) return;
+  await handleRemoveAttachment(attachmentToDelete.id);
+  setAttachmentToDelete(null);
+};
+```
+
+**4. Add AlertDialog (after the Image Preview Dialog, around line 1356):**
 
 ```typescript
 {/* Delete Attachment Confirmation */}
@@ -77,22 +76,13 @@ onClick={() => setAttachmentToDelete({
       </AlertDialogDescription>
     </AlertDialogHeader>
     <AlertDialogFooter>
-      <AlertDialogCancel>Cancel</AlertDialogCancel>
+      <AlertDialogCancel disabled={!!removingAttachmentId}>Cancel</AlertDialogCancel>
       <AlertDialogAction
-        onClick={() => {
-          if (attachmentToDelete) {
-            removeAttachmentMutation.mutate({
-              attachmentId: attachmentToDelete.id,
-              docId: attachmentToDelete.docId,
-              filePath: attachmentToDelete.filePath
-            });
-            setAttachmentToDelete(null);
-          }
-        }}
-        disabled={removeAttachmentMutation.isPending}
+        onClick={handleConfirmRemoveAttachment}
+        disabled={!!removingAttachmentId}
         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
       >
-        {removeAttachmentMutation.isPending ? (
+        {removingAttachmentId === attachmentToDelete?.id ? (
           <>
             <Loader2 className="w-4 h-4 animate-spin mr-2" />
             Deleting...
@@ -109,18 +99,17 @@ onClick={() => setAttachmentToDelete({
 ## User Experience
 
 **Before:**
-- Click X button → File deleted immediately
+- Click X button -> File deleted immediately
 
 **After:**
-- Click X button → Confirmation dialog appears
+- Click X button -> Confirmation dialog appears
 - Dialog shows: "Are you sure you want to delete 'passport.pdf'? This file will be permanently deleted and cannot be recovered."
-- User clicks Cancel → Dialog closes, nothing happens
-- User clicks Delete → File is deleted, dialog closes
+- User clicks Cancel -> Dialog closes, nothing happens
+- User clicks Delete -> File is deleted, dialog closes
 
 ## Visual Consistency
 
-The confirmation dialog follows the same pattern already used in the application for:
-- Delete Application confirmation
-- Merge Templates confirmation
-- Delete Client confirmation (in other pages)
+The confirmation dialog follows the same pattern used in:
+- The Submit Application confirmation in this same file
+- The Delete Attachment confirmation in ApplicationDetail.tsx (just implemented)
 
