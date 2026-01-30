@@ -173,6 +173,10 @@ export default function ClientPortal() {
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
+  const [attachmentToDelete, setAttachmentToDelete] = useState<{
+    id: string;
+    fileName: string;
+  } | null>(null);
 
   // File validation constants
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -1247,7 +1251,10 @@ export default function ClientPortal() {
                                                               <Button
                                                                 variant="ghost"
                                                                 size="sm"
-                                                                onClick={() => handleRemoveAttachment(attachment.id)}
+                                                                onClick={() => setAttachmentToDelete({
+                                                                  id: attachment.id,
+                                                                  fileName: attachment.file_name
+                                                                })}
                                                                 disabled={removingAttachmentId === attachment.id}
                                                                 className="text-destructive hover:text-destructive h-6 w-6 p-0 flex-shrink-0"
                                                               >
@@ -1354,6 +1361,44 @@ export default function ClientPortal() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Attachment Confirmation */}
+      <AlertDialog 
+        open={!!attachmentToDelete} 
+        onOpenChange={(open) => !open && setAttachmentToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete File</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{attachmentToDelete?.fileName}"? 
+              This file will be permanently deleted and cannot be recovered.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!removingAttachmentId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (attachmentToDelete) {
+                  await handleRemoveAttachment(attachmentToDelete.id);
+                  setAttachmentToDelete(null);
+                }
+              }}
+              disabled={!!removingAttachmentId}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {removingAttachmentId === attachmentToDelete?.id ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
