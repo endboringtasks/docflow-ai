@@ -2135,7 +2135,7 @@ const VisaApplicationDetail = () => {
                                 </Tooltip>
                               )}
                               {/* Review Status Badge */}
-                              {doc.attachmentCount === 0 && (
+                              {(doc.attachmentCount === 0 || doc.reviewStatus === "pending_client") && (
                                 <Badge variant="outline" className="text-xs text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30">
                                   <Clock className="w-3 h-3 mr-1" />
                                   Pending Client
@@ -2153,7 +2153,7 @@ const VisaApplicationDetail = () => {
                                   Rejected
                                 </Badge>
                               )}
-                              {doc.attachmentCount > 0 && doc.reviewStatus !== "approved" && doc.reviewStatus !== "rejected" && (
+                              {doc.attachmentCount > 0 && doc.reviewStatus === "in_review" && (
                                 <Badge variant="outline" className="text-xs text-blue-600 border-blue-400 bg-blue-50 dark:bg-blue-950/30">
                                   <AlertCircle className="w-3 h-3 mr-1" />
                                   Ready to Review
