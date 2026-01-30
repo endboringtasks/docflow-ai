@@ -316,6 +316,12 @@ const VisaApplicationDetail = () => {
   const documentsInitializedRef = useRef(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
   const [reviewFilter, setReviewFilter] = useState<"all" | ReviewStatus>("all");
+  const [attachmentToDelete, setAttachmentToDelete] = useState<{
+    id: string;
+    docId: string;
+    filePath: string;
+    fileName: string;
+  } | null>(null);
   const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
   
   const [editForm, setEditForm] = useState({
@@ -2281,10 +2287,11 @@ const VisaApplicationDetail = () => {
                                         variant="ghost"
                                         size="icon"
                                         className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                        onClick={() => removeAttachmentMutation.mutate({ 
-                                          attachmentId: attachment.id, 
-                                          docId: doc.id, 
-                                          filePath: attachment.file_path 
+                                        onClick={() => setAttachmentToDelete({
+                                          id: attachment.id,
+                                          docId: doc.id,
+                                          filePath: attachment.file_path,
+                                          fileName: attachment.file_name
                                         })}
                                         disabled={removeAttachmentMutation.isPending}
                                         title="Remove"
@@ -2672,6 +2679,48 @@ const VisaApplicationDetail = () => {
           onRequestNewDocument={handleRequestNewDocument}
           companyId={visaApplication?.company_id}
         />
+
+        {/* Delete Attachment Confirmation */}
+        <AlertDialog 
+          open={!!attachmentToDelete} 
+          onOpenChange={(open) => !open && setAttachmentToDelete(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete File</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{attachmentToDelete?.fileName}"? 
+                This file will be permanently deleted and cannot be recovered.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (attachmentToDelete) {
+                    removeAttachmentMutation.mutate({
+                      attachmentId: attachmentToDelete.id,
+                      docId: attachmentToDelete.docId,
+                      filePath: attachmentToDelete.filePath
+                    });
+                    setAttachmentToDelete(null);
+                  }
+                }}
+                disabled={removeAttachmentMutation.isPending}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {removeAttachmentMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );
