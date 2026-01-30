@@ -30,6 +30,7 @@ import {
   AlertCircle,
   Clock,
   X,
+  XCircle,
   File,
   ChevronDown,
   ChevronRight,
@@ -1059,6 +1060,31 @@ export default function ClientPortal() {
                                                           {isMultiFile && (
                                                             <Badge variant="outline" className="text-xs">
                                                               {attachmentCount}/{doc.max_files ?? "∞"} files
+                                                            </Badge>
+                                                          )}
+                                                          {/* Status Badges matching agent view */}
+                                                          {(doc.attachment_count === 0 || doc.review_status === "pending_client") && (
+                                                            <Badge variant="outline" className="text-xs text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30">
+                                                              <Clock className="w-3 h-3 mr-1" />
+                                                              Pending Client
+                                                            </Badge>
+                                                          )}
+                                                          {doc.attachment_count > 0 && doc.review_status === "in_review" && (
+                                                            <Badge variant="outline" className="text-xs text-blue-600 border-blue-400 bg-blue-50 dark:bg-blue-950/30">
+                                                              <AlertCircle className="w-3 h-3 mr-1" />
+                                                              In Review
+                                                            </Badge>
+                                                          )}
+                                                          {doc.attachment_count > 0 && doc.review_status === "approved" && (
+                                                            <Badge variant="default" className="text-xs bg-green-600">
+                                                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                                                              Approved
+                                                            </Badge>
+                                                          )}
+                                                          {doc.attachment_count > 0 && doc.review_status === "rejected" && (
+                                                            <Badge variant="destructive" className="text-xs">
+                                                              <XCircle className="w-3 h-3 mr-1" />
+                                                              Rejected
                                                             </Badge>
                                                           )}
                                                         </div>
