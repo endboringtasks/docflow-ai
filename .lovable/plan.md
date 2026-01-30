@@ -1,70 +1,48 @@
 
-# Clean Up Document File Naming in Google Drive
+# Remove Checkbox from Document Checklist
 
-## The Issue
+## Summary
 
-Document names stored in the database include category tags:
-```
-[Educational Documents:required] CoE
-```
+Remove the manual completion checkbox from the document checklist in the admin/migration view. The checkbox currently allows agents to manually toggle document completion status, but since completion is now tracked automatically based on file uploads and review status, this control is no longer needed.
 
-When creating file names for Google Drive, the current code just replaces non-alphanumeric characters with underscores:
-```
-SANTOS_Anderson__Educational_Documents_required__CoE.pdf
-```
+## Current Behavior
 
-**Problems:**
-1. The `[Category:required]` tag is included in the filename
-2. Double underscores appear where brackets and colons are replaced
+Each document item in the checklist displays:
+- A checkbox (circular appearance) to toggle completion
+- Document name (with strikethrough when completed)
+- Status badges (Pending Client, Ready to Review, Approved, Rejected)
+- Action buttons (Preview, Upload, etc.)
 
-## Solution
+## Proposed Change
 
-Add a sanitization step to:
-1. **Strip the category tag prefix** (e.g., `[Educational Documents:required]`)
-2. **Collapse multiple underscores** into single underscores
-3. **Trim leading/trailing underscores**
+Remove the checkbox element from the document list, keeping all other UI elements intact.
 
-**Expected result:**
-```
-SANTOS_Anderson_CoE.pdf
-```
+## File to Modify
 
-## Changes Required
+| File | Change |
+|------|--------|
+| `src/pages/migration/ApplicationDetail.tsx` | Remove the Checkbox component from lines 2066-2070 |
 
-### Files to Update
+## Code Change
 
-| File | Location |
-|------|----------|
-| `supabase/functions/client-portal-upload/index.ts` | Lines 537-540 |
-| `supabase/functions/internal-upload/index.ts` | Lines 509-512 |
-
-### New Sanitization Logic
-
+**Remove these lines (approximately 2066-2070):**
 ```typescript
-// Strip category prefix pattern like "[Category:required] " or "[Category:optional] "
-const rawDocName = docData.document_name
-  .replace(/^\[[^\]]+:(required|optional)\]\s*/i, '')  // Remove [Category:required/optional] prefix
-  .replace(/^\[Custom\]\s*/i, '')                       // Remove [Custom] prefix
-
-// Sanitize remaining name
-const cleanDocName = rawDocName
-  .replace(/[^a-zA-Z0-9]/g, '_')   // Replace special chars with underscore
-  .replace(/_+/g, '_')              // Collapse multiple underscores
-  .replace(/^_|_$/g, '')            // Trim leading/trailing underscores
+<Checkbox
+  checked={doc.completed}
+  onCheckedChange={() => handleToggleDocument(doc.id, doc.completed)}
+  disabled={toggleDocumentMutation.isPending}
+/>
 ```
 
-### Before vs After
+## Impact
 
-| Input Document Name | Current Output | New Output |
-|---------------------|----------------|------------|
-| `[Educational Documents:required] CoE` | `_Educational_Documents_required__CoE` | `CoE` |
-| `[Identity:required] Passport` | `_Identity_required__Passport` | `Passport` |
-| `[Custom] Birth Certificate` | `_Custom__Birth_Certificate` | `Birth_Certificate` |
-| `Tax Returns 2024` | `Tax_Returns_2024` | `Tax_Returns_2024` |
+- Document completion will rely solely on automated tracking (file uploads, review status)
+- The `handleToggleDocument` function and `toggleDocumentMutation` can remain in code for now (cleanup optional)
+- The strikethrough styling on document names will continue to work based on `doc.completed` value
 
-### Full Filename Examples
+## Visual Result
 
-| Client | Document | Current | New |
-|--------|----------|---------|-----|
-| Anderson Ribeiro dos Santos | `[Educational Documents:required] CoE` | `SANTOS_Anderson__Educational_Documents_required__CoE.pdf` | `SANTOS_Anderson_CoE.pdf` |
-| Maria Silva | `[Identity:required] Passport` | `SILVA_Maria__Identity_required__Passport.pdf` | `SILVA_Maria_Passport.pdf` |
+Before: `○ Previous Visas [Pending Client]`
+After: `Previous Visas [Pending Client]`
+
+Documents will still show their status badges and checkmarks will still appear when documents are completed, but users cannot manually toggle the status.
