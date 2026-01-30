@@ -1,114 +1,120 @@
 
-# Add Document Status Badges to Client Portal
+# Add Client Name Prefix to Uploaded File Names
 
-## Current State
+## Summary
 
-The agent view shows clear status badges next to each document name:
-- **Pending Client** - Amber badge with clock icon
-- **Ready to Review** - Blue badge with alert icon (not relevant for client view)
-- **Approved** - Green badge with checkmark icon
-- **Rejected** - Red badge with X icon
+Change the file naming convention for documents uploaded to Google Drive Visa Application folders:
 
-The client portal currently uses:
-- Border colors to indicate status (amber for pending, red for rejected, green for completed)
-- Alert boxes with review comments for documents needing attention
-- But **no status badges** like the agent view
+**Current format**: `{DocumentName}_{OriginalFilename}`  
+Example: `Passport_my_passport_scan.pdf`
 
-## Solution
+**New format**: `{LASTNAME}_{FirstName}_{DocumentName}.{extension}`  
+Example: `SANTOS_Anderson_Passport.pdf`
 
-Add status badges to the client portal that match the agent view's styling, placed next to the document name. This gives clients a quick visual indicator of each document's status.
+## Changes Required
 
-## Changes
+### Both Edge Functions Need Updates
 
-### File: `src/pages/client-portal/ClientPortal.tsx`
+| File | Current Behavior | New Behavior |
+|------|-----------------|--------------|
+| `supabase/functions/client-portal-upload/index.ts` | Uses `cleanDocName_file.name` | Uses `{LASTNAME}_{FirstName}_{cleanDocName}.{ext}` |
+| `supabase/functions/internal-upload/index.ts` | Uses `cleanDocName_file.name` | Uses `{LASTNAME}_{FirstName}_{cleanDocName}.{ext}` |
 
-Add status badges after the document name in the flex container (around line 1049-1063).
+### Implementation Details
 
-**Status Badge Mappings:**
+#### 1. Fetch Client Name When Getting Client Data
 
-| Status | Badge Style | Icon | When to Show |
-|--------|-------------|------|--------------|
-| Pending Client | Amber outline badge | Clock | `review_status === 'pending_client'` OR no attachments |
-| In Review | Blue outline badge | AlertCircle | `review_status === 'in_review'` and has attachments |
-| Approved | Green solid badge | CheckCircle2 | `review_status === 'approved'` |
-| Rejected | Red destructive badge | XCircle | `review_status === 'rejected'` |
+Both functions already fetch client data for folder IDs. Extend the query to include `first_name` and `last_name`:
 
-**Implementation:**
-
-Add status badges inside the `flex items-center gap-2 flex-wrap` div that contains the document name:
-
-```tsx
-{/* Document name */}
-<p className="font-medium text-sm ...">
-  {doc.document_name...}
-</p>
-
-{/* NEW: Status Badges matching agent view */}
-{/* Pending Client - when no attachments OR status is pending_client */}
-{(doc.attachment_count === 0 || doc.review_status === "pending_client") && (
-  <Badge variant="outline" className="text-xs text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30">
-    <Clock className="w-3 h-3 mr-1" />
-    Pending Client
-  </Badge>
-)}
-
-{/* In Review - has attachments and status is in_review */}
-{doc.attachment_count > 0 && doc.review_status === "in_review" && (
-  <Badge variant="outline" className="text-xs text-blue-600 border-blue-400 bg-blue-50 dark:bg-blue-950/30">
-    <AlertCircle className="w-3 h-3 mr-1" />
-    In Review
-  </Badge>
-)}
-
-{/* Approved */}
-{doc.attachment_count > 0 && doc.review_status === "approved" && (
-  <Badge variant="default" className="text-xs bg-green-600">
-    <CheckCircle2 className="w-3 h-3 mr-1" />
-    Approved
-  </Badge>
-)}
-
-{/* Rejected */}
-{doc.attachment_count > 0 && doc.review_status === "rejected" && (
-  <Badge variant="destructive" className="text-xs">
-    <XCircle className="w-3 h-3 mr-1" />
-    Rejected
-  </Badge>
-)}
-
-{/* Existing: Optional badge */}
-{doc.requirement_type === "optional" && (
-  <Badge variant="secondary" className="text-xs">
-    Optional
-  </Badge>
-)}
+```typescript
+const { data: clientData } = await supabase
+  .from('clients')
+  .select('documents_received_folder_id, client_folder_id, first_name, last_name, company_name, client_type')
+  .eq('id', applicationData.client_id)
+  .single()
 ```
 
-**Additional Changes:**
+#### 2. Create Helper Function for Name Prefix
 
-1. Import `XCircle` icon from lucide-react (not currently imported)
-
-## Visual Result
-
-**Before:**
+```typescript
+function buildClientPrefix(clientData: {
+  first_name: string | null
+  last_name: string | null  
+  company_name: string | null
+  client_type: string
+}): string {
+  if (clientData.client_type === 'corporate' && clientData.company_name) {
+    // For corporate clients, use sanitized company name
+    return clientData.company_name.replace(/[^a-zA-Z0-9]/g, '_')
+  }
+  
+  // For personal clients: LASTNAME_FirstName
+  const lastName = clientData.last_name || 'Unknown'
+  const firstName = clientData.first_name || 'Client'
+  
+  // Extract last word of last_name for multi-word surnames
+  // "Ribeiro dos Santos" → "SANTOS"
+  const lastNameParts = lastName.trim().split(/\s+/)
+  const primaryLastName = lastNameParts[lastNameParts.length - 1].toUpperCase()
+  
+  // Capitalize first letter of first name
+  const formattedFirstName = firstName.charAt(0).toUpperCase() + firstName.slice(1)
+  
+  return `${primaryLastName}_${formattedFirstName}`
+}
 ```
-[✓] Tax Returns   [Optional]
+
+#### 3. Update Visa Application Folder Upload
+
+**Current code (client-portal-upload around line 514):**
+```typescript
+const cleanDocName = docData.document_name.replace(/[^a-zA-Z0-9]/g, '_')
+const driveFileName = `${cleanDocName}_${file.name}`
 ```
 
-**After:**
-```
-[✓] Tax Returns   [⏱ Pending Client]  [Optional]
-```
-
-Or for approved:
-```
-[✓] Tax Returns   [✓ Approved]  [Optional]
+**New code:**
+```typescript
+const cleanDocName = docData.document_name.replace(/[^a-zA-Z0-9]/g, '_')
+const fileExt = file.name.includes('.') ? file.name.split('.').pop() : ''
+const clientPrefix = buildClientPrefix(clientData)
+const driveFileName = `${clientPrefix}_${cleanDocName}.${fileExt}`
 ```
 
-The badges will match the exact colors used in the agent view:
-- Amber for Pending Client
-- Blue for In Review  
-- Green for Approved
-- Red for Rejected
+**Current code (internal-upload around line 486):**
+```typescript
+const cleanDocName = (documentName || 'Document').replace(/[^a-zA-Z0-9]/g, '_')
+const driveFileName = `${cleanDocName}_${file.name}`
+```
 
-This gives clients clear visibility into where each document stands in the review process.
+**New code:**
+```typescript
+const cleanDocName = (documentName || 'Document').replace(/[^a-zA-Z0-9]/g, '_')
+const fileExt = file.name.includes('.') ? file.name.split('.').pop() : ''
+const clientPrefix = buildClientPrefix(clientData)
+const driveFileName = `${clientPrefix}_${cleanDocName}.${fileExt}`
+```
+
+## Examples
+
+| Client Name | Document | Original File | New Drive Filename |
+|-------------|----------|---------------|-------------------|
+| Anderson Ribeiro dos Santos | Passport | scan123.pdf | `SANTOS_Anderson_Passport.pdf` |
+| Maria Silva | Tax Returns | my_taxes.pdf | `SILVA_Maria_Tax_Returns.pdf` |
+| ABC Corp (corporate) | Contract | doc.pdf | `ABC_Corp_Contract.pdf` |
+| John O'Brien | Birth Certificate | cert.jpeg | `OBRIEN_John_Birth_Certificate.jpeg` |
+
+## Edge Cases Handled
+
+| Scenario | Handling |
+|----------|----------|
+| Missing last_name | Uses "Unknown" |
+| Missing first_name | Uses "Client" |
+| Multi-word surname | Takes last word: "Ribeiro dos Santos" → "SANTOS" |
+| Corporate client | Uses sanitized company_name |
+| Special characters in names | Removed via regex |
+
+## Notes
+
+- **Documents Received folder**: Continues to use **original filename** (unchanged) - this preserves the client's own naming for reference
+- **Visa Application folder**: Uses the new `{LASTNAME}_{FirstName}_{DocumentName}.{ext}` format
+- Client data is already being fetched in both functions - we just need to add name fields to the select
