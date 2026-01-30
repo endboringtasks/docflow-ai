@@ -1144,59 +1144,36 @@ const VisaApplicationDetail = () => {
   // Remove individual attachment
   const removeAttachmentMutation = useMutation({
     mutationFn: async ({ attachmentId, docId, filePath }: { attachmentId: string; docId: string; filePath: string }) => {
-      // Delete the attachment record
-      const { error: deleteError } = await supabase
-        .from("document_attachments")
-        .delete()
-        .eq("id", attachmentId);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
       
-      if (deleteError) throw deleteError;
-      
-      // Remove from storage if not a Drive file
-      if (!filePath.startsWith("drive://")) {
-        await supabase.storage
-          .from("document-attachments")
-          .remove([filePath]);
+      if (!accessToken) {
+        throw new Error("Not authenticated");
       }
       
-      // Count remaining attachments
-      const { count } = await supabase
-        .from("document_attachments")
-        .select("id", { count: "exact", head: true })
-        .eq("document_checklist_id", docId);
+      // Call edge function to handle removal (including Google Drive files)
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/internal-remove-attachment`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            attachment_id: attachmentId,
+            doc_id: docId,
+            file_path: filePath,
+          }),
+        }
+      );
       
-      // Get document's min_files
-      const { data: docData } = await supabase
-        .from("document_checklist")
-        .select("min_files")
-        .eq("id", docId)
-        .single();
-      
-      const minFiles = docData?.min_files ?? 1;
-      const isCompleted = (count || 0) >= minFiles;
-      
-      // Update the first remaining file as file_path for backward compatibility
-      let newFilePath: string | null = null;
-      if (count && count > 0) {
-        const { data: firstAttachment } = await supabase
-          .from("document_attachments")
-          .select("file_path")
-          .eq("document_checklist_id", docId)
-          .order("uploaded_at", { ascending: true })
-          .limit(1)
-          .single();
-        
-        newFilePath = firstAttachment?.file_path || null;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to remove attachment");
       }
       
-      // Update document checklist
-      await supabase
-        .from("document_checklist")
-        .update({ 
-          file_path: newFilePath, 
-          is_completed: isCompleted,
-        })
-        .eq("id", docId);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
