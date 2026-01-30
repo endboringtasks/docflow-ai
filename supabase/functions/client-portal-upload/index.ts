@@ -605,6 +605,27 @@ Deno.serve(async (req) => {
     const finalCount = newAttachmentCount || 0
     const isCompleted = finalCount >= minFiles
 
+    // Get current review_status to determine smart status handling
+    const { data: currentDocStatus } = await supabase
+      .from('document_checklist')
+      .select('review_status')
+      .eq('id', docId)
+      .single()
+
+    const currentStatus = currentDocStatus?.review_status
+
+    // Smart status handling:
+    // - If status was 'pending_client', move to 'in_review' (client addressed feedback)
+    // - If status was 'rejected', keep as 'rejected' (agent must manually review)
+    // - If status was 'approved', keep as 'approved' (don't regress)
+    // - Otherwise, set to 'in_review'
+    let newReviewStatus = currentStatus
+    if (currentStatus === 'pending_client') {
+      newReviewStatus = 'in_review'
+    } else if (currentStatus !== 'rejected' && currentStatus !== 'approved') {
+      newReviewStatus = 'in_review'
+    }
+
     // Update the document checklist - set is_completed based on min_files threshold
     // Also update file_path for backward compatibility (use first attachment)
     const { error: updateError } = await supabase
@@ -614,7 +635,7 @@ Deno.serve(async (req) => {
         is_completed: isCompleted, 
         uploaded_at: new Date().toISOString(),
         uploaded_by_client: portalAccess.client_id,
-        review_status: 'in_review'
+        review_status: newReviewStatus
       })
       .eq('id', docId)
 
@@ -622,6 +643,8 @@ Deno.serve(async (req) => {
       console.error('Update error:', updateError)
       // Don't clean up - attachment was created successfully
     }
+
+    console.log('Smart status handling:', { previousStatus: currentStatus, newStatus: newReviewStatus })
 
     console.log('Upload complete:', { 
       attachmentId: attachmentData.id, 

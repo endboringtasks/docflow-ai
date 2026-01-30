@@ -1711,6 +1711,8 @@ export type Database = {
           max_files: number
           min_files: number
           requirement_type: string
+          review_comment: string
+          review_status: string
           translation_certification_type_id: string
           translation_certification_type_name: string
           translation_notes: string

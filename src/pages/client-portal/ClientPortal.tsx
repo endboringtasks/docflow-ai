@@ -114,6 +114,8 @@ interface DocumentItem {
   requirement_type: string | null;
   applicability_condition: string | null;
   is_applicable: boolean;
+  review_status: string | null;
+  review_comment: string | null;
 }
 
 interface FormData {
@@ -650,9 +652,19 @@ export default function ClientPortal() {
     return client.first_name ? `${client.first_name}${client.last_name ? ` ${client.last_name}` : ""}` : "Client";
   };
 
-  const completedDocs = documents.filter(d => d.is_completed).length;
+  // Documents with pending_client or rejected status should not count as complete
+  const completedDocs = documents.filter(d => 
+    d.is_completed && 
+    d.review_status !== 'pending_client' && 
+    d.review_status !== 'rejected'
+  ).length;
   const totalDocs = documents.length;
   const progress = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
+
+  // Check if any documents need attention (pending_client or rejected)
+  const docsNeedingAttention = documents.filter(d => 
+    d.review_status === 'pending_client' || d.review_status === 'rejected'
+  );
 
   // Group documents by applicant type, then by category
   const groupedByApplicantType = useMemo(() => {
@@ -999,17 +1011,26 @@ export default function ClientPortal() {
                                                 const attachmentCount = doc.attachment_count || 0;
                                                 const minFiles = doc.min_files || 1;
                                                 
+                                                // Determine document card styling based on review status
+                                                const needsAttention = doc.review_status === 'pending_client' || doc.review_status === 'rejected';
+                                                const isPendingClient = doc.review_status === 'pending_client';
+                                                const isRejected = doc.review_status === 'rejected';
+
                                                 return (
                                                   <motion.div
                                                     key={doc.id}
                                                     initial={{ opacity: 0, y: 10 }}
                                                     animate={{ opacity: 1, y: 0 }}
                                                     className={`rounded-lg border transition-all ${
-                                                      doc.is_completed 
-                                                        ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
-                                                        : dragOverDocId === doc.id
-                                                          ? "bg-primary/10 border-primary border-dashed"
-                                                          : "bg-background border-border/50 hover:border-border"
+                                                      needsAttention
+                                                        ? isRejected
+                                                          ? "bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-800 border-2"
+                                                          : "bg-amber-50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800 border-2"
+                                                        : doc.is_completed 
+                                                          ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
+                                                          : dragOverDocId === doc.id
+                                                            ? "bg-primary/10 border-primary border-dashed"
+                                                            : "bg-background border-border/50 hover:border-border"
                                                     }`}
                                                     onDragOver={(e) => handleDragOver(e, doc.id)}
                                                     onDragLeave={handleDragLeave}
@@ -1103,6 +1124,41 @@ export default function ClientPortal() {
                                                           <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
                                                             Minimum {minFiles} files required
                                                           </p>
+                                                        )}
+                                                        
+                                                        {/* Review Feedback Alert */}
+                                                        {needsAttention && doc.review_comment && (
+                                                          <div className={`mt-2 p-3 rounded-lg ${
+                                                            isRejected 
+                                                              ? "bg-red-100 dark:bg-red-950/50 border border-red-200 dark:border-red-800" 
+                                                              : "bg-amber-100 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800"
+                                                          }`}>
+                                                            <div className="flex items-start gap-2">
+                                                              <AlertCircle className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                                                                isRejected 
+                                                                  ? "text-red-600 dark:text-red-400" 
+                                                                  : "text-amber-600 dark:text-amber-400"
+                                                              }`} />
+                                                              <div>
+                                                                <p className={`text-sm font-medium ${
+                                                                  isRejected 
+                                                                    ? "text-red-800 dark:text-red-200" 
+                                                                    : "text-amber-800 dark:text-amber-200"
+                                                                }`}>
+                                                                  {isRejected 
+                                                                    ? "Document Rejected" 
+                                                                    : "Different Document Requested"}
+                                                                </p>
+                                                                <p className={`text-sm mt-1 ${
+                                                                  isRejected 
+                                                                    ? "text-red-700 dark:text-red-300" 
+                                                                    : "text-amber-700 dark:text-amber-300"
+                                                                }`}>
+                                                                  {doc.review_comment}
+                                                                </p>
+                                                              </div>
+                                                            </div>
+                                                          </div>
                                                         )}
                                                       </div>
                                                       <div className="flex-shrink-0 flex items-center gap-2">
