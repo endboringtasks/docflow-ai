@@ -2063,11 +2063,6 @@ const VisaApplicationDetail = () => {
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 flex-wrap">
-                              <Checkbox
-                                checked={doc.completed}
-                                onCheckedChange={() => handleToggleDocument(doc.id, doc.completed)}
-                                disabled={toggleDocumentMutation.isPending}
-                              />
                               <span className={doc.completed ? "line-through text-muted-foreground" : ""}>
                               {doc.name.replace(/\s*\(Translation\)\s*/gi, "").trim()}
                               </span>
