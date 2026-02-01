@@ -2017,7 +2017,9 @@ const VisaApplicationDetail = () => {
                 </div>
                 
                 {/* Categories within this Applicant Type */}
-                {Object.entries(groupedByApplicantType[applicantType]).map(([category, docs]) => (
+                {Object.entries(groupedByApplicantType[applicantType])
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([category, docs]) => (
                   <div key={`${applicantType}-${category}`} className="card-gradient rounded-xl border border-border/50 p-6 ml-4">
                     <h3 className="font-semibold mb-4 flex items-center gap-2">
                       <FileText className="w-4 h-4" />
