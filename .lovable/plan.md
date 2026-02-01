@@ -1,61 +1,103 @@
 
-# Fix Category Order Consistency Between Application Page and Client Portal
+# Fix Mobile Dialogs - Cancel and Create Buttons Not Visible
 
-## Summary
+## Problem
 
-The category display order differs between the Application page and the Client Portal because they use different sorting approaches:
-- **Client Portal**: Uses `.sort()` to alphabetically order categories
-- **Application page**: Uses no sorting, relying on database insertion order
+On iPhone, when creating a new client or new application, the Cancel and Create buttons are not visible because the form content exceeds the screen height and there's no scrolling enabled.
 
 ## Root Cause
 
-| Location | Current Behavior |
-|----------|-----------------|
-| `src/pages/client-portal/ClientPortal.tsx` (line 935) | `const sortedCategories = Object.keys(categories).sort();` - Alphabetical order |
-| `src/pages/migration/ApplicationDetail.tsx` (line 2020) | `Object.entries(groupedByApplicantType[applicantType]).map(...)` - No explicit sorting |
+The `DialogContent` in both dialogs has no maximum height constraint. On mobile devices:
+- **Create Client Dialog**: 7+ form fields push the buttons below the viewport
+- **Create Application Dialog**: Multiple selects + ApplicantSelector component make it even taller
 
 ## Solution
 
-Apply the same alphabetical sorting to the Application page that is already used in the Client Portal. This ensures both views display categories in the same predictable order.
+Add a scrollable container for the form content while keeping the header and footer (buttons) fixed and always visible.
 
 ## Changes Required
 
-### File to Modify
+### 1. Update Dialog Component (Global Fix)
 
 | File | Change |
 |------|--------|
-| `src/pages/migration/ApplicationDetail.tsx` | Add alphabetical sorting before rendering categories |
-
-### Implementation
-
-Change the categories rendering from:
+| `src/components/ui/dialog.tsx` | Add `max-h-[90vh]` and `overflow-y-auto` to `DialogContent` for proper mobile sizing |
 
 ```typescript
-{Object.entries(groupedByApplicantType[applicantType]).map(([category, docs]) => (
+// Line 38-40: Add max-height and flex layout
+className={cn(
+  "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg max-h-[90vh] translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 overflow-hidden flex flex-col data-[state=open]:animate-in ...",
+  className,
+)}
 ```
 
-To:
+### 2. Update Create Client Dialog
 
+| File | Change |
+|------|--------|
+| `src/pages/migration/Clients.tsx` | Wrap form content in scrollable div, use DialogFooter for buttons |
+
+**Line 514** - Make form content scrollable:
 ```typescript
-{Object.entries(groupedByApplicantType[applicantType])
-  .sort(([a], [b]) => a.localeCompare(b))
-  .map(([category, docs]) => (
+<div className="space-y-4 py-4 overflow-y-auto max-h-[60vh] pr-2">
 ```
 
-This adds `.sort(([a], [b]) => a.localeCompare(b))` which sorts the category entries alphabetically by their key (the category name) before mapping them to UI elements.
+**Line 612** - Use DialogFooter for consistent button placement:
+```typescript
+<DialogFooter className="flex-shrink-0 pt-4 border-t">
+  <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+    Cancel
+  </Button>
+  <Button variant="gradient" onClick={handleCreateClient} ...>
+    ...
+  </Button>
+</DialogFooter>
+```
 
-## Result
+### 3. Update Create Application Dialog
 
-After this change, both views will display categories in the same alphabetical order:
-- Educational Documents
-- Employment Records
-- Financial Documents
-- Health & Medical
-- Identity Documents
-- Legal Documents
-- Supporting Evidence
-- Travel Documents
+| File | Change |
+|------|--------|
+| `src/pages/migration/Applications.tsx` | Wrap form content in scrollable div, use DialogFooter |
 
-## Alternative Consideration
+**Line 859** - Make form content scrollable:
+```typescript
+<div className="space-y-4 py-4 overflow-y-auto max-h-[60vh] pr-2">
+```
 
-If a specific business-defined order is preferred (e.g., Identity first, then Travel, then Educational), a predefined category order constant could be created and shared between both files. However, alphabetical sorting is simpler and already in use in the Client Portal.
+**Line 1031** - Use DialogFooter:
+```typescript
+<DialogFooter className="flex-shrink-0 pt-4 border-t">
+  <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+    Cancel
+  </Button>
+  <Button onClick={handleCreateApplication} ...>
+    ...
+  </Button>
+</DialogFooter>
+```
+
+## Visual Result
+
+**Before (Mobile)**:
+- Form fields visible
+- Buttons hidden below screen
+
+**After (Mobile)**:
+- Dialog header stays at top
+- Form fields scroll within container
+- Cancel and Create buttons always visible at bottom
+
+## Files to Modify
+
+1. `src/components/ui/dialog.tsx` - Add max-height constraint
+2. `src/pages/migration/Clients.tsx` - Scrollable form + DialogFooter
+3. `src/pages/migration/Applications.tsx` - Scrollable form + DialogFooter
+
+## Technical Notes
+
+- Using `max-h-[60vh]` for form content ensures ~30% space remains for header + footer
+- `overflow-y-auto` enables scrolling only when needed
+- `pr-2` adds padding for scrollbar visibility
+- `DialogFooter` provides consistent responsive button layout
+- `flex-shrink-0` prevents footer from being compressed
