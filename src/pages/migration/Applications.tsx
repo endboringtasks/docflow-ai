@@ -22,6 +22,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -856,7 +857,7 @@ const MigrationVisaApplications = () => {
                   Add a new application for a client.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
+              <div className="space-y-4 py-4 overflow-y-auto max-h-[60vh] pr-2">
                 <div className="space-y-2">
                   <Label htmlFor="client">Client</Label>
                   <Select
@@ -1028,7 +1029,7 @@ const MigrationVisaApplications = () => {
                   />
                 )}
               </div>
-              <div className="flex justify-end gap-2">
+              <DialogFooter className="flex-shrink-0 pt-4 border-t">
                 <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
                   Cancel
                 </Button>
@@ -1045,7 +1046,7 @@ const MigrationVisaApplications = () => {
                     "Create Application"
                   )}
                 </Button>
-              </div>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
