@@ -25,6 +25,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -511,7 +512,7 @@ const MigrationClients = () => {
                 </DialogDescription>
               </DialogHeader>
               
-              <div className="space-y-4 py-4">
+              <div className="space-y-4 py-4 overflow-y-auto max-h-[60vh] pr-2">
                 <div className="space-y-2">
                   <Label>Client Type</Label>
                   <Select 
@@ -609,13 +610,12 @@ const MigrationClients = () => {
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <Button variant="outline" className="flex-1" onClick={() => setIsCreateOpen(false)}>
+              <DialogFooter className="flex-shrink-0 pt-4 border-t">
+                <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
                   Cancel
                 </Button>
                 <Button 
                   variant="gradient" 
-                  className="flex-1" 
                   onClick={handleCreateClient} 
                   disabled={(newClient.clientType === "corporate" ? !newClient.companyName.trim() : !isPersonalClientValid(newClient)) || createClientMutation.isPending}
                 >
@@ -628,7 +628,7 @@ const MigrationClients = () => {
                     "Create Client"
                   )}
                 </Button>
-              </div>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
