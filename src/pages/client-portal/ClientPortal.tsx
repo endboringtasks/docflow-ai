@@ -570,7 +570,7 @@ export default function ClientPortal() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-portal-get-file-url`,
+        `${config.supabaseUrl}/functions/v1/client-portal-get-file-url`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
