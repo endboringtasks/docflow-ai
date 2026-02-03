@@ -916,13 +916,14 @@ const VisaApplicationDetail = () => {
     mutationFn: async (doc: { name: string; category: string; applicantType: string }) => {
       if (!visaApplicationId || !visaApplication?.company_id) throw new Error("Missing IDs");
       
+        const categoryName = doc.category || "Other";
         const { data, error } = await supabase
           .from("document_checklist")
           .insert({
             visa_application_id: visaApplicationId,
             company_id: visaApplication.company_id,
-            document_name: `[Custom] ${doc.name}`,
-            category: doc.category || "Other",
+            document_name: `[${categoryName}:optional] ${doc.name}`,
+            category: categoryName,
             applicant_type: doc.applicantType || null,
             is_completed: false,
             review_status: "pending_client",
