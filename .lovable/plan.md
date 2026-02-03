@@ -1,69 +1,75 @@
 
-# Fix Document Order Consistency Within Categories
+
+# Fix Document Order in Client Portal
 
 ## Problem
 
-Documents within each category are displayed in different orders between the Application page (admin view) and the Client Portal. From the screenshots:
+Documents in the Client Portal are displayed in a different order than the Application page. From the screenshot:
 
 | View | Order |
 |------|-------|
-| **Application page** | Diploma → Diploma (Translation) → Professional Certifications → CoE |
+| **Application page** | CoE → Diploma → Diploma (Translation) → Professional Certifications |
 | **Client Portal** | Professional Certifications → CoE → Diploma → Diploma (Translation) |
 
 ## Root Cause
 
-Both files have logic to group translations with their parent documents, but neither sorts the "original" documents alphabetically before processing. The order depends on database insertion order or query results, which can vary.
+The Client Portal sorts documents by **raw** `document_name` which includes category/requirement tags like `[Educational Documents:optional] Professional Certifications`.
 
-**Current code (both files):**
-```typescript
-const originals = docs.filter(d => !d.translationOfId);  // Not sorted!
-```
+When sorting:
+- `[Educational Documents:optional]...` comes **before** `[Educational Documents:required]...` (alphabetically, 'o' < 'r')
+- This causes "Professional Certifications" (optional) to appear before "CoE" and "Diploma" (required)
+
+The Application page uses `parseDocumentName()` to extract clean display names **before** sorting, so it correctly sorts by actual document name.
 
 ## Solution
 
-Add alphabetical sorting to the `originals` array in both files before iterating through them. This ensures documents are displayed in the same predictable order regardless of database order.
+Apply the same sanitization regex to document names **before** sorting in ClientPortal.tsx.
 
 ## Changes Required
 
-### 1. ApplicationDetail.tsx (Line 1565)
+### ClientPortal.tsx (Line 695)
 
-**Current:**
+Create a helper function and use it for sorting:
+
+**Add sanitization helper** (around line 90):
 ```typescript
-const originals = docs.filter(d => !d.translationOfId);
+// Sanitize document name for sorting (remove category tags)
+const sanitizeForSort = (name: string): string => {
+  return name
+    .replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ")
+    .replace(/\s*\(Translation\)\s*/gi, "")
+    .trim();
+};
 ```
 
-**Updated:**
+**Update sorting** (line 695):
 ```typescript
-const originals = docs.filter(d => !d.translationOfId).sort((a, b) => a.name.localeCompare(b.name));
+// Current:
+const originals = docs.filter(d => !d.translation_of_id)
+  .sort((a, b) => a.document_name.localeCompare(b.document_name));
+
+// Fixed:
+const originals = docs.filter(d => !d.translation_of_id)
+  .sort((a, b) => sanitizeForSort(a.document_name).localeCompare(sanitizeForSort(b.document_name)));
 ```
-
-### 2. ClientPortal.tsx (Line 695)
-
-**Current:**
-```typescript
-const originals = docs.filter(d => !d.translation_of_id);
-```
-
-**Updated:**
-```typescript
-const originals = docs.filter(d => !d.translation_of_id).sort((a, b) => a.document_name.localeCompare(b.document_name));
-```
-
-Note: The Client Portal uses `document_name` while the Application page uses `name` due to different data structures.
 
 ## Result
 
-After this change, documents within each category will be sorted alphabetically in both views:
+After this change, documents will sort by their clean display names:
 
-| Category | Order |
-|----------|-------|
-| Educational Documents | CoE → Diploma → Diploma (Translation) → Professional Certifications |
+| Before Sort | After Sanitization | Final Order |
+|-------------|--------------------|-------------|
+| `[Educational:optional] Professional Certifications` | `Professional Certifications` | 3rd |
+| `[Educational:required] CoE` | `CoE` | 1st |
+| `[Educational:required] Diploma` | `Diploma` | 2nd |
 
-Translations will continue to appear immediately after their parent document as designed.
+**Final order**: CoE → Diploma → Diploma (Translation) → Professional Certifications
+
+This matches the Application page order.
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/pages/migration/ApplicationDetail.tsx` | Add `.sort((a, b) => a.name.localeCompare(b.name))` to originals |
-| `src/pages/client-portal/ClientPortal.tsx` | Add `.sort((a, b) => a.document_name.localeCompare(b.document_name))` to originals |
+| `src/pages/client-portal/ClientPortal.tsx` | Add `sanitizeForSort()` helper and use it in sorting |
+
