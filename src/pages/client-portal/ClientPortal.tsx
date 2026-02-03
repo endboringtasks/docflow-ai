@@ -61,6 +61,14 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 
+// Sanitize document name for sorting (remove category tags)
+const sanitizeForSort = (name: string): string => {
+  return name
+    .replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ")
+    .replace(/\s*\(Translation\)\s*/gi, "")
+    .trim();
+};
+
 interface PortalAccess {
   id: string;
   visa_application_id: string;
