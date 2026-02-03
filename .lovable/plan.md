@@ -1,127 +1,69 @@
 
-# Fix: Custom Documents Not Grouping Correctly + Remove [Custom] Tag
+# Fix: Match Client Portal Styling to Application Page
 
-## Problems Identified
+## Problem
 
-### Database Evidence
-```
-id: 23e600ac-adb4-4c5f-a530-ef074e6c3cba
-document_name: [Custom] test
-category: Education           ← Wrong! Should be "Educational Documents"
-applicant_type: Primary Applicant
-```
+In the Client Portal, documents with `pending_client` status have:
+- A yellow/amber background on the entire document card
+- A yellow/amber border (2px thick) on the card
+- The "Pending Client" badge text
 
-### Issue 1: Wrong Category Saved
-The custom document was created before the category alignment fix. It was saved with `category: Education` instead of `category: Educational Documents`.
+The user wants to **remove the yellow card styling** but **keep the "Pending Client" badge**, matching the Application page styling where only the badge has amber coloring.
 
-### Issue 2: `parseDocumentName` Overrides Category
-In `ApplicationDetail.tsx`, the document mapping uses `parsed.category` (line 761), but the `parseDocumentName` function forcibly sets any document starting with `[Custom]` to have `category: "Custom"`:
+## Current vs Desired Behavior
 
-```typescript
-// Line 273-274
-if (name.startsWith("[Custom] ")) {
-  return { displayName: name.replace("[Custom] ", ""), category: "Custom", required: false };
-}
-```
-
-This means **the database category is completely ignored** for custom documents in the admin view.
-
-### Issue 3: User Wants No `[Custom]` Prefix
-The document name includes `[Custom] test` but the user wants it to display as just `test`.
+| Element | Current (Client Portal) | Desired (Match App Page) |
+|---------|------------------------|--------------------------|
+| Document card background | `bg-amber-50` (yellow) | `bg-background` (neutral) |
+| Document card border | `border-amber-300 border-2` (yellow, thick) | `border-border/50` (neutral, thin) |
+| "Pending Client" badge | Amber text + border (keep) | Amber text + border (keep) |
+| Review feedback alert | Keep amber styling | Keep amber styling |
 
 ## Solution
 
-### Part 1: Fix `parseDocumentName` to Use Database Category
+Update the document card conditional styling to remove the amber background/border for `pending_client` status while preserving:
+1. The amber badge text styling
+2. The amber styling for the review feedback alert (when a comment exists)
 
-Instead of hardcoding `category: "Custom"`, the function should return a marker that custom documents exist, but the actual grouping should use the **database category**.
+## Technical Changes
 
-**File**: `src/pages/migration/ApplicationDetail.tsx`
+### File: `src/pages/client-portal/ClientPortal.tsx`
 
-Update `parseDocumentName` to NOT override category:
+**Update card container styling (lines 1038-1048)**
 
-```typescript
-// Line 271-289
-const parseDocumentName = (name: string): { displayName: string; category: string; required: boolean; isCustom: boolean } => {
-  // Check if it's a custom document
-  if (name.startsWith("[Custom] ")) {
-    return { displayName: name.replace("[Custom] ", ""), category: "", required: false, isCustom: true };
-  }
-  
-  // Check for category prefix pattern like "[Category:Required] Name"
-  const match = name.match(/^\[([^:]+):?(required|optional)?\]\s*(.+)$/i);
-  if (match) {
-    return { 
-      displayName: match[3], 
-      category: match[1], 
-      required: match[2]?.toLowerCase() === "required",
-      isCustom: false
-    };
-  }
-  
-  // Default: treat as standard required document
-  return { displayName: name, category: "General", required: true, isCustom: false };
-};
+Remove the `pending_client` case from the `needsAttention` yellow styling. Only `rejected` status should have colored card styling.
+
+```text
+Before:
+needsAttention
+  ? isRejected
+    ? "bg-red-50 ... border-red-300 border-2"
+    : "bg-amber-50 ... border-amber-300 border-2"  ← Remove this
+  : ...
+
+After:
+isRejected
+  ? "bg-red-50 ... border-red-300 border-2"
+  : doc.is_completed
+    ? "bg-green-50 ... border-green-200"
+    : ...
 ```
 
-### Part 2: Use Database Category for Custom Documents
+## Files to Modify
 
-Update document mapping to use `doc.category` from database when `parsed.category` is empty (custom documents):
+| File | Lines | Change |
+|------|-------|--------|
+| `src/pages/client-portal/ClientPortal.tsx` | 1038-1048 | Remove amber styling for pending_client cards, only keep for rejected |
 
-```typescript
-// Line 758-762
-return {
-  id: doc.id,
-  name: parsed.displayName,
-  category: parsed.category || doc.category || "Other",  // Fallback to DB category
-  required: parsed.required,
-  isCustom: parsed.isCustom,  // Add new property
-  // ... rest
-```
+## What Will Be Preserved
 
-### Part 3: Remove [Custom] Prefix for New Documents
-
-Change how custom documents are saved - use category tag format instead:
-
-```typescript
-// Line 921-924
-const { data, error } = await supabase
-  .from("document_checklist")
-  .insert({
-    visa_application_id: visaApplicationId,
-    company_id: visaApplication.company_id,
-    document_name: `[${doc.category || "Other"}:optional] ${doc.name}`,  // Use category tag format
-    category: doc.category || "Other",
-    // ... rest
-```
-
-This approach:
-- Removes the `[Custom]` prefix entirely
-- Uses the same format as standard templates
-- Custom documents will parse correctly and group with related documents
-
-### Part 4: Fix Existing Document in Database
-
-Run this SQL to fix the existing "test" document:
-
-```sql
-UPDATE document_checklist 
-SET 
-  document_name = '[Educational Documents:optional] test',
-  category = 'Educational Documents'
-WHERE id = '23e600ac-adb4-4c5f-a530-ef074e6c3cba';
-```
-
-## Technical Summary
-
-| File | Change |
-|------|--------|
-| `src/pages/migration/ApplicationDetail.tsx` | Update `parseDocumentName` to not override category for custom docs |
-| `src/pages/migration/ApplicationDetail.tsx` | Update document mapping to fallback to `doc.category` |
-| `src/pages/migration/ApplicationDetail.tsx` | Change `addDocumentMutation` to use category tag format instead of `[Custom]` prefix |
-| Database | Update existing document to use correct format |
+- **"Pending Client" badge** (lines 1079-1084) - unchanged, keeps amber outline styling
+- **Review feedback alert** (lines 1168-1201) - unchanged, still shows amber alert box when there's a review comment
+- **Rejected card styling** - unchanged, keeps red background/border
 
 ## Expected Result
 
-- Custom documents will appear grouped with standard documents in the same category
-- No `[Custom]` tag will appear in document names
-- Both admin view and client portal will show documents correctly
+- Document cards for `pending_client` status will have neutral background (same as other incomplete documents)
+- The "Pending Client" tag will still appear with its amber text/border styling
+- The review feedback alert inside the card (when comment exists) will still have amber styling
+- Rejected documents will continue to have red card styling
