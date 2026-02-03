@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { config } from "@/lib/config";
 import {
   Select,
   SelectContent,
@@ -409,7 +410,7 @@ export default function ClientPortal() {
       formData.append('file', file);
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-portal-upload`,
+        `${config.supabaseUrl}/functions/v1/client-portal-upload`,
         {
           method: 'POST',
           body: formData,
@@ -460,7 +461,7 @@ export default function ClientPortal() {
     setRemovingAttachmentId(attachmentId);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-portal-remove-document`,
+        `${config.supabaseUrl}/functions/v1/client-portal-remove-document`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -492,7 +493,7 @@ export default function ClientPortal() {
     setRemovingAttachmentId(docId);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-portal-remove-document`,
+        `${config.supabaseUrl}/functions/v1/client-portal-remove-document`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -569,7 +570,7 @@ export default function ClientPortal() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-portal-get-file-url`,
+        `${config.supabaseUrl}/functions/v1/client-portal-get-file-url`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -635,7 +636,7 @@ export default function ClientPortal() {
       // Call edge function to notify team and finalize submission
       try {
         await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-portal-submit`,
+          `${config.supabaseUrl}/functions/v1/client-portal-submit`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
