@@ -151,7 +151,7 @@ const Terms = () => {
               <div className="flex gap-6 text-sm text-muted-foreground">
                 <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
                 <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
-                <a href="mailto:anderson@endboringtasks.com" className="hover:text-foreground transition-colors">Contact</a>
+                <a href="mailto:info@endboringtasks.com" className="hover:text-foreground transition-colors">Contact</a>
               </div>
             </div>
           </div>
