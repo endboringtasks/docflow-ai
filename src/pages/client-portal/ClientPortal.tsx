@@ -410,7 +410,7 @@ export default function ClientPortal() {
       formData.append('file', file);
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-portal-upload`,
+        `${config.supabaseUrl}/functions/v1/client-portal-upload`,
         {
           method: 'POST',
           body: formData,
