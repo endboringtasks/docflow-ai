@@ -126,8 +126,8 @@ const Terms = () => {
                 <h2 className="text-2xl font-semibold mb-4">11. Contact Us</h2>
                 <p className="text-muted-foreground leading-relaxed">
                   If you have any questions about these Terms, please contact us at{" "}
-                  <a href="mailto:anderson@endboringtasks.com" className="text-primary hover:underline">
-                    anderson@endboringtasks.com
+                  <a href="mailto:info@endboringtasks.com" className="text-primary hover:underline">
+                    info@endboringtasks.com
                   </a>
                 </p>
               </section>
