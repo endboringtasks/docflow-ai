@@ -925,6 +925,8 @@ const VisaApplicationDetail = () => {
             applicant_type: doc.applicantType || null,
             is_completed: false,
             review_status: "pending_client",
+            is_standard_for_client: true,
+            is_applicable: true,
           })
           .select()
           .single();
