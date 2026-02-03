@@ -678,7 +678,7 @@ const Index = () => {
                 >
                   SEO Checklist
                 </a>
-                <a href="mailto:anderson@endboringtasks.com" className="hover:text-foreground transition-colors">
+                <a href="mailto:info@endboringtasks.com" className="hover:text-foreground transition-colors">
                   Contact
                 </a>
               </div>

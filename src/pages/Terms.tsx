@@ -126,8 +126,8 @@ const Terms = () => {
                 <h2 className="text-2xl font-semibold mb-4">11. Contact Us</h2>
                 <p className="text-muted-foreground leading-relaxed">
                   If you have any questions about these Terms, please contact us at{" "}
-                  <a href="mailto:anderson@endboringtasks.com" className="text-primary hover:underline">
-                    anderson@endboringtasks.com
+                  <a href="mailto:info@endboringtasks.com" className="text-primary hover:underline">
+                    info@endboringtasks.com
                   </a>
                 </p>
               </section>
@@ -151,7 +151,7 @@ const Terms = () => {
               <div className="flex gap-6 text-sm text-muted-foreground">
                 <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
                 <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
-                <a href="mailto:anderson@endboringtasks.com" className="hover:text-foreground transition-colors">Contact</a>
+                <a href="mailto:info@endboringtasks.com" className="hover:text-foreground transition-colors">Contact</a>
               </div>
             </div>
           </div>
