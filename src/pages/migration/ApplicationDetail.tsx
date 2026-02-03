@@ -155,6 +155,7 @@ interface DbDocumentItem {
   visa_application_id: string;
   company_id: string;
   document_name: string;
+  category: string | null;
   is_completed: boolean;
   file_path: string | null;
   review_status: string | null;
@@ -268,10 +269,10 @@ const getDefaultDocuments = (visaSubclass: string | null): DefaultDocFields[] =>
 };
 
 // Parse document name to extract category and required status
-const parseDocumentName = (name: string): { displayName: string; category: string; required: boolean } => {
-  // Check if it's a custom document
+const parseDocumentName = (name: string): { displayName: string; category: string; required: boolean; isCustom: boolean } => {
+  // Check if it's a custom document - return empty category so we use db category instead
   if (name.startsWith("[Custom] ")) {
-    return { displayName: name.replace("[Custom] ", ""), category: "Custom", required: false };
+    return { displayName: name.replace("[Custom] ", ""), category: "", required: false, isCustom: true };
   }
   
   // Check for category prefix pattern like "[Category:Required] Name"
@@ -280,12 +281,13 @@ const parseDocumentName = (name: string): { displayName: string; category: strin
     return { 
       displayName: match[3], 
       category: match[1], 
-      required: match[2]?.toLowerCase() === "required" 
+      required: match[2]?.toLowerCase() === "required",
+      isCustom: false
     };
   }
   
   // Default: treat as standard required document
-  return { displayName: name, category: "General", required: true };
+  return { displayName: name, category: "General", required: true, isCustom: false };
 };
 
 // Format document for storage
@@ -758,7 +760,7 @@ const VisaApplicationDetail = () => {
     return {
       id: doc.id,
       name: parsed.displayName,
-      category: parsed.category,
+      category: parsed.category || doc.category || "Other",  // Fallback to DB category for custom docs
       required: parsed.required,
       completed: doc.is_completed,
       filePath: doc.file_path,
@@ -915,13 +917,14 @@ const VisaApplicationDetail = () => {
     mutationFn: async (doc: { name: string; category: string; applicantType: string }) => {
       if (!visaApplicationId || !visaApplication?.company_id) throw new Error("Missing IDs");
       
+        const categoryName = doc.category || "Other";
         const { data, error } = await supabase
           .from("document_checklist")
           .insert({
             visa_application_id: visaApplicationId,
             company_id: visaApplication.company_id,
-            document_name: `[Custom] ${doc.name}`,
-            category: doc.category || "Other",
+            document_name: `[${categoryName}:optional] ${doc.name}`,
+            category: categoryName,
             applicant_type: doc.applicantType || null,
             is_completed: false,
             review_status: "pending_client",
