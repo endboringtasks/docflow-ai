@@ -904,9 +904,11 @@ const VisaApplicationDetail = () => {
   }, [applicationApplicants]);
 
   const defaultDocCategories = [
-    "Identity", "Character", "Health", "Employment", "Skills",
-    "English", "Education", "Financial", "Relationship",
-    "Sponsor", "Insurance", "Nomination", "Other",
+    "Identity Documents", "Character Documents", "Health & Medical", 
+    "Employment Records", "Skills Assessment", "English Proficiency", 
+    "Educational Documents", "Financial Documents", "Relationship Evidence",
+    "Sponsor Documents", "Insurance", "Nomination", "Supporting Evidence", 
+    "Legal Documents", "Other",
   ];
 
   const addDocumentMutation = useMutation({
@@ -923,6 +925,8 @@ const VisaApplicationDetail = () => {
             applicant_type: doc.applicantType || null,
             is_completed: false,
             review_status: "pending_client",
+            is_standard_for_client: true,
+            is_applicable: true,
           })
           .select()
           .single();
