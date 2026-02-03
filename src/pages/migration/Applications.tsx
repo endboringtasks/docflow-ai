@@ -857,7 +857,7 @@ const MigrationVisaApplications = () => {
                   Add a new application for a client.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4 overflow-y-auto max-h-[60vh] pr-2">
+              <div className="space-y-4 py-4 overflow-y-auto max-h-[60vh] pr-4">
                 <div className="space-y-2">
                   <Label htmlFor="client">Client</Label>
                   <Select
