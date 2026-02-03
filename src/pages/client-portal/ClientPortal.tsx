@@ -636,7 +636,7 @@ export default function ClientPortal() {
       // Call edge function to notify team and finalize submission
       try {
         await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-portal-submit`,
+          `${config.supabaseUrl}/functions/v1/client-portal-submit`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
