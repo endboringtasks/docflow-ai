@@ -1562,7 +1562,7 @@ const VisaApplicationDetail = () => {
       Object.keys(grouped[applicantType]).forEach(category => {
         const docs = grouped[applicantType][category];
         // Separate originals and translations
-        const originals = docs.filter(d => !d.translationOfId);
+        const originals = docs.filter(d => !d.translationOfId).sort((a, b) => a.name.localeCompare(b.name));
         const translations = docs.filter(d => d.translationOfId);
         
         // Rebuild array: original followed by its translation(s)

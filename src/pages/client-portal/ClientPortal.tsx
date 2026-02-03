@@ -692,7 +692,7 @@ export default function ClientPortal() {
       Object.keys(groups[applicantType]).forEach(category => {
         const docs = groups[applicantType][category];
         // Separate originals and translations
-        const originals = docs.filter(d => !d.translation_of_id);
+        const originals = docs.filter(d => !d.translation_of_id).sort((a, b) => a.document_name.localeCompare(b.document_name));
         const translations = docs.filter(d => d.translation_of_id);
         
         // Rebuild array: original followed by its translation(s)
