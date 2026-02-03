@@ -1036,10 +1036,8 @@ export default function ClientPortal() {
                                                     initial={{ opacity: 0, y: 10 }}
                                                     animate={{ opacity: 1, y: 0 }}
                                                     className={`rounded-lg border transition-all ${
-                                                      needsAttention
-                                                        ? isRejected
-                                                          ? "bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-800 border-2"
-                                                          : "bg-amber-50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800 border-2"
+                                                      isRejected
+                                                        ? "bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-800 border-2"
                                                         : doc.is_completed 
                                                           ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
                                                           : dragOverDocId === doc.id
