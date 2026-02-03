@@ -759,7 +759,7 @@ const VisaApplicationDetail = () => {
     return {
       id: doc.id,
       name: parsed.displayName,
-      category: parsed.category,
+      category: parsed.category || doc.category || "Other",  // Fallback to DB category for custom docs
       required: parsed.required,
       completed: doc.is_completed,
       filePath: doc.file_path,
