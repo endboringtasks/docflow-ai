@@ -61,6 +61,14 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 
+// Sanitize document name for sorting (remove category tags)
+const sanitizeForSort = (name: string): string => {
+  return name
+    .replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ")
+    .replace(/\s*\(Translation\)\s*/gi, "")
+    .trim();
+};
+
 interface PortalAccess {
   id: string;
   visa_application_id: string;
@@ -692,7 +700,7 @@ export default function ClientPortal() {
       Object.keys(groups[applicantType]).forEach(category => {
         const docs = groups[applicantType][category];
         // Separate originals and translations
-        const originals = docs.filter(d => !d.translation_of_id).sort((a, b) => a.document_name.localeCompare(b.document_name));
+        const originals = docs.filter(d => !d.translation_of_id).sort((a, b) => sanitizeForSort(a.document_name).localeCompare(sanitizeForSort(b.document_name)));
         const translations = docs.filter(d => d.translation_of_id);
         
         // Rebuild array: original followed by its translation(s)
