@@ -268,10 +268,10 @@ const getDefaultDocuments = (visaSubclass: string | null): DefaultDocFields[] =>
 };
 
 // Parse document name to extract category and required status
-const parseDocumentName = (name: string): { displayName: string; category: string; required: boolean } => {
-  // Check if it's a custom document
+const parseDocumentName = (name: string): { displayName: string; category: string; required: boolean; isCustom: boolean } => {
+  // Check if it's a custom document - return empty category so we use db category instead
   if (name.startsWith("[Custom] ")) {
-    return { displayName: name.replace("[Custom] ", ""), category: "Custom", required: false };
+    return { displayName: name.replace("[Custom] ", ""), category: "", required: false, isCustom: true };
   }
   
   // Check for category prefix pattern like "[Category:Required] Name"
@@ -280,12 +280,13 @@ const parseDocumentName = (name: string): { displayName: string; category: strin
     return { 
       displayName: match[3], 
       category: match[1], 
-      required: match[2]?.toLowerCase() === "required" 
+      required: match[2]?.toLowerCase() === "required",
+      isCustom: false
     };
   }
   
   // Default: treat as standard required document
-  return { displayName: name, category: "General", required: true };
+  return { displayName: name, category: "General", required: true, isCustom: false };
 };
 
 // Format document for storage
