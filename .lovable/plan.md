@@ -1,69 +1,135 @@
 
-# Fix: Match Client Portal Styling to Application Page
+# Plan: Switch to Google Drive `drive.file` Scope (Option A)
 
-## Problem
+## Overview
+The app will switch from the full `drive` scope (`https://www.googleapis.com/auth/drive`) to the more restrictive `drive.file` scope (`https://www.googleapis.com/auth/drive.file`). This reduces permissions and improves user trust, but with a tradeoff: the app will no longer try to detect existing folders and will always create new ones.
 
-In the Client Portal, documents with `pending_client` status have:
-- A yellow/amber background on the entire document card
-- A yellow/amber border (2px thick) on the card
-- The "Pending Client" badge text
+## Current Problem with Full Scope
+- **Scope Used**: `https://www.googleapis.com/auth/drive` (full access to all files/folders)
+- **Main Use**: The `findFolder` function in `google-drive-callback` searches user's root directory for existing "DocFlow AI" folders to avoid duplication
+- **User Trust**: Full scope can feel excessive and raises privacy concerns
+- **Permission Prompt**: Asking for full access when only app-created files are necessary
 
-The user wants to **remove the yellow card styling** but **keep the "Pending Client" badge**, matching the Application page styling where only the badge has amber coloring.
+## What Changes with `drive.file` Scope
+✅ **Still Works**:
+- Create folders
+- Upload files to app-created folders
+- Share folders with Make.com
+- Manage files within app-created directories
+- Refresh tokens
 
-## Current vs Desired Behavior
+❌ **Won't Work**:
+- Search for existing folders in user's root directory
+- Access user's pre-existing folder structure
+- Detect and reuse "DocFlow AI" folders from previous connections
 
-| Element | Current (Client Portal) | Desired (Match App Page) |
-|---------|------------------------|--------------------------|
-| Document card background | `bg-amber-50` (yellow) | `bg-background` (neutral) |
-| Document card border | `border-amber-300 border-2` (yellow, thick) | `border-border/50` (neutral, thin) |
-| "Pending Client" badge | Amber text + border (keep) | Amber text + border (keep) |
-| Review feedback alert | Keep amber styling | Keep amber styling |
+## Trade-offs
 
-## Solution
+| Aspect | Full `drive` Scope | `drive.file` Scope |
+|--------|-------------------|-------------------|
+| **Permissions** | Full access to all Drive files | Only app-created files |
+| **User Trust** | Lower (broad access) | Higher (limited access) |
+| **Folder Detection** | ✅ Can detect existing folders | ❌ Cannot detect existing folders |
+| **Behavior on Reconnect** | Reuses existing "DocFlow AI" folder | Creates new "DocFlow AI" folder each time |
+| **Possible Duplicates** | No duplicates | Yes, multiple "DocFlow AI" folders if user reconnects multiple times |
+| **Cleanup Effort** | None needed | User may see duplicate folders in Drive |
 
-Update the document card conditional styling to remove the amber background/border for `pending_client` status while preserving:
-1. The amber badge text styling
-2. The amber styling for the review feedback alert (when a comment exists)
+## Implementation Changes
 
-## Technical Changes
+### 1. Update `google-drive-auth/index.ts`
+**Change the requested scope** (line 78-81):
 
-### File: `src/pages/client-portal/ClientPortal.tsx`
+```typescript
+// Before
+const scopes = [
+  "https://www.googleapis.com/auth/drive",
+  "https://www.googleapis.com/auth/userinfo.email",
+].join(" ");
 
-**Update card container styling (lines 1038-1048)**
-
-Remove the `pending_client` case from the `needsAttention` yellow styling. Only `rejected` status should have colored card styling.
-
-```text
-Before:
-needsAttention
-  ? isRejected
-    ? "bg-red-50 ... border-red-300 border-2"
-    : "bg-amber-50 ... border-amber-300 border-2"  ← Remove this
-  : ...
-
-After:
-isRejected
-  ? "bg-red-50 ... border-red-300 border-2"
-  : doc.is_completed
-    ? "bg-green-50 ... border-green-200"
-    : ...
+// After
+const scopes = [
+  "https://www.googleapis.com/auth/drive.file",
+  "https://www.googleapis.com/auth/userinfo.email",
+].join(" ");
 ```
+
+### 2. Update `google-drive-callback/index.ts`
+**Remove the folder detection logic** and always create new folders:
+
+```typescript
+// Before (lines 134-165)
+async function ensureDefaultFolderStructure(accessToken: string) {
+  // Calls findOrCreateFolder → which calls findFolder first
+  const docflowFolder = await findOrCreateFolder(accessToken, "DocFlow AI");
+  // ... etc
+}
+
+// After
+async function ensureDefaultFolderStructure(accessToken: string) {
+  // Skip find, always create new folders
+  const docflowFolder = await createDriveFolder(accessToken, "DocFlow AI");
+  const migrationFolder = await createDriveFolder(
+    accessToken,
+    "Migration Services",
+    docflowFolder.id
+  );
+  const clientsFolder = await createDriveFolder(
+    accessToken,
+    "Clients",
+    migrationFolder.id
+  );
+  // ... rest of sharing logic
+}
+```
+
+**Remove unused functions**:
+- Delete `findFolder()` function (lines 10-45) — no longer needed
+- Delete `findOrCreateFolder()` function (lines 82-96) — replace with direct `createDriveFolder` calls
+
+### 3. Updated RLS Policy (if needed)
+No changes to database structure or RLS. The `google_drive_connections` table remains the same.
+
+## Expected Behavior
+
+### On First Connection
+1. User clicks "Connect Google Drive"
+2. Google OAuth flow with **only** `drive.file` scope requested
+3. User sees permission dialog: "This app will only access files and folders it creates"
+4. User authorizes
+5. App creates: `DocFlow AI / Migration Services / Clients` folder structure
+6. Clients folder auto-shared with Make.com
+7. Connection saved to database
+
+### On Reconnection (if user reconnects later)
+1. User clicks "Reconnect"
+2. Previous connection is disconnected and removed
+3. New OAuth flow with `drive.file` scope
+4. App creates a **new** `DocFlow AI / Migration Services / Clients` structure
+5. Result: User may have multiple "DocFlow AI" folders in their Drive root
+
+⚠️ **Note**: Existing client/application folder links stored in `client_folder_id` and `visa_application_folder_id` still work — they point to the old folders. New clients will use the new folder structure.
 
 ## Files to Modify
 
-| File | Lines | Change |
-|------|-------|--------|
-| `src/pages/client-portal/ClientPortal.tsx` | 1038-1048 | Remove amber styling for pending_client cards, only keep for rejected |
+| File | Changes |
+|------|---------|
+| `supabase/functions/google-drive-auth/index.ts` | Change scope from `drive` to `drive.file` |
+| `supabase/functions/google-drive-callback/index.ts` | Remove `findFolder()` and `findOrCreateFolder()`; simplify `ensureDefaultFolderStructure()` to always create |
 
-## What Will Be Preserved
+## Deployment & User Communication
 
-- **"Pending Client" badge** (lines 1079-1084) - unchanged, keeps amber outline styling
-- **Review feedback alert** (lines 1168-1201) - unchanged, still shows amber alert box when there's a review comment
-- **Rejected card styling** - unchanged, keeps red background/border
+1. **Existing Users**: Will need to **reconnect** Google Drive to grant new `drive.file` permissions. Old connections will fail when trying to use full `drive` scope.
+2. **New Users**: Will see only the `drive.file` permission request
+3. **Duplicate Folder Warning**: Users who reconnect multiple times will see multiple "DocFlow AI" folders in Drive root — this is expected but can be manually deleted
 
-## Expected Result
+## Benefits
+- ✅ **Better User Trust**: Minimal, specific permissions
+- ✅ **Clearer Intent**: Only accesses app-created files
+- ✅ **Google Play/App Store Friendly**: Reduced scope requirements for future mobile apps
+- ✅ **Simpler Code**: Removes folder-finding logic
 
-- Document cards for `pending_client` status will have neutral background (same as other incomplete documents)
-- The "Pending Client" tag will still appear with its amber text/border styling
-- The review feedback alert inside the card (when comment exists) will still have amber styling
-- Rejected documents will continue to have red card styling
+## Drawbacks
+- ❌ **Potential Duplicates**: Reconnections create new folder structures
+- ❌ **Manual Cleanup**: Users may need to delete old "DocFlow AI" folders
+- ❌ **User Education**: Need to explain why they see multiple folders if they reconnect
+
