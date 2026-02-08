@@ -7,43 +7,6 @@ const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// Find a folder by name in a parent folder
-async function findFolder(
-  accessToken: string,
-  folderName: string,
-  parentId?: string
-): Promise<{ id: string; name: string } | null> {
-  let query = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-  
-  if (parentId) {
-    query += ` and '${parentId}' in parents`;
-  } else {
-    query += ` and 'root' in parents`;
-  }
-
-  const response = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)`,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  );
-
-  if (!response.ok) {
-    console.error("Failed to search for folder:", await response.text());
-    return null;
-  }
-
-  const data = await response.json();
-  if (data.files && data.files.length > 0) {
-    console.log(`Found existing folder: ${folderName} (${data.files[0].id})`);
-    return { id: data.files[0].id, name: data.files[0].name };
-  }
-
-  return null;
-}
-
 // Create a folder in Google Drive
 async function createDriveFolder(
   accessToken: string,
@@ -77,22 +40,6 @@ async function createDriveFolder(
   const folder = await response.json();
   console.log(`Created folder: ${folderName} (${folder.id})`);
   return { id: folder.id, name: folder.name };
-}
-
-// Find or create a folder
-async function findOrCreateFolder(
-  accessToken: string,
-  folderName: string,
-  parentId?: string
-): Promise<{ id: string; name: string }> {
-  // First try to find existing folder
-  const existingFolder = await findFolder(accessToken, folderName, parentId);
-  if (existingFolder) {
-    return existingFolder;
-  }
-
-  // Create if not found
-  return await createDriveFolder(accessToken, folderName, parentId);
 }
 
 // Share a folder with an email address
@@ -130,22 +77,22 @@ async function shareFolder(
   return true;
 }
 
-// Create or find the default folder structure: DocFlow AI > Migration Services > Clients
+// Create the default folder structure: DocFlow AI > Migration Services > Clients
 async function ensureDefaultFolderStructure(accessToken: string): Promise<{ id: string; name: string }> {
-  console.log("Ensuring default folder structure exists...");
+  console.log("Creating default folder structure...");
 
-  // Find or create DocFlow AI folder at root
-  const docflowFolder = await findOrCreateFolder(accessToken, "DocFlow AI");
+  // Create DocFlow AI folder at root
+  const docflowFolder = await createDriveFolder(accessToken, "DocFlow AI");
 
-  // Find or create Migration Services folder inside DocFlow AI
-  const migrationFolder = await findOrCreateFolder(
+  // Create Migration Services folder inside DocFlow AI
+  const migrationFolder = await createDriveFolder(
     accessToken,
     "Migration Services",
     docflowFolder.id
   );
 
-  // Find or create Clients folder inside Migration Services
-  const clientsFolder = await findOrCreateFolder(
+  // Create Clients folder inside Migration Services
+  const clientsFolder = await createDriveFolder(
     accessToken,
     "Clients",
     migrationFolder.id
