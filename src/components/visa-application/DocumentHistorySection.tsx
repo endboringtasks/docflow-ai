@@ -44,6 +44,7 @@ interface DocumentHistorySectionProps {
   companyId?: string;
   isClientPortal?: boolean;
   portalToken?: string;
+  inline?: boolean;
 }
 
 export function DocumentHistorySection({
@@ -52,6 +53,7 @@ export function DocumentHistorySection({
   companyId,
   isClientPortal = false,
   portalToken,
+  inline = false,
 }: DocumentHistorySectionProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -176,6 +178,110 @@ export function DocumentHistorySection({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const timelineContent = (
+    <div className={inline ? "space-y-2" : "pl-6 pr-2 pb-2 space-y-2"}>
+      {history.map((entry, index) => (
+        <motion.div
+          key={entry.id}
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: index * 0.05 }}
+          className="relative"
+        >
+          {/* Timeline connector */}
+          {index < history.length - 1 && (
+            <div className="absolute left-[7px] top-8 bottom-0 w-0.5 bg-border" />
+          )}
+          
+          <div className="flex gap-3">
+            {/* Timeline dot */}
+            <div className="flex-shrink-0 w-4 h-4 rounded-full bg-destructive/20 border-2 border-destructive mt-1" />
+            
+            {/* Content */}
+            <div className="flex-1 bg-destructive/5 border border-destructive/20 rounded-lg p-3 space-y-2">
+              {/* File info */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <span className="text-sm font-medium truncate line-through text-muted-foreground">
+                    {entry.file_name}
+                  </span>
+                  {entry.file_size && (
+                    <span className="text-xs text-muted-foreground/70 flex-shrink-0">
+                      ({formatFileSize(entry.file_size)})
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  Uploaded {format(new Date(entry.uploaded_at), "MMM d, yyyy 'at' h:mm a")}
+                </span>
+                <span className="flex items-center gap-1 text-destructive">
+                  <XCircle className="w-3 h-3" />
+                  Rejected {format(new Date(entry.archived_at), "MMM d, yyyy 'at' h:mm a")}
+                  {entry.reviewer_name && (
+                    <span className="text-muted-foreground">by {entry.reviewer_name}</span>
+                  )}
+                </span>
+              </div>
+
+              {/* Rejection reason */}
+              {entry.review_comment_at_archive && (
+                <div className="bg-destructive/10 rounded-md px-3 py-2 text-sm text-destructive">
+                  "{entry.review_comment_at_archive}"
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex items-center gap-2 pt-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => handleViewDocument(entry)}
+                  disabled={loadingId === entry.id}
+                >
+                  {loadingId === entry.id ? (
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  ) : (
+                    <Eye className="w-3 h-3 mr-1" />
+                  )}
+                  View
+                </Button>
+                {!entry.file_path.startsWith("drive://") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => handleDownload(entry)}
+                    disabled={loadingId === entry.id}
+                  >
+                    {loadingId === entry.id ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Download className="w-3 h-3 mr-1" />
+                    )}
+                    Download
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+
+  // Inline mode: render timeline directly without collapsible
+  if (inline) {
+    return <AnimatePresence>{timelineContent}</AnimatePresence>;
+  }
+
+  // Default: collapsible mode for client portal
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger asChild>
@@ -200,101 +306,8 @@ export function DocumentHistorySection({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="pl-6 pr-2 pb-2 space-y-2"
           >
-            {history.map((entry, index) => (
-              <motion.div
-                key={entry.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className="relative"
-              >
-                {/* Timeline connector */}
-                {index < history.length - 1 && (
-                  <div className="absolute left-[7px] top-8 bottom-0 w-0.5 bg-border" />
-                )}
-                
-                <div className="flex gap-3">
-                  {/* Timeline dot */}
-                  <div className="flex-shrink-0 w-4 h-4 rounded-full bg-destructive/20 border-2 border-destructive mt-1" />
-                  
-                  {/* Content */}
-                  <div className="flex-1 bg-destructive/5 border border-destructive/20 rounded-lg p-3 space-y-2">
-                    {/* File info */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <span className="text-sm font-medium truncate line-through text-muted-foreground">
-                          {entry.file_name}
-                        </span>
-                        {entry.file_size && (
-                          <span className="text-xs text-muted-foreground/70 flex-shrink-0">
-                            ({formatFileSize(entry.file_size)})
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Dates */}
-                    <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        Uploaded {format(new Date(entry.uploaded_at), "MMM d, yyyy 'at' h:mm a")}
-                      </span>
-                      <span className="flex items-center gap-1 text-destructive">
-                        <XCircle className="w-3 h-3" />
-                        Rejected {format(new Date(entry.archived_at), "MMM d, yyyy 'at' h:mm a")}
-                        {entry.reviewer_name && (
-                          <span className="text-muted-foreground">by {entry.reviewer_name}</span>
-                        )}
-                      </span>
-                    </div>
-
-                    {/* Rejection reason */}
-                    {entry.review_comment_at_archive && (
-                      <div className="bg-destructive/10 rounded-md px-3 py-2 text-sm text-destructive">
-                        "{entry.review_comment_at_archive}"
-                      </div>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 pt-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => handleViewDocument(entry)}
-                        disabled={loadingId === entry.id}
-                      >
-                        {loadingId === entry.id ? (
-                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                        ) : (
-                          <Eye className="w-3 h-3 mr-1" />
-                        )}
-                        View
-                      </Button>
-                      {!entry.file_path.startsWith("drive://") && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => handleDownload(entry)}
-                          disabled={loadingId === entry.id}
-                        >
-                          {loadingId === entry.id ? (
-                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          ) : (
-                            <Download className="w-3 h-3 mr-1" />
-                          )}
-                          Download
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+            {timelineContent}
           </motion.div>
         </AnimatePresence>
       </CollapsibleContent>

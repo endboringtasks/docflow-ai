@@ -25,6 +25,7 @@ import {
   Minimize2,
   ExternalLink,
   History,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -90,6 +91,12 @@ export function DocumentPreviewDialog({
     mimeType: string;
     webViewLink?: string;
   } | null>(null);
+  const [historyPreview, setHistoryPreview] = useState<{
+    url: string;
+    name: string;
+  } | null>(null);
+  const [historyZoom, setHistoryZoom] = useState(1);
+  const [historyRotation, setHistoryRotation] = useState(0);
 
   // Load the preview URL when dialog opens
   useEffect(() => {
@@ -100,10 +107,14 @@ export function DocumentPreviewDialog({
       setRotation(0);
       setDriveFileInfo(null);
       setActiveTab("current");
+      setHistoryPreview(null);
+      setHistoryZoom(1);
+      setHistoryRotation(0);
     } else {
       setPreviewUrl(null);
       setDriveFileInfo(null);
       setActiveTab("current");
+      setHistoryPreview(null);
     }
   }, [open, document?.filePath]);
 
@@ -490,12 +501,104 @@ export function DocumentPreviewDialog({
           
           {/* History Tab */}
           <TabsContent value="history" className="flex-1 min-h-0 overflow-auto mt-4 data-[state=inactive]:hidden">
-            <div className="p-4">
-              <DocumentHistorySection
-                history={documentHistory}
-                companyId={companyId}
-              />
-            </div>
+            {historyPreview ? (
+              // Show inline preview of historical document
+              <div className="flex flex-col h-full gap-4 p-4">
+                {/* Back button and file name */}
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setHistoryPreview(null);
+                      setHistoryZoom(1);
+                      setHistoryRotation(0);
+                    }}
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back to History
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Viewing: {historyPreview.name}
+                  </span>
+                </div>
+
+                {/* Zoom Controls */}
+                <div className="flex items-center justify-between bg-secondary/50 rounded-lg p-2">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setHistoryZoom(Math.max(0.25, historyZoom - 0.25))}
+                      disabled={historyZoom <= 0.25}
+                    >
+                      <ZoomOut className="w-4 h-4" />
+                    </Button>
+                    <span className="text-sm font-medium w-16 text-center">{Math.round(historyZoom * 100)}%</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setHistoryZoom(Math.min(3, historyZoom + 0.25))}
+                      disabled={historyZoom >= 3}
+                    >
+                      <ZoomIn className="w-4 h-4" />
+                    </Button>
+                    {historyPreview.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setHistoryRotation((historyRotation + 90) % 360)}
+                      >
+                        <RotateCw className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Preview Content */}
+                <div className="flex-1 min-h-0 overflow-auto bg-secondary/30 rounded-lg flex items-center justify-center p-4">
+                  {historyPreview.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i) ? (
+                    <img
+                      src={historyPreview.url}
+                      alt={historyPreview.name}
+                      className="max-w-full max-h-full object-contain transition-transform"
+                      style={{
+                        transform: `scale(${historyZoom}) rotate(${historyRotation}deg)`,
+                      }}
+                    />
+                  ) : historyPreview.name.match(/\.pdf$/i) ? (
+                    <iframe
+                      src={historyPreview.url}
+                      className="w-full h-full min-h-[500px] rounded"
+                      style={{ transform: `scale(${historyZoom})`, transformOrigin: "top left" }}
+                      title={historyPreview.name}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-8">
+                      <FileText className="w-16 h-16 text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground mb-4">Preview not available for this file type</p>
+                      <Button
+                        onClick={() => window.open(historyPreview.url, "_blank")}
+                        variant="outline"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Open in New Tab
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              // Show history list
+              <div className="p-4">
+                <DocumentHistorySection
+                  history={documentHistory}
+                  companyId={companyId}
+                  inline={true}
+                  onViewDocument={(url, name) => setHistoryPreview({ url, name })}
+                />
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </DialogContent>
