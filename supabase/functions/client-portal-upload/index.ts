@@ -152,6 +152,34 @@ async function getValidAccessToken(
   return accessToken
 }
 
+async function renameGoogleDriveFile(
+  accessToken: string,
+  fileId: string,
+  newName: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName }),
+      }
+    )
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null)
+      console.error('Google Drive rename error:', response.status, errorData)
+    }
+    return response.ok
+  } catch (error) {
+    console.error('Failed to rename Drive file:', error)
+    return false
+  }
+}
+
 async function uploadToGoogleDrive(
   accessToken: string,
   folderId: string,
@@ -427,6 +455,24 @@ Deno.serve(async (req) => {
           // Continue anyway - better to allow new upload than block completely
         } else {
           console.log('Successfully archived attachments to history')
+
+          // Rename rejected Drive files to prepend REJECTED_ prefix
+          const driveAttachments = existingAttachments.filter(
+            (att) => att.file_path?.startsWith('drive://')
+          )
+          if (driveAttachments.length > 0) {
+            const earlyAccessToken = await getValidAccessToken(supabase, docData.company_id)
+            if (earlyAccessToken) {
+              for (const att of driveAttachments) {
+                const driveFileId = att.file_path.replace('drive://', '')
+                const rejectedName = `REJECTED_${att.file_name}`
+                console.log(`Renaming rejected Drive file ${driveFileId} to ${rejectedName}`)
+                await renameGoogleDriveFile(earlyAccessToken, driveFileId, rejectedName)
+              }
+            } else {
+              console.warn('No valid access token for renaming rejected Drive files, skipping rename')
+            }
+          }
           
           // Delete from document_attachments (but keep physical files for audit trail)
           const { error: deleteError } = await supabase

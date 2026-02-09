@@ -152,6 +152,34 @@ async function getValidAccessToken(
   return accessToken
 }
 
+async function renameGoogleDriveFile(
+  accessToken: string,
+  fileId: string,
+  newName: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName }),
+      }
+    )
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null)
+      console.error('Google Drive rename error:', response.status, errorData)
+    }
+    return response.ok
+  } catch (error) {
+    console.error('Failed to rename Drive file:', error)
+    return false
+  }
+}
+
 async function uploadToGoogleDrive(
   accessToken: string,
   folderId: string,
