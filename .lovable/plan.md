@@ -1,41 +1,59 @@
 
-# Plan: Fix Focus Ring Clipping in Create Application Dialog
+# Plan: Change Document Card Background Color from Green to Light Blue
 
 ## Problem Identified
-The "Create Application" dialog has the same focus ring clipping issue as the "Create New Client" dialog. The blue focus ring on the "Client" select dropdown is being cut off on the left side.
-
-### Root Cause
-The scrollable form container on line 860 of `src/pages/migration/Applications.tsx` uses:
-```html
-<div className="space-y-4 py-4 overflow-y-auto max-h-[60vh] pr-4">
-```
-
-The `overflow-y-auto` clips the focus ring which extends 2px outside the element bounds (due to `ring-offset-2` on SelectTrigger).
+The completed document cards in the Client Portal currently display with a green background color (`bg-green-50` with `border-green-200`). The user wants to change this to a light blue color (`#f4f8fd`).
 
 ## Solution
-Apply the same fix used for the Clients page - add horizontal padding with matching negative margins to provide space for the focus ring without affecting visual alignment.
+Update the background and border colors for completed document cards in the Client Portal from green (`bg-green-50`/`border-green-200`) to light blue (`#f4f8fd`).
+
+### Approach
+Since `#f4f8fd` is not a standard Tailwind color, we have two options:
+
+**Option A (Preferred)**: Use Tailwind's `arbitrary value` syntax with the hex color directly in the className
+- This keeps the styling inline and doesn't require theme modifications
+- Example: `bg-[#f4f8fd]` and appropriate border color
+
+**Option B**: Add the custom color to the Tailwind theme configuration
+- More maintainable if the color is used in multiple places
+- Requires updating `tailwind.config.ts`
+
+**Option A is recommended** because the color appears to only be used in this one location.
 
 ## Implementation
 
-### File: `src/pages/migration/Applications.tsx`
+### File: `src/pages/client-portal/ClientPortal.tsx`
 
-| Line | Current | After |
-|------|---------|-------|
-| 860 | `overflow-y-auto max-h-[60vh] pr-4` | `overflow-y-auto max-h-[60vh] px-1 -mx-1` |
+**Location**: Line 1042 in the className ternary expression
 
-The Edit Application dialog (line 1232) doesn't have `overflow-y-auto`, so it should not experience the same clipping issue.
+**Current styling**:
+```typescript
+doc.is_completed 
+  ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
+  : ...
+```
 
-## Technical Details
-- `px-1` adds 4px (0.25rem) of horizontal padding, providing room for the 2px focus ring offset
-- `-mx-1` adds negative horizontal margins to maintain visual alignment with the dialog edges
-- The vertical spacing and scrolling behavior remain unchanged
+**Updated styling**:
+```typescript
+doc.is_completed 
+  ? "bg-[#f4f8fd] dark:bg-slate-900/30 border-[#e0ecf8] dark:border-slate-700"
+  : ...
+```
+
+### Details
+- `bg-[#f4f8fd]` - Light blue background color (user-specified hex)
+- `border-[#e0ecf8]` - Slightly darker light blue border for visual definition
+- `dark:bg-slate-900/30` - Adjusted dark mode background (keeping the dark mode look coherent)
+- `dark:border-slate-700` - Adjusted dark mode border
 
 ## Files to Modify
 | File | Changes |
 |------|---------|
-| `src/pages/migration/Applications.tsx` | Update the Create Application dialog container class on line 860 |
+| `src/pages/client-portal/ClientPortal.tsx` | Update line 1042 className to use light blue (`#f4f8fd`) instead of green |
 
 ## Expected Result
-- Focus ring on all Select components (Client, Country, Category, etc.) will be fully visible
-- No clipping on left, right, or any edge
-- Scrolling and visual layout remain unchanged
+- Completed document cards will display with the new light blue background (`#f4f8fd`)
+- Border styling will be appropriately adjusted for visual consistency
+- Dark mode styling will be coherent
+- All other document statuses (pending, rejected, etc.) remain unchanged
+
