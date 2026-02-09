@@ -1,150 +1,81 @@
 
+# Plan: Add Missing Uploader and Reviewer Information to Rejected Documents
 
-# Plan: Reposition "View" Button in Document History to Match Current Documents
+## What's Currently Shown
 
-## Issue Summary
-The "View" button for rejected/historical documents is positioned at the **bottom left** of each entry card, while the current document's "View" button is at the **top right** of the header. This creates visual inconsistency.
+The rejected document history entries currently display:
+- ✅ File name and size
+- ✅ Uploaded date
+- ✅ Rejected date with reviewer name (when available)
+- ✅ Rejection reason
+- ❌ **Missing: Who uploaded the document**
 
-| Element | Current Position | Expected Position |
-|---------|-----------------|-------------------|
-| Current document View button | Top right of header row | ✓ (keep as is) |
-| Historical document View button | Bottom left of entry card | Top right of entry card (same row as file name) |
+## What We Need to Add
 
-## Solution
+Based on the current document display format, history entries should show:
+- **Uploaded [date] by [Name] (Client)** - for client uploads
+- **Uploaded [date] by [Agent email]** - for agent uploads  
+- **Reviewed [date] by [reviewer email]** - already partially working but needs consistency
 
-Move the "View" button in `DocumentHistorySection.tsx` from the Actions section at the bottom to the file info header row at the top.
+## Changes Required
 
-## Changes
+### 1. Update Query to Fetch Profiles for History (ApplicationDetail.tsx)
+
+Currently the history query only does `select("*")`. We need to:
+- Extract `uploaded_by`, `uploaded_by_client`, and `reviewed_by_at_archive` IDs from history data
+- Include these IDs in the profile fetching queries
+- Enrich history data with profile information before passing to component
+
+### 2. Extend DocumentHistoryEntry Interface (DocumentHistorySection.tsx)
+
+Add new fields:
+- `uploader_name?: string | null` - for agent uploads
+- `uploader_client_name?: string | null` - for client uploads
+
+### 3. Update Display in DocumentHistorySection.tsx
+
+Change the dates section to show the uploader information in the same format as current documents.
+
+## Technical Details
+
+### File: `src/pages/migration/ApplicationDetail.tsx`
+
+**Location:** Lines 521-547 (history query and profile fetching)
+
+Changes:
+1. After fetching history data, extract all `uploaded_by`, `uploaded_by_client`, and `reviewed_by_at_archive` IDs
+2. Include these IDs in the `allProfileIds` and `clientUploaderIds` arrays  
+3. Enrich history entries with profile names before grouping
 
 ### File: `src/components/visa-application/DocumentHistorySection.tsx`
 
-**Current structure (simplified):**
-```
-┌─ Entry Card ─────────────────────────────────────────────┐
-│ ● file_name.pdf (size)                                   │  <- file info row
-│   📅 Uploaded...  ⊗ Rejected...                          │  <- dates row
-│   "rejection reason"                                     │  <- reason
-│   👁 View  📥 Download                                    │  <- actions (BOTTOM)
-└──────────────────────────────────────────────────────────┘
-```
+**Location:** Lines 26-39 (interface) and Lines 232-245 (dates display)
 
-**After change:**
-```
-┌─ Entry Card ─────────────────────────────────────────────┐
-│ ● file_name.pdf (size)                     👁 View       │  <- file info + View
-│   📅 Uploaded...  ⊗ Rejected...                          │  <- dates row
-│   "rejection reason"                                     │  <- reason
-│   📥 Download                                            │  <- download only
-└──────────────────────────────────────────────────────────┘
-```
-
-**Location:** Lines 202-215 (file info section) and Lines 239-254 (actions section)
-
-**Change 1:** Add View button to file info header row (line 203-215)
-
-Move from:
-```tsx
-{/* File info */}
-<div className="flex items-start justify-between gap-2">
-  <div className="flex items-center gap-2 min-w-0">
-    <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-    <span className="text-sm font-medium truncate line-through text-muted-foreground">
-      {entry.file_name}
-    </span>
-    {entry.file_size && (
-      <span className="text-xs text-muted-foreground/70 flex-shrink-0">
-        ({formatFileSize(entry.file_size)})
-      </span>
-    )}
-  </div>
-</div>
-```
-
-To:
-```tsx
-{/* File info */}
-<div className="flex items-start justify-between gap-2">
-  <div className="flex items-center gap-2 min-w-0">
-    <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-    <span className="text-sm font-medium truncate line-through text-muted-foreground">
-      {entry.file_name}
-    </span>
-    {entry.file_size && (
-      <span className="text-xs text-muted-foreground/70 flex-shrink-0">
-        ({formatFileSize(entry.file_size)})
-      </span>
-    )}
-  </div>
-  {/* View button - same position as current documents */}
-  <Button
-    variant="ghost"
-    size="sm"
-    className="h-7 text-xs text-primary flex-shrink-0"
-    onClick={() => handleViewDocument(entry)}
-    disabled={loadingId === entry.id}
-  >
-    {loadingId === entry.id ? (
-      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-    ) : (
-      <Eye className="w-3 h-3 mr-1" />
-    )}
-    View
-  </Button>
-</div>
-```
-
-**Change 2:** Remove View button from Actions section (lines 239-254)
-
-The Actions section will only contain the Download button:
-```tsx
-{/* Actions - Download only */}
-{!entry.file_path.startsWith("drive://") && (
-  <div className="flex items-center gap-2 pt-1">
-    <Button
-      variant="ghost"
-      size="sm"
-      className="h-7 text-xs"
-      onClick={() => handleDownload(entry)}
-      disabled={loadingId === entry.id}
-    >
-      {loadingId === entry.id ? (
-        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-      ) : (
-        <Download className="w-3 h-3 mr-1" />
-      )}
-      Download
-    </Button>
-  </div>
-)}
-```
+Changes:
+1. Add `uploader_name` and `uploader_client_name` to `DocumentHistoryEntry` interface
+2. Update dates display to include uploader info in same format as current documents
 
 ## Visual Result
 
 **Before:**
 ```
-Diploma [Ready to Review]      📅 Uploaded 2/9/26...     👁 View
-  📄 Screenshot 2025-12-17.png (1686 KB)
-  
-  ● Anderson_Plan.pdf (45 KB)
-     📅 Uploaded...  ⊗ Rejected...
-     "need to be another document"
-     👁 View  📥 Download     <- View at bottom
+● Anderson_Plan.pdf (45 KB)                              👁 View
+  📅 Uploaded Feb 9, 2026 at 2:32 PM
+  ⊗ Rejected Feb 9, 2026 at 2:18 PM by anderri@gmail.com
+  "need to be another document"
 ```
 
 **After:**
 ```
-Diploma [Ready to Review]      📅 Uploaded 2/9/26...     👁 View
-  📄 Screenshot 2025-12-17.png (1686 KB)
-  
-  ● Anderson_Plan.pdf (45 KB)                            👁 View  <- View at top right
-     📅 Uploaded...  ⊗ Rejected...
-     "need to be another document"
-     📥 Download               <- Only download at bottom
+● Anderson_Plan.pdf (45 KB)                              👁 View
+  📅 Uploaded Feb 9, 2026 at 2:32 PM by Anderson Santos (Client)
+  ⊗ Reviewed Feb 9, 2026 at 2:18 PM by anderri@gmail.com
+  "need to be another document"
 ```
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/components/visa-application/DocumentHistorySection.tsx` | 1. Add View button to file info header row (lines 203-215)<br>2. Remove View button from Actions section (lines 241-254)<br>3. Conditionally render Actions section only when Download is available |
-
+| `src/pages/migration/ApplicationDetail.tsx` | Extract profile IDs from history, enrich history data with names |
+| `src/components/visa-application/DocumentHistorySection.tsx` | Add interface fields, update display format |
