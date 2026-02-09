@@ -520,10 +520,10 @@ const VisaApplicationDetail = () => {
 
   // Fetch document history for all documents in this application
   const docIdsForHistory = (dbDocumentsRaw || []).map(d => d.id);
-  const { data: documentHistoryByDoc } = useQuery({
+  const { data: documentHistoryRaw } = useQuery({
     queryKey: ["document-history", visaApplicationId, docIdsForHistory],
     queryFn: async () => {
-      if (docIdsForHistory.length === 0) return {};
+      if (docIdsForHistory.length === 0) return [];
       
       const { data, error } = await supabase
         .from("document_attachment_history")
@@ -532,19 +532,108 @@ const VisaApplicationDetail = () => {
         .order("archived_at", { ascending: false });
       
       if (error) throw error;
-      
-      // Group by document_checklist_id
-      const grouped: Record<string, typeof data> = {};
-      (data || []).forEach(item => {
-        if (!grouped[item.document_checklist_id]) {
-          grouped[item.document_checklist_id] = [];
-        }
-        grouped[item.document_checklist_id].push(item);
-      });
-      return grouped;
+      return data || [];
     },
     enabled: docIdsForHistory.length > 0,
   });
+
+  // Extract profile IDs from history for uploader/reviewer lookups
+  const historyUploaderIds = [...new Set((documentHistoryRaw || []).map(h => h.uploaded_by).filter(Boolean))] as string[];
+  const historyReviewerIds = [...new Set((documentHistoryRaw || []).map(h => h.reviewed_by_at_archive).filter(Boolean))] as string[];
+  const historyClientUploaderIds = [...new Set((documentHistoryRaw || []).map(h => h.uploaded_by_client).filter(Boolean))] as string[];
+  
+  // Combine with document profile IDs
+  const allHistoryProfileIds = [...new Set([...historyUploaderIds, ...historyReviewerIds])];
+  
+  // Fetch history uploader/reviewer profiles
+  const { data: historyUserProfiles } = useQuery({
+    queryKey: ["history-user-profiles", allHistoryProfileIds],
+    queryFn: async () => {
+      if (allHistoryProfileIds.length === 0) return {};
+      
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, email")
+        .in("id", allHistoryProfileIds);
+      
+      if (error) throw error;
+      
+      const profileMap: Record<string, { display_name: string | null; email: string | null }> = {};
+      (data || []).forEach(p => {
+        profileMap[p.id] = { display_name: p.display_name, email: p.email };
+      });
+      return profileMap;
+    },
+    enabled: allHistoryProfileIds.length > 0,
+  });
+
+  // Fetch history client uploader details
+  const { data: historyClientProfiles } = useQuery({
+    queryKey: ["history-client-profiles", historyClientUploaderIds],
+    queryFn: async () => {
+      if (historyClientUploaderIds.length === 0) return {};
+      
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, first_name, last_name, email")
+        .in("id", historyClientUploaderIds);
+      
+      if (error) throw error;
+      
+      const clientMap: Record<string, { first_name: string | null; last_name: string | null; email: string | null }> = {};
+      (data || []).forEach(c => {
+        clientMap[c.id] = { first_name: c.first_name, last_name: c.last_name, email: c.email };
+      });
+      return clientMap;
+    },
+    enabled: historyClientUploaderIds.length > 0,
+  });
+
+  // Enrich history with profile names and group by document
+  const documentHistoryByDoc = useMemo(() => {
+    if (!documentHistoryRaw) return {};
+    
+    const grouped: Record<string, Array<typeof documentHistoryRaw[0] & { 
+      uploader_name?: string | null; 
+      uploader_client_name?: string | null;
+      reviewer_name?: string | null;
+    }>> = {};
+    
+    documentHistoryRaw.forEach(item => {
+      // Get uploader name (agent)
+      let uploaderName: string | null = null;
+      if (item.uploaded_by && historyUserProfiles?.[item.uploaded_by]) {
+        const profile = historyUserProfiles[item.uploaded_by];
+        uploaderName = profile.display_name || profile.email || null;
+      }
+      
+      // Get uploader name (client)
+      let uploaderClientName: string | null = null;
+      if (item.uploaded_by_client && historyClientProfiles?.[item.uploaded_by_client]) {
+        const client = historyClientProfiles[item.uploaded_by_client];
+        uploaderClientName = [client.first_name, client.last_name].filter(Boolean).join(" ") || client.email || null;
+      }
+      
+      // Get reviewer name
+      let reviewerName: string | null = null;
+      if (item.reviewed_by_at_archive && historyUserProfiles?.[item.reviewed_by_at_archive]) {
+        const profile = historyUserProfiles[item.reviewed_by_at_archive];
+        reviewerName = profile.display_name || profile.email || null;
+      }
+      
+      if (!grouped[item.document_checklist_id]) {
+        grouped[item.document_checklist_id] = [];
+      }
+      grouped[item.document_checklist_id].push({
+        ...item,
+        uploader_name: uploaderName,
+        uploader_client_name: uploaderClientName,
+        reviewer_name: reviewerName,
+      });
+    });
+    
+    return grouped;
+  }, [documentHistoryRaw, historyUserProfiles, historyClientProfiles]);
 
   // Merge documents with uploader and reviewer profiles
   const dbDocuments: DbDocumentItem[] = (dbDocumentsRaw || []).map(doc => ({

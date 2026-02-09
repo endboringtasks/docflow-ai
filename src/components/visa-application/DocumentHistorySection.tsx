@@ -36,6 +36,10 @@ export interface DocumentHistoryEntry {
   review_comment_at_archive: string | null;
   reviewed_by_at_archive?: string | null;
   reviewer_name?: string | null;
+  uploaded_by?: string | null;
+  uploaded_by_client?: string | null;
+  uploader_name?: string | null;
+  uploader_client_name?: string | null;
 }
 
 interface DocumentHistorySectionProps {
@@ -234,10 +238,15 @@ export function DocumentHistorySection({
                 <span className="flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
                   Uploaded {format(new Date(entry.uploaded_at), "MMM d, yyyy 'at' h:mm a")}
+                  {entry.uploader_client_name ? (
+                    <span>by {entry.uploader_client_name} (Client)</span>
+                  ) : entry.uploader_name ? (
+                    <span>by {entry.uploader_name}</span>
+                  ) : null}
                 </span>
                 <span className="flex items-center gap-1 text-destructive">
                   <XCircle className="w-3 h-3" />
-                  Rejected {format(new Date(entry.archived_at), "MMM d, yyyy 'at' h:mm a")}
+                  Reviewed {format(new Date(entry.archived_at), "MMM d, yyyy 'at' h:mm a")}
                   {entry.reviewer_name && (
                     <span className="text-muted-foreground">by {entry.reviewer_name}</span>
                   )}
