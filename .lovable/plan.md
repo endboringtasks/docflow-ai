@@ -1,24 +1,11 @@
 
-# Plan: Change Document Card Background Color from Green to Light Blue
+# Plan: Update Completed Document Card Background Color to #f4fbf6
 
 ## Problem Identified
-The completed document cards in the Client Portal currently display with a green background color (`bg-green-50` with `border-green-200`). The user wants to change this to a light blue color (`#f4f8fd`).
+The user wants to change the background color of completed document cards from the current light blue (`#f4f8fd`) to a slightly different shade (`#f4fbf6` - a more greenish/teal tint).
 
 ## Solution
-Update the background and border colors for completed document cards in the Client Portal from green (`bg-green-50`/`border-green-200`) to light blue (`#f4f8fd`).
-
-### Approach
-Since `#f4f8fd` is not a standard Tailwind color, we have two options:
-
-**Option A (Preferred)**: Use Tailwind's `arbitrary value` syntax with the hex color directly in the className
-- This keeps the styling inline and doesn't require theme modifications
-- Example: `bg-[#f4f8fd]` and appropriate border color
-
-**Option B**: Add the custom color to the Tailwind theme configuration
-- More maintainable if the color is used in multiple places
-- Requires updating `tailwind.config.ts`
-
-**Option A is recommended** because the color appears to only be used in this one location.
+Update the background color hex value and adjust the border color to maintain visual consistency with the new background tone.
 
 ## Implementation
 
@@ -29,31 +16,28 @@ Since `#f4f8fd` is not a standard Tailwind color, we have two options:
 **Current styling**:
 ```typescript
 doc.is_completed 
-  ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
+  ? "bg-[#f4f8fd] dark:bg-slate-900/30 border-[#e0ecf8] dark:border-slate-700"
   : ...
 ```
 
 **Updated styling**:
 ```typescript
 doc.is_completed 
-  ? "bg-[#f4f8fd] dark:bg-slate-900/30 border-[#e0ecf8] dark:border-slate-700"
+  ? "bg-[#f4fbf6] dark:bg-slate-900/30 border-[#e8f0eb] dark:border-slate-700"
   : ...
 ```
 
 ### Details
-- `bg-[#f4f8fd]` - Light blue background color (user-specified hex)
-- `border-[#e0ecf8]` - Slightly darker light blue border for visual definition
-- `dark:bg-slate-900/30` - Adjusted dark mode background (keeping the dark mode look coherent)
-- `dark:border-slate-700` - Adjusted dark mode border
+- `bg-[#f4fbf6]` - Updated light background color (user-specified hex) - slightly more greenish than the previous blue
+- `border-[#e8f0eb]` - Adjusted border color to complement the new background tone (darker shade of the new background)
+- Dark mode and other styling remain unchanged
 
 ## Files to Modify
 | File | Changes |
 |------|---------|
-| `src/pages/client-portal/ClientPortal.tsx` | Update line 1042 className to use light blue (`#f4f8fd`) instead of green |
+| `src/pages/client-portal/ClientPortal.tsx` | Update line 1042 to change background color from `#f4f8fd` to `#f4fbf6` and border from `#e0ecf8` to `#e8f0eb` |
 
 ## Expected Result
-- Completed document cards will display with the new light blue background (`#f4f8fd`)
-- Border styling will be appropriately adjusted for visual consistency
-- Dark mode styling will be coherent
-- All other document statuses (pending, rejected, etc.) remain unchanged
-
+- Completed document cards will display with the new light greenish/teal background (`#f4fbf6`)
+- Border color will be adjusted to maintain visual consistency
+- All other styling and functionality remains unchanged
