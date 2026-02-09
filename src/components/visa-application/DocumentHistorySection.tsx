@@ -199,20 +199,35 @@ export function DocumentHistorySection({
             
             {/* Content */}
             <div className="flex-1 bg-destructive/5 border border-destructive/20 rounded-lg p-3 space-y-2">
-              {/* File info */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                  <span className="text-sm font-medium truncate line-through text-muted-foreground">
-                    {entry.file_name}
+            {/* File info */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <span className="text-sm font-medium truncate line-through text-muted-foreground">
+                  {entry.file_name}
+                </span>
+                {entry.file_size && (
+                  <span className="text-xs text-muted-foreground/70 flex-shrink-0">
+                    ({formatFileSize(entry.file_size)})
                   </span>
-                  {entry.file_size && (
-                    <span className="text-xs text-muted-foreground/70 flex-shrink-0">
-                      ({formatFileSize(entry.file_size)})
-                    </span>
-                  )}
-                </div>
+                )}
               </div>
+              {/* View button - same position as current documents */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-primary flex-shrink-0"
+                onClick={() => handleViewDocument(entry)}
+                disabled={loadingId === entry.id}
+              >
+                {loadingId === entry.id ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <Eye className="w-3 h-3 mr-1" />
+                )}
+                View
+              </Button>
+            </div>
 
               {/* Dates */}
               <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
@@ -236,23 +251,9 @@ export function DocumentHistorySection({
                 </div>
               )}
 
-              {/* Actions */}
-              <div className="flex items-center gap-2 pt-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => handleViewDocument(entry)}
-                  disabled={loadingId === entry.id}
-                >
-                  {loadingId === entry.id ? (
-                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  ) : (
-                    <Eye className="w-3 h-3 mr-1" />
-                  )}
-                  View
-                </Button>
-                {!entry.file_path.startsWith("drive://") && (
+              {/* Actions - Download only */}
+              {!entry.file_path.startsWith("drive://") && (
+                <div className="flex items-center gap-2 pt-1">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -267,8 +268,8 @@ export function DocumentHistorySection({
                     )}
                     Download
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </motion.div>
