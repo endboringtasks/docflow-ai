@@ -2307,6 +2307,17 @@ const VisaApplicationDetail = () => {
                             )}
                             <div className="flex items-center gap-2">
                               {/* File actions */}
+                              {doc.attachmentCount > 0 && doc.attachments?.[0] && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-xs text-muted-foreground"
+                                  onClick={() => handleDownloadFile(doc.attachments[0].file_path, doc.attachments[0].file_name)}
+                                >
+                                  <Download className="w-3 h-3 mr-1" />
+                                  Download
+                                </Button>
+                              )}
                               {doc.attachmentCount > 0 && (
                                 <Button
                                   variant="ghost"
@@ -2397,15 +2408,6 @@ const VisaApplicationDetail = () => {
                                         ) : null;
                                       })()}
                                     </div>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 text-xs text-muted-foreground flex-shrink-0"
-                                      onClick={() => handleDownloadFile(attachment.file_path, attachment.file_name)}
-                                    >
-                                      <Download className="w-3 h-3 mr-1" />
-                                      Download
-                                    </Button>
                                   </div>
                                 ))}
                               </div>
