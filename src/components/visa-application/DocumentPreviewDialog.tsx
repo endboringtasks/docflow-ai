@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ZoomIn,
   ZoomOut,
@@ -20,14 +21,15 @@ import {
   MessageSquare,
   Loader2,
   FileText,
-  X,
   Maximize2,
   Minimize2,
   ExternalLink,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { DocumentHistorySection, DocumentHistoryEntry } from "./DocumentHistorySection";
 
 export type ReviewStatus = "pending_client" | "in_review" | "approved" | "rejected";
 
@@ -44,6 +46,7 @@ interface DocumentPreviewDialogProps {
   onReviewUpdate: (docId: string, status: ReviewStatus, comment: string) => Promise<void>;
   onRequestNewDocument: (docId: string, comment: string) => Promise<void>;
   companyId?: string;
+  documentHistory?: DocumentHistoryEntry[];
 }
 
 const isImageFile = (filePath: string): boolean => {
@@ -71,7 +74,9 @@ export function DocumentPreviewDialog({
   onReviewUpdate,
   onRequestNewDocument,
   companyId,
+  documentHistory = [],
 }: DocumentPreviewDialogProps) {
+  const [activeTab, setActiveTab] = useState<"current" | "history">("current");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -94,9 +99,11 @@ export function DocumentPreviewDialog({
       setZoom(1);
       setRotation(0);
       setDriveFileInfo(null);
+      setActiveTab("current");
     } else {
       setPreviewUrl(null);
       setDriveFileInfo(null);
+      setActiveTab("current");
     }
   }, [open, document?.filePath]);
 
@@ -257,8 +264,27 @@ export function DocumentPreviewDialog({
           </div>
         </DialogHeader>
 
-        {/* Preview Area */}
-        <div className="flex-1 min-h-0 flex flex-col gap-4">
+        {/* Tabs for Current Document / History */}
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "current" | "history")} className="flex-1 min-h-0 flex flex-col">
+          {documentHistory.length > 0 && (
+            <TabsList className="flex-shrink-0 w-fit">
+              <TabsTrigger value="current" className="gap-2">
+                <FileText className="w-4 h-4" />
+                Current Document
+              </TabsTrigger>
+              <TabsTrigger value="history" className="gap-2">
+                <History className="w-4 h-4" />
+                History
+                <Badge variant="secondary" className="text-xs ml-1">
+                  {documentHistory.length}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
+          )}
+          
+          <TabsContent value="current" className="flex-1 min-h-0 flex flex-col gap-4 mt-4 data-[state=inactive]:hidden">
+            {/* Preview Area */}
+            <div className="flex-1 min-h-0 flex flex-col gap-4">
           {loading ? (
             <div className="flex-1 flex items-center justify-center bg-secondary/30 rounded-lg">
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -459,7 +485,19 @@ export function DocumentPreviewDialog({
               </Button>
             </div>
           </div>
-        </div>
+            </div>
+          </TabsContent>
+          
+          {/* History Tab */}
+          <TabsContent value="history" className="flex-1 min-h-0 overflow-auto mt-4 data-[state=inactive]:hidden">
+            <div className="p-4">
+              <DocumentHistorySection
+                history={documentHistory}
+                companyId={companyId}
+              />
+            </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

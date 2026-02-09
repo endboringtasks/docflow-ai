@@ -74,6 +74,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { InviteClientDialog } from "@/components/visa-application/InviteClientDialog";
 import { DocumentPreviewDialog, ReviewStatus } from "@/components/visa-application/DocumentPreviewDialog";
+import { DocumentHistoryEntry } from "@/components/visa-application/DocumentHistorySection";
 import { ApplicantsSection } from "@/components/visa-application/ApplicantsSection";
 import { useAuth } from "@/hooks/useAuth";
 import { getCountryFlag } from "@/lib/countryFlags";
@@ -514,6 +515,34 @@ const VisaApplicationDetail = () => {
       return clientMap;
     },
     enabled: clientUploaderIds.length > 0,
+  });
+
+  // Fetch document history for all documents in this application
+  const docIdsForHistory = (dbDocumentsRaw || []).map(d => d.id);
+  const { data: documentHistoryByDoc } = useQuery({
+    queryKey: ["document-history", visaApplicationId, docIdsForHistory],
+    queryFn: async () => {
+      if (docIdsForHistory.length === 0) return {};
+      
+      const { data, error } = await supabase
+        .from("document_attachment_history")
+        .select("*")
+        .in("document_checklist_id", docIdsForHistory)
+        .order("archived_at", { ascending: false });
+      
+      if (error) throw error;
+      
+      // Group by document_checklist_id
+      const grouped: Record<string, typeof data> = {};
+      (data || []).forEach(item => {
+        if (!grouped[item.document_checklist_id]) {
+          grouped[item.document_checklist_id] = [];
+        }
+        grouped[item.document_checklist_id].push(item);
+      });
+      return grouped;
+    },
+    enabled: docIdsForHistory.length > 0,
   });
 
   // Merge documents with uploader and reviewer profiles
@@ -2664,6 +2693,7 @@ const VisaApplicationDetail = () => {
           onReviewUpdate={handleReviewUpdate}
           onRequestNewDocument={handleRequestNewDocument}
           companyId={visaApplication?.company_id}
+          documentHistory={previewDoc ? (documentHistoryByDoc?.[previewDoc.id] as DocumentHistoryEntry[] || []) : []}
         />
 
         {/* Delete Attachment Confirmation */}
