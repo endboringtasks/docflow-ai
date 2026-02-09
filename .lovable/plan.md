@@ -1,59 +1,89 @@
 
-# Plan: Add Missing Uploader and Reviewer Information to Rejected Documents
 
-## What's Currently Shown
+# Plan: Fix Client Uploader Lookup for Document History
 
-The rejected document history entries currently display:
-- ✅ File name and size
-- ✅ Uploaded date
-- ✅ Rejected date with reviewer name (when available)
-- ✅ Rejection reason
-- ❌ **Missing: Who uploaded the document**
+## Root Cause
 
-## What We Need to Add
+The `uploaded_by_client` field in `document_attachment_history` stores the `client_portal_access.id` (not the `clients.id`). The current code tries to look up client details directly from the `clients` table, which returns no results because the IDs don't match.
 
-Based on the current document display format, history entries should show:
-- **Uploaded [date] by [Name] (Client)** - for client uploads
-- **Uploaded [date] by [Agent email]** - for agent uploads  
-- **Reviewed [date] by [reviewer email]** - already partially working but needs consistency
+**Current flow (broken):**
+```
+uploaded_by_client: "4609b2b5..." → clients table lookup → No match!
+```
+
+**Required flow (correct):**
+```
+uploaded_by_client: "4609b2b5..." → client_portal_access table → client_id: "2a32df40..." → clients table → "Anderson Santos"
+```
 
 ## Changes Required
 
-### 1. Update Query to Fetch Profiles for History (ApplicationDetail.tsx)
-
-Currently the history query only does `select("*")`. We need to:
-- Extract `uploaded_by`, `uploaded_by_client`, and `reviewed_by_at_archive` IDs from history data
-- Include these IDs in the profile fetching queries
-- Enrich history data with profile information before passing to component
-
-### 2. Extend DocumentHistoryEntry Interface (DocumentHistorySection.tsx)
-
-Add new fields:
-- `uploader_name?: string | null` - for agent uploads
-- `uploader_client_name?: string | null` - for client uploads
-
-### 3. Update Display in DocumentHistorySection.tsx
-
-Change the dates section to show the uploader information in the same format as current documents.
-
-## Technical Details
-
 ### File: `src/pages/migration/ApplicationDetail.tsx`
 
-**Location:** Lines 521-547 (history query and profile fetching)
+**Location:** Lines 570-590 (the `historyClientProfiles` query)
 
-Changes:
-1. After fetching history data, extract all `uploaded_by`, `uploaded_by_client`, and `reviewed_by_at_archive` IDs
-2. Include these IDs in the `allProfileIds` and `clientUploaderIds` arrays  
-3. Enrich history entries with profile names before grouping
+Change from looking up `clients` directly to:
+1. First fetch from `client_portal_access` using the `uploaded_by_client` IDs
+2. Then fetch the actual client names from `clients` using the `client_id` field
 
-### File: `src/components/visa-application/DocumentHistorySection.tsx`
+**Current code:**
+```tsx
+const { data: historyClientProfiles } = useQuery({
+  queryKey: ["history-client-profiles", historyClientUploaderIds],
+  queryFn: async () => {
+    if (historyClientUploaderIds.length === 0) return {};
+    
+    const { data, error } = await supabase
+      .from("clients")  // ❌ Wrong table!
+      .select("id, first_name, last_name, email")
+      .in("id", historyClientUploaderIds);
+    // ...
+  },
+});
+```
 
-**Location:** Lines 26-39 (interface) and Lines 232-245 (dates display)
-
-Changes:
-1. Add `uploader_name` and `uploader_client_name` to `DocumentHistoryEntry` interface
-2. Update dates display to include uploader info in same format as current documents
+**New code:**
+```tsx
+const { data: historyClientProfiles } = useQuery({
+  queryKey: ["history-client-profiles", historyClientUploaderIds],
+  queryFn: async () => {
+    if (historyClientUploaderIds.length === 0) return {};
+    
+    // Step 1: Get portal access records to find actual client IDs
+    const { data: portalAccess, error: portalError } = await supabase
+      .from("client_portal_access")
+      .select("id, client_id")
+      .in("id", historyClientUploaderIds);
+    
+    if (portalError) throw portalError;
+    if (!portalAccess || portalAccess.length === 0) return {};
+    
+    // Step 2: Get actual client details
+    const clientIds = [...new Set(portalAccess.map(p => p.client_id).filter(Boolean))];
+    if (clientIds.length === 0) return {};
+    
+    const { data: clients, error: clientError } = await supabase
+      .from("clients")
+      .select("id, first_name, last_name, email")
+      .in("id", clientIds);
+    
+    if (clientError) throw clientError;
+    
+    // Build lookup: portal_access_id → client details
+    const clientMap: Record<string, { first_name: string | null; last_name: string | null; email: string | null }> = {};
+    const clientDetailsMap = Object.fromEntries((clients || []).map(c => [c.id, c]));
+    
+    portalAccess.forEach(pa => {
+      if (pa.client_id && clientDetailsMap[pa.client_id]) {
+        clientMap[pa.id] = clientDetailsMap[pa.client_id];
+      }
+    });
+    
+    return clientMap;
+  },
+  enabled: historyClientUploaderIds.length > 0,
+});
+```
 
 ## Visual Result
 
@@ -61,8 +91,7 @@ Changes:
 ```
 ● Anderson_Plan.pdf (45 KB)                              👁 View
   📅 Uploaded Feb 9, 2026 at 2:32 PM
-  ⊗ Rejected Feb 9, 2026 at 2:18 PM by anderri@gmail.com
-  "need to be another document"
+  ⊗ Reviewed Feb 9, 2026 at 2:18 PM by anderri@gmail.com
 ```
 
 **After:**
@@ -70,12 +99,11 @@ Changes:
 ● Anderson_Plan.pdf (45 KB)                              👁 View
   📅 Uploaded Feb 9, 2026 at 2:32 PM by Anderson Santos (Client)
   ⊗ Reviewed Feb 9, 2026 at 2:18 PM by anderri@gmail.com
-  "need to be another document"
 ```
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `src/pages/migration/ApplicationDetail.tsx` | Extract profile IDs from history, enrich history data with names |
-| `src/components/visa-application/DocumentHistorySection.tsx` | Add interface fields, update display format |
+| File | Change |
+|------|--------|
+| `src/pages/migration/ApplicationDetail.tsx` | Update `historyClientProfiles` query to look up client_portal_access first, then clients |
+
