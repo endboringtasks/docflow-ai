@@ -326,6 +326,7 @@ const VisaApplicationDetail = () => {
     fileName: string;
   } | null>(null);
   const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
+  const [historyPreview, setHistoryPreview] = useState<{ url: string; name: string } | null>(null);
   
   const [editForm, setEditForm] = useState({
     countryId: "",
@@ -2324,6 +2325,7 @@ const VisaApplicationDetail = () => {
                                     history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
                                     companyId={visaApplication?.company_id}
                                     inline={true}
+                                    onViewDocument={(url, fileName) => setHistoryPreview({ url, name: fileName })}
                                   />
                                 </div>
                               )}
@@ -2347,6 +2349,7 @@ const VisaApplicationDetail = () => {
                                     history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
                                     companyId={visaApplication?.company_id}
                                     inline={true}
+                                    onViewDocument={(url, fileName) => setHistoryPreview({ url, name: fileName })}
                                   />
                                 </div>
                               )}
@@ -2747,6 +2750,66 @@ const VisaApplicationDetail = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* History Document Preview Dialog */}
+        <Dialog open={!!historyPreview} onOpenChange={(open) => !open && setHistoryPreview(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden">
+            <DialogHeader className="p-4 pb-2 border-b">
+              <DialogTitle className="text-sm font-medium truncate">
+                {historyPreview?.name}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Archived document preview
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 min-h-0 overflow-auto p-4">
+              {historyPreview && (
+                (() => {
+                  const ext = historyPreview.name.split('.').pop()?.toLowerCase();
+                  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '');
+                  const isPdf = ext === 'pdf';
+                  
+                  if (isImage) {
+                    return (
+                      <img 
+                        src={historyPreview.url} 
+                        alt={historyPreview.name}
+                        className="max-w-full h-auto mx-auto rounded-lg"
+                      />
+                    );
+                  }
+                  
+                  if (isPdf) {
+                    return (
+                      <iframe
+                        src={historyPreview.url}
+                        title={historyPreview.name}
+                        className="w-full h-[70vh] border-0 rounded-lg"
+                      />
+                    );
+                  }
+                  
+                  // Fallback for unsupported types
+                  return (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <FileText className="w-12 h-12 text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground mb-4">
+                        Preview not available for this file type
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={() => window.open(historyPreview.url, '_blank')}
+                      >
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Open in new tab
+                      </Button>
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
