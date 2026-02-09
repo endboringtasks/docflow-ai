@@ -1,111 +1,103 @@
 
-# Plan: Enable Download for Google Drive Files in Document History
 
-## Problem Identified
+# Plan: Move Download Button Next to View Button for Current Documents
 
-The rejected documents in history that are stored on Google Drive (file paths starting with `drive://`) don't show the "Download" button. This is because:
+## Current Layout
 
-1. **Button visibility**: Line 221 has `{!entry.file_path.startsWith("drive://") && (...)}` which hides the Download button for Google Drive files
-2. **Download logic**: The `handleDownload` function (line 153) only handles Supabase storage files, not Google Drive files
+Based on the screenshot:
+```
+┌─ Document Header ────────────────────────────────────────────────────────────┐
+│ Diploma [Original] [Ready to Review]  Uploaded...  Reviewed...        [View] │
+└──────────────────────────────────────────────────────────────────────────────┘
+│ Screenshot 2025-12-17... (1686 KB) [File]                          [Download]│
+└──────────────────────────────────────────────────────────────────────────────┘
+```
 
-## Root Cause Analysis
+The "View" button is in the header row (line 2311-2319), while "Download" is on the attachment row (line 2400-2408).
 
-| File Type | file_path | Download Button | Why |
-|-----------|-----------|-----------------|-----|
-| Supabase Storage | `company_123/file.pdf` | ✅ Shows | Condition passes |
-| Google Drive | `drive://1EZRJQce_...` | ❌ Hidden | Condition `!startsWith("drive://")` fails |
+## Target Layout
 
-## Solution
-
-Update `DocumentHistorySection.tsx` to:
-1. **Always show the Download button** (remove the `drive://` exclusion condition)
-2. **Add Google Drive download handling** in `handleDownload` function using the existing `get-drive-file-url` edge function
+Match the rejected documents layout where Download comes before View:
+```
+┌─ Document Header ────────────────────────────────────────────────────────────┐
+│ Diploma [Original] [Ready to Review]  Uploaded...  [Download] [View]         │
+└──────────────────────────────────────────────────────────────────────────────┘
+│ Screenshot 2025-12-17... (1686 KB) [File]                                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
 
 ## Changes Required
 
-### File: `src/components/visa-application/DocumentHistorySection.tsx`
+### File: `src/pages/migration/ApplicationDetail.tsx`
 
-#### Change 1: Update `handleDownload` function (lines 130-176)
-Add a new branch to handle Google Drive files, similar to how `handleViewDocument` handles them:
+#### Change 1: Add Download button before View button in header (lines 2308-2320)
 
+**Current code (View button only):**
 ```tsx
-const handleDownload = async (entry: DocumentHistoryEntry) => {
-  setLoadingId(entry.id);
-  try {
-    let signedUrl: string | null = null;
-
-    if (isClientPortal && portalToken) {
-      // Client portal flow (unchanged)
-      ...
-    } else if (entry.file_path.startsWith("drive://") && companyId) {
-      // Google Drive file - get download URL
-      const fileId = entry.file_path.replace("drive://", "");
-      const { data, error } = await supabase.functions.invoke(
-        "get-drive-file-url",
-        { body: { file_id: fileId, company_id: companyId } }
-      );
-      if (error) throw error;
-      // Use webContentLink for direct download
-      signedUrl = data?.file?.webContentLink || data?.file?.webViewLink;
-    } else {
-      // Supabase storage file (unchanged)
-      ...
-    }
-    
-    // Download logic (unchanged)
-    ...
-  }
-};
+<div className="flex items-center gap-2">
+  {/* File actions */}
+  {doc.attachmentCount > 0 && (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-7 text-xs text-primary"
+      onClick={() => setPreviewDoc(doc)}
+    >
+      <Eye className="w-3 h-3 mr-1" />
+      View
+    </Button>
+  )}
 ```
 
-#### Change 2: Remove Download button visibility restriction (lines 219-236)
-Remove the condition that hides Download for Google Drive files:
-
-**Before:**
+**New code (Download + View):**
 ```tsx
-<div className="flex items-center gap-1 flex-shrink-0">
-  {!entry.file_path.startsWith("drive://") && (
-    <Button onClick={() => handleDownload(entry)}>
+<div className="flex items-center gap-2">
+  {/* File actions */}
+  {doc.attachmentCount > 0 && doc.attachments?.[0] && (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-7 text-xs text-muted-foreground"
+      onClick={() => handleDownloadFile(doc.attachments[0].file_path, doc.attachments[0].file_name)}
+    >
+      <Download className="w-3 h-3 mr-1" />
       Download
     </Button>
   )}
-  <Button onClick={() => handleViewDocument(entry)}>View</Button>
-</div>
+  {doc.attachmentCount > 0 && (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-7 text-xs text-primary"
+      onClick={() => setPreviewDoc(doc)}
+    >
+      <Eye className="w-3 h-3 mr-1" />
+      View
+    </Button>
+  )}
 ```
 
-**After:**
-```tsx
-<div className="flex items-center gap-1 flex-shrink-0">
-  <Button onClick={() => handleDownload(entry)}>
-    Download
-  </Button>
-  <Button onClick={() => handleViewDocument(entry)}>View</Button>
-</div>
-```
+#### Change 2: Remove Download button from attachment row (lines 2400-2408)
+
+Remove the Download button from the individual attachment display since it's now in the header.
 
 ## Visual Result
 
-**Before (Google Drive files in history):**
+**Before:**
 ```
-● Anderson_Plan.pdf (86 KB)                           [View]
-```
-
-**After:**
-```
-● Anderson_Plan.pdf (86 KB)              [Download]   [View]
+Diploma [badges]  Uploaded...  Reviewed...                              [View]
+  Screenshot.png (1686 KB) [File]                                    [Download]
 ```
 
-## Technical Details
-
-The `get-drive-file-url` edge function already exists and returns:
-- `webContentLink` - Direct download link (preferred for downloads)
-- `webViewLink` - Opens in Google Drive viewer (fallback)
-- `previewUrl` - Base64 data URL for preview (used by View)
-
-For downloads, we'll prioritize `webContentLink` which triggers a direct file download.
+**After (matching rejected documents):**
+```
+Diploma [badges]  Uploaded...  Reviewed...              [Download]      [View]
+  Screenshot.png (1686 KB) [File]
+```
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/components/visa-application/DocumentHistorySection.tsx` | Add Google Drive support to handleDownload, remove button visibility condition |
+| `src/pages/migration/ApplicationDetail.tsx` | Add Download button before View in header row (lines 2308-2320), remove Download from attachment row (lines 2400-2408) |
+
