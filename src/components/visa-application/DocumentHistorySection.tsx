@@ -216,21 +216,39 @@ export function DocumentHistorySection({
                   </span>
                 )}
               </div>
-              {/* View button - same position as current documents */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs text-primary flex-shrink-0"
-                onClick={() => handleViewDocument(entry)}
-                disabled={loadingId === entry.id}
-              >
-                {loadingId === entry.id ? (
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                ) : (
-                  <Eye className="w-3 h-3 mr-1" />
+              {/* Download and View buttons together */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {!entry.file_path.startsWith("drive://") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-muted-foreground"
+                    onClick={() => handleDownload(entry)}
+                    disabled={loadingId === entry.id}
+                  >
+                    {loadingId === entry.id ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Download className="w-3 h-3 mr-1" />
+                    )}
+                    Download
+                  </Button>
                 )}
-                View
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-primary"
+                  onClick={() => handleViewDocument(entry)}
+                  disabled={loadingId === entry.id}
+                >
+                  {loadingId === entry.id ? (
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  ) : (
+                    <Eye className="w-3 h-3 mr-1" />
+                  )}
+                  View
+                </Button>
+              </div>
             </div>
 
               {/* Dates */}
@@ -260,25 +278,6 @@ export function DocumentHistorySection({
                 </div>
               )}
 
-              {/* Actions - Download only */}
-              {!entry.file_path.startsWith("drive://") && (
-                <div className="flex items-center gap-2 pt-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => handleDownload(entry)}
-                    disabled={loadingId === entry.id}
-                  >
-                    {loadingId === entry.id ? (
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    ) : (
-                      <Download className="w-3 h-3 mr-1" />
-                    )}
-                    Download
-                  </Button>
-                </div>
-              )}
             </div>
           </div>
         </motion.div>

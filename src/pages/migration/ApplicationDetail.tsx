@@ -2397,32 +2397,15 @@ const VisaApplicationDetail = () => {
                                         ) : null;
                                       })()}
                                     </div>
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6 text-muted-foreground"
-                                        onClick={() => handleDownloadFile(attachment.file_path, attachment.file_name)}
-                                        title="Download"
-                                      >
-                                        <Download className="w-3 h-3" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                        onClick={() => setAttachmentToDelete({
-                                          id: attachment.id,
-                                          docId: doc.id,
-                                          filePath: attachment.file_path,
-                                          fileName: attachment.file_name
-                                        })}
-                                        disabled={removeAttachmentMutation.isPending}
-                                        title="Remove"
-                                      >
-                                        <X className="w-3 h-3" />
-                                      </Button>
-                                    </div>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 text-xs text-muted-foreground flex-shrink-0"
+                                      onClick={() => handleDownloadFile(attachment.file_path, attachment.file_name)}
+                                    >
+                                      <Download className="w-3 h-3 mr-1" />
+                                      Download
+                                    </Button>
                                   </div>
                                 ))}
                               </div>
