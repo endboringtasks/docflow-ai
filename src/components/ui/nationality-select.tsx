@@ -35,6 +35,19 @@ export function NationalitySelect({
 }: NationalitySelectProps) {
   const [open, setOpen] = React.useState(false);
 
+  // Handle keyboard events to open popover
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Open on arrow down/up
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      setOpen(true);
+    }
+    // Open on any printable character (for type-ahead search)
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      setOpen(true);
+    }
+  };
+
   // Find the selected nationality
   const selectedNationality = value ? findNationality(value) : undefined;
 
@@ -46,6 +59,7 @@ export function NationalitySelect({
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
+          onKeyDown={handleKeyDown}
           className={cn(
             "w-full justify-between bg-secondary border-border font-normal",
             !selectedNationality && "text-muted-foreground",
