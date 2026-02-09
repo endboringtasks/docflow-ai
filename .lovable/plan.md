@@ -1,87 +1,85 @@
 
+## Goal
+Make the **History → View** button open an **in-app preview (visualization)** instead of opening a new browser tab (currently opening a `data:application/pdf;base64,...` URL). Also ensure the **“Previous Versions”** header text does not appear on the Application Detail page (keep history inline).
 
-# Plan: Fix Document History Display on Application Detail Page
+---
 
-## Issues to Fix
+## What’s happening now (root cause)
+- `DocumentHistorySection` only opens a preview inside the app **if** an `onViewDocument` callback is provided.
+- On the Application Detail page (`src/pages/migration/ApplicationDetail.tsx`), we currently render:
+  - `inline={true}` (so “Previous Versions” is already removed)
+  - but we do **not** pass `onViewDocument`
+- Therefore `DocumentHistorySection` falls back to:
+  - `window.open(signedUrl, "_blank")`
+- For Google Drive PDFs, the edge function returns a `data:application/pdf;base64,...` URL, which the browser opens in a new tab.
 
-1. **View button opens new browser tab** - The `onViewDocument` callback is not being passed, so the component falls back to `window.open(signedUrl, "_blank")`
-2. **"Previous Versions" text still showing** - Using `inline={false}` which renders the collapsible header
+---
 
-## Solution
+## Implementation approach
+We’ll keep `inline={true}` (so no “Previous Versions” text), and wire the View button to an **in-page modal viewer** that renders the PDF/image with an `<iframe>` or `<img>`.
 
-### File: `src/pages/migration/ApplicationDetail.tsx`
+This avoids trying to “trick” the existing Preview & Review dialog (which is designed for reviewing the *current* document and includes approve/reject actions that shouldn’t apply to archived versions).
 
-**Change 1:** Update both instances of `DocumentHistorySection` to use `inline={true}` to remove the collapsible header and show history directly.
+---
 
-**Change 2:** Pass an `onViewDocument` callback that opens the document in the existing preview dialog instead of a new browser tab.
+## Changes to make
 
-**Location 1** (around line 2321-2328):
-```tsx
-{/* Document History - inline on page */}
-{documentHistoryByDoc?.[doc.id] && (documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]).length > 0 && (
-  <div className="mt-2">
-    <DocumentHistorySection
-      history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
-      companyId={visaApplication?.company_id}
-      inline={true}  // Changed from false to true
-      onViewDocument={(url, fileName) => {
-        // Open in preview dialog using existing previewDoc state
-        setPreviewDoc({
-          ...doc,
-          previewUrl: url,
-          fileName: fileName,
-        });
-      }}
-    />
-  </div>
-)}
-```
+### 1) `src/pages/migration/ApplicationDetail.tsx`
+#### A. Add state for an “archived/history preview” modal
+Add something like:
+- `historyPreview` state: `{ url: string; name: string } | null`
+- optional zoom/rotation state (can be minimal at first)
 
-**Location 2** (around line 2344-2351) - same changes for legacy single file display:
-```tsx
-{/* Document History - inline on page for legacy files */}
-{documentHistoryByDoc?.[doc.id] && (documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]).length > 0 && (
-  <div className="mt-2">
-    <DocumentHistorySection
-      history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
-      companyId={visaApplication?.company_id}
-      inline={true}  // Changed from false to true
-      onViewDocument={(url, fileName) => {
-        setPreviewDoc({
-          ...doc,
-          previewUrl: url,
-          fileName: fileName,
-        });
-      }}
-    />
-  </div>
-)}
-```
+#### B. Pass `onViewDocument` into both `DocumentHistorySection` usages
+There are two locations (attachments view + legacy single-file view). Update both:
 
-## Visual Result
+- Keep:
+  - `inline={true}`
+- Add:
+  - `onViewDocument={(url, fileName) => setHistoryPreview({ url, name: fileName })}`
 
-**Before:**
-```
-📄 current-document.pdf
-> Previous Versions (2)  [click to expand, view opens new tab]
-```
+This ensures the View button never calls `window.open(...)` from this page.
 
-**After:**
-```
-📄 current-document.pdf
-● rejected-doc-1.pdf [Rejected Feb 9] "reason"  [View opens in dialog]
-● rejected-doc-2.pdf [Rejected Feb 7] "reason"  [View opens in dialog]
-```
+#### C. Render a new Dialog for visualization
+Near the bottom of the page (close to where `DocumentPreviewDialog` is rendered), add a new `<Dialog>`:
 
-## Files to Modify
+- `open={!!historyPreview}`
+- `onOpenChange={(open) => !open && setHistoryPreview(null)}`
 
-| File | Changes |
-|------|---------|
-| `src/pages/migration/ApplicationDetail.tsx` | 1. Change `inline={false}` to `inline={true}` (2 locations)<br>2. Add `onViewDocument` callback that uses `setPreviewDoc` (2 locations) |
+Dialog content:
+- Title: `historyPreview?.name`
+- If `name` ends with image extensions → `<img src={historyPreview.url} />`
+- If `name` ends with `.pdf` → `<iframe src={historyPreview.url} />`
+- Otherwise → show “Preview not available” with a button “Open in new tab” (optional fallback)
 
-## Technical Notes
+This will display the base64 `data:` PDF directly inside the app (no new tab).
 
-- The `previewDoc` state and `setPreviewDoc` function already exist in the component for opening documents in the preview dialog
-- By passing a custom `previewUrl` and `fileName`, we can make the preview dialog show the historical document
-- The `inline={true}` prop already removes the collapsible wrapper and shows documents directly
+---
 
+## Optional cleanup (recommended, but not required for the fix)
+Since the user asked to “move the history from preview/review to this page”, we can simplify the review dialog:
+
+### 2) `src/components/visa-application/DocumentPreviewDialog.tsx`
+- Add a prop like `showHistoryTab?: boolean` (default `true`)
+- In `ApplicationDetail.tsx`, pass `showHistoryTab={false}` so History doesn’t appear in the review dialog anymore (avoids duplication/confusion)
+
+If you want this, I’ll include it in the same implementation pass; otherwise we can leave it.
+
+---
+
+## Acceptance criteria (how we’ll verify)
+1. On Application Detail, under a document’s history list, clicking **View**:
+   - opens an **in-app dialog**
+   - does **not** open a new browser tab
+2. The preview works for:
+   - Google Drive archived PDFs (the `data:application/pdf;base64,...` URL renders inside the iframe)
+   - Supabase storage archived PDFs/images (signed URLs render)
+3. The “Previous Versions” header is not shown on this page (history remains inline).
+4. Quick regression check:
+   - Client Portal still behaves as before (collapsible header + new-tab behavior where appropriate), because we’re only changing how Application Detail passes callbacks.
+
+---
+
+## Files involved
+- `src/pages/migration/ApplicationDetail.tsx` (required)
+- `src/components/visa-application/DocumentPreviewDialog.tsx` (optional cleanup to hide/remove the History tab there)
