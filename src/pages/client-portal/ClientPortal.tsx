@@ -61,6 +61,7 @@ import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog";
+import { DocumentHistorySection, DocumentHistoryEntry } from "@/components/visa-application/DocumentHistorySection";
 
 // Sanitize document name for sorting (remove category tags)
 const sanitizeForSort = (name: string): string => {
@@ -186,6 +187,7 @@ export default function ClientPortal() {
     id: string;
     fileName: string;
   } | null>(null);
+  const [documentHistory, setDocumentHistory] = useState<Record<string, DocumentHistoryEntry[]>>({});
 
   // File validation constants
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -276,6 +278,28 @@ export default function ClientPortal() {
           })
         );
         setDocuments(docsWithAttachments);
+        
+        // Load document history for all documents
+        const docIds = docsData.map((d: DocumentItem) => d.id);
+        if (docIds.length > 0) {
+          const { data: historyData } = await supabase
+            .from("document_attachment_history")
+            .select("*")
+            .in("document_checklist_id", docIds)
+            .order("archived_at", { ascending: false });
+          
+          if (historyData) {
+            // Group by document_checklist_id
+            const grouped: Record<string, DocumentHistoryEntry[]> = {};
+            historyData.forEach((item) => {
+              if (!grouped[item.document_checklist_id]) {
+                grouped[item.document_checklist_id] = [];
+              }
+              grouped[item.document_checklist_id].push(item as DocumentHistoryEntry);
+            });
+            setDocumentHistory(grouped);
+          }
+        }
       }
 
       // Load saved form data - use the visa_application_id from RPC
@@ -1315,6 +1339,17 @@ export default function ClientPortal() {
                                                             </div>
                                                           ))}
                                                         </div>
+                                                      </div>
+                                                    )}
+                                                    
+                                                    {/* Document History */}
+                                                    {documentHistory[doc.id] && documentHistory[doc.id].length > 0 && (
+                                                      <div className="px-3 pb-3">
+                                                        <DocumentHistorySection
+                                                          history={documentHistory[doc.id]}
+                                                          isClientPortal={true}
+                                                          portalToken={token || undefined}
+                                                        />
                                                       </div>
                                                     )}
                                                   </motion.div>
