@@ -1021,7 +1021,6 @@ export default function ClientPortal() {
                                             <div className="p-2 space-y-2">
                                               {categoryDocs.map((doc) => {
                                                 const isMultiFile = (doc.max_files ?? 1) > 1 || doc.max_files === null;
-                                                const canUploadMore = doc.max_files === null || doc.attachment_count < doc.max_files;
                                                 const attachmentCount = doc.attachment_count || 0;
                                                 const minFiles = doc.min_files || 1;
                                                 
@@ -1029,6 +1028,10 @@ export default function ClientPortal() {
                                                 const needsAttention = doc.review_status === 'pending_client' || doc.review_status === 'rejected';
                                                 const isPendingClient = doc.review_status === 'pending_client';
                                                 const isRejected = doc.review_status === 'rejected';
+                                                
+                                                // Allow uploads for rejected documents regardless of max_files limit
+                                                // (rejected attachments will be archived when replacement is uploaded)
+                                                const canUploadMore = isRejected || doc.max_files === null || doc.attachment_count < doc.max_files;
 
                                                 return (
                                                   <motion.div
