@@ -74,7 +74,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { InviteClientDialog } from "@/components/visa-application/InviteClientDialog";
 import { DocumentPreviewDialog, ReviewStatus } from "@/components/visa-application/DocumentPreviewDialog";
-import { DocumentHistoryEntry } from "@/components/visa-application/DocumentHistorySection";
+import { DocumentHistorySection, DocumentHistoryEntry } from "@/components/visa-application/DocumentHistorySection";
 import { ApplicantsSection } from "@/components/visa-application/ApplicantsSection";
 import { useAuth } from "@/hooks/useAuth";
 import { getCountryFlag } from "@/lib/countryFlags";
@@ -2317,10 +2317,15 @@ const VisaApplicationDetail = () => {
                                   </div>
                                 ))}
                               </div>
-                              {doc.reviewComment && (
-                                <p className="text-sm text-muted-foreground italic pl-1">
-                                  "{doc.reviewComment}"
-                                </p>
+                              {/* Document History - inline on page */}
+                              {documentHistoryByDoc?.[doc.id] && (documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]).length > 0 && (
+                                <div className="mt-2">
+                                  <DocumentHistorySection
+                                    history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
+                                    companyId={visaApplication?.company_id}
+                                    inline={false}
+                                  />
+                                </div>
                               )}
                             </div>
                           )}
@@ -2335,10 +2340,15 @@ const VisaApplicationDetail = () => {
                                   size={32}
                                 />
                               </div>
-                              {doc.reviewComment && (
-                                <p className="text-sm text-muted-foreground italic pl-1">
-                                  "{doc.reviewComment}"
-                                </p>
+                              {/* Document History - inline on page for legacy files */}
+                              {documentHistoryByDoc?.[doc.id] && (documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]).length > 0 && (
+                                <div className="mt-2">
+                                  <DocumentHistorySection
+                                    history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
+                                    companyId={visaApplication?.company_id}
+                                    inline={false}
+                                  />
+                                </div>
                               )}
                             </div>
                           )}
