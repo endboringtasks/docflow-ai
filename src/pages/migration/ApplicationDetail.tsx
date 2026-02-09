@@ -19,7 +19,6 @@ import {
   CheckCircle2,
   Circle,
   Plus,
-  
   Download,
   X,
   File,
@@ -34,6 +33,9 @@ import {
   Calendar,
   Languages,
   Link2,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -327,6 +329,8 @@ const VisaApplicationDetail = () => {
   } | null>(null);
   const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
   const [historyPreview, setHistoryPreview] = useState<{ url: string; name: string } | null>(null);
+  const [historyZoom, setHistoryZoom] = useState(1);
+  const [historyRotation, setHistoryRotation] = useState(0);
   
   const [editForm, setEditForm] = useState({
     countryId: "",
@@ -2845,9 +2849,15 @@ const VisaApplicationDetail = () => {
         </AlertDialog>
 
         {/* History Document Preview Dialog */}
-        <Dialog open={!!historyPreview} onOpenChange={(open) => !open && setHistoryPreview(null)}>
-          <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden">
-            <DialogHeader className="p-4 pb-2 border-b">
+        <Dialog open={!!historyPreview} onOpenChange={(open) => {
+          if (!open) {
+            setHistoryPreview(null);
+            setHistoryZoom(1);
+            setHistoryRotation(0);
+          }
+        }}>
+          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle className="text-sm font-medium truncate">
                 {historyPreview?.name}
               </DialogTitle>
@@ -2855,11 +2865,60 @@ const VisaApplicationDetail = () => {
                 Archived document preview
               </DialogDescription>
             </DialogHeader>
-            <div className="flex-1 min-h-0 overflow-auto p-4">
+            
+            {/* Zoom Controls */}
+            <div className="flex items-center justify-between bg-secondary/50 rounded-lg p-2 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => setHistoryZoom(Math.max(0.25, historyZoom - 0.25))} 
+                  disabled={historyZoom <= 0.25}
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </Button>
+                <span className="text-sm font-medium w-16 text-center">{Math.round(historyZoom * 100)}%</span>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => setHistoryZoom(Math.min(3, historyZoom + 0.25))} 
+                  disabled={historyZoom >= 3}
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </Button>
+                {historyPreview?.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i) && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => setHistoryRotation((historyRotation + 90) % 360)}
+                  >
+                    <RotateCw className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  if (historyPreview?.url) {
+                    const link = document.createElement('a');
+                    link.href = historyPreview.url;
+                    link.download = historyPreview.name;
+                    link.click();
+                  }
+                }}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download
+              </Button>
+            </div>
+            
+            {/* Preview Content with zoom/rotation */}
+            <div className="flex-1 min-h-0 overflow-auto bg-secondary/30 rounded-lg flex items-center justify-center p-4">
               {historyPreview && (
                 (() => {
                   const ext = historyPreview.name.split('.').pop()?.toLowerCase();
-                  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '');
+                  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext || '');
                   const isPdf = ext === 'pdf';
                   
                   if (isImage) {
@@ -2867,18 +2926,27 @@ const VisaApplicationDetail = () => {
                       <img 
                         src={historyPreview.url} 
                         alt={historyPreview.name}
-                        className="max-w-full h-auto mx-auto rounded-lg"
+                        className="max-w-full h-auto mx-auto rounded-lg transition-transform duration-200"
+                        style={{ 
+                          transform: `scale(${historyZoom}) rotate(${historyRotation}deg)`,
+                          transformOrigin: 'center center'
+                        }}
                       />
                     );
                   }
                   
                   if (isPdf) {
                     return (
-                      <iframe
-                        src={historyPreview.url}
-                        title={historyPreview.name}
-                        className="w-full h-[70vh] border-0 rounded-lg"
-                      />
+                      <div 
+                        className="w-full h-[60vh] origin-top-left transition-transform duration-200"
+                        style={{ transform: `scale(${historyZoom})` }}
+                      >
+                        <iframe
+                          src={historyPreview.url}
+                          title={historyPreview.name}
+                          className="w-full h-full border-0 rounded-lg"
+                        />
+                      </div>
                     );
                   }
                   
