@@ -1,159 +1,128 @@
 
 
-# Plan: Enhance History Document Preview Dialog Consistency
-
-## Current Behavior
-
-The ApplicationDetail page has two ways to view historical documents:
-
-1. **Via DocumentPreviewDialog** (clicking View on main document, then History tab):
-   - Shows full preview with "Back to History" navigation
-   - Has zoom controls (ZoomIn, ZoomOut, Rotate)
-   - Rich UI with document name display
-
-2. **Via inline DocumentHistorySection** (clicking View on rejected docs directly on page):
-   - Opens a simpler dialog (lines 2848-2905)
-   - No zoom controls
-   - Basic preview only
+# Plan: Rename Rejected Files in Google Drive
 
 ## Problem
 
-When clicking "View" on rejected documents from the inline history section, users get a simpler dialog instead of the rich preview experience shown in the screenshot.
+When a rejected document is replaced with a new upload, the old file stays in Google Drive with the same name (e.g., `SANTOS_Anderson_Diploma.pdf`). The new replacement also gets the same name. This makes it impossible to distinguish rejected from current files in Google Drive.
 
 ## Solution
 
-Enhance the History Document Preview Dialog in ApplicationDetail.tsx to match the DocumentPreviewDialog's history preview experience:
-- Add zoom controls (ZoomIn, ZoomOut, Rotate for images)
-- Add consistent header styling
-- Include download button
+When archiving rejected attachments during a new upload, rename the old Google Drive files by prepending `REJECTED_` to their filename. For example:
+- `SANTOS_Anderson_Diploma.pdf` becomes `REJECTED_SANTOS_Anderson_Diploma.pdf`
+
+This applies to both upload paths:
+1. **Client Portal Upload** (`client-portal-upload`) - which has the archival logic
+2. **Internal Upload** (`internal-upload`) - which currently does not archive rejected docs but should for consistency (out of scope for now, as archival only happens via client portal)
 
 ## Changes Required
 
-### File: `src/pages/migration/ApplicationDetail.tsx`
+### File: `supabase/functions/client-portal-upload/index.ts`
 
-**Add new state variables** (after line 329):
-```tsx
-const [historyZoom, setHistoryZoom] = useState(1);
-const [historyRotation, setHistoryRotation] = useState(0);
-```
+#### Add a Google Drive rename helper function
 
-**Reset zoom/rotation when historyPreview changes** (in useEffect or when setting):
-```tsx
-// When setting historyPreview, also reset zoom/rotation
-const openHistoryPreview = (url: string, name: string) => {
-  setHistoryPreview({ url, name });
-  setHistoryZoom(1);
-  setHistoryRotation(0);
-};
-```
+After the existing `uploadToGoogleDrive` function (~line 153), add a new helper:
 
-**Update the onViewDocument callback** (lines 2421, 2445):
-```tsx
-onViewDocument={(url, fileName) => {
-  setHistoryPreview({ url, name: fileName });
-  setHistoryZoom(1);
-  setHistoryRotation(0);
-}}
-```
-
-**Enhance the History Document Preview Dialog** (lines 2848-2905):
-
-```tsx
-{/* History Document Preview Dialog */}
-<Dialog open={!!historyPreview} onOpenChange={(open) => {
-  if (!open) {
-    setHistoryPreview(null);
-    setHistoryZoom(1);
-    setHistoryRotation(0);
+```typescript
+async function renameGoogleDriveFile(
+  accessToken: string,
+  fileId: string,
+  newName: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName }),
+      }
+    )
+    return response.ok
+  } catch (error) {
+    console.error('Failed to rename Drive file:', error)
+    return false
   }
-}}>
-  <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-    <DialogHeader className="flex-shrink-0">
-      <DialogTitle className="text-sm font-medium truncate">
-        {historyPreview?.name}
-      </DialogTitle>
-      <DialogDescription className="text-xs text-muted-foreground">
-        Archived document preview
-      </DialogDescription>
-    </DialogHeader>
-    
-    {/* Zoom Controls - matches DocumentPreviewDialog */}
-    <div className="flex items-center justify-between bg-secondary/50 rounded-lg p-2">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => setHistoryZoom(Math.max(0.25, historyZoom - 0.25))} disabled={historyZoom <= 0.25}>
-          <ZoomOut className="w-4 h-4" />
-        </Button>
-        <span className="text-sm font-medium w-16 text-center">{Math.round(historyZoom * 100)}%</span>
-        <Button variant="ghost" size="icon" onClick={() => setHistoryZoom(Math.min(3, historyZoom + 0.25))} disabled={historyZoom >= 3}>
-          <ZoomIn className="w-4 h-4" />
-        </Button>
-        {/* Rotate for images */}
-        {historyPreview?.name.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i) && (
-          <Button variant="ghost" size="icon" onClick={() => setHistoryRotation((historyRotation + 90) % 360)}>
-            <RotateCw className="w-4 h-4" />
-          </Button>
-        )}
-      </div>
-      <Button variant="ghost" size="sm" onClick={() => {
-        if (historyPreview?.url) {
-          const link = document.createElement('a');
-          link.href = historyPreview.url;
-          link.download = historyPreview.name;
-          link.click();
-        }
-      }}>
-        <Download className="w-4 h-4 mr-2" />
-        Download
-      </Button>
-    </div>
-    
-    {/* Preview Content with zoom/rotation */}
-    <div className="flex-1 min-h-0 overflow-auto bg-secondary/30 rounded-lg flex items-center justify-center p-4">
-      {/* Image with zoom/rotation */}
-      {isImage && <img style={{ transform: `scale(${historyZoom}) rotate(${historyRotation}deg)` }} ... />}
-      {/* PDF with zoom */}
-      {isPdf && <iframe style={{ transform: `scale(${historyZoom})` }} ... />}
-    </div>
-  </DialogContent>
-</Dialog>
+}
 ```
 
-## Visual Result
+#### Rename Drive files during archival (lines 393-443)
 
-**Before** (simple dialog):
-```
-┌─────────────────────────────────────┐
-│ Anderson_Plan.pdf                   │
-│ Archived document preview           │
-├─────────────────────────────────────┤
-│                                     │
-│         [PDF Preview]               │
-│                                     │
-└─────────────────────────────────────┘
+After archiving attachments to the history table and before deleting from `document_attachments`, rename each Google Drive file:
+
+```typescript
+// After successful archive (line 429), before deletion:
+// Rename Google Drive files to indicate rejection
+for (const att of existingAttachments) {
+  if (att.file_path?.startsWith('drive://')) {
+    const driveFileId = att.file_path.replace('drive://', '')
+    const rejectedName = `REJECTED_${att.file_name}`
+    console.log(`Renaming rejected Drive file ${driveFileId} to ${rejectedName}`)
+    await renameGoogleDriveFile(accessToken, driveFileId, rejectedName)
+  }
+}
 ```
 
-**After** (matches DocumentPreviewDialog):
+This requires the `accessToken` to be available at this point. The token is resolved later in the current flow, so we need to move the Google Drive token resolution earlier (before the archival block) or resolve it within the archival block specifically for rename purposes.
+
+#### Ensure access token is available for rename
+
+The Google Drive access token resolution currently happens around line 500+. We will need to resolve it earlier when archival is needed. We will add a conditional early token resolution:
+
+```typescript
+// Before archival block: get access token if we need to rename Drive files
+let earlyAccessToken: string | null = null
+if (currentReviewStatus === 'rejected') {
+  // Check if any attachments are Drive files
+  const { data: checkAtts } = await supabase
+    .from('document_attachments')
+    .select('file_path')
+    .eq('document_checklist_id', docId)
+    .like('file_path', 'drive://%')
+
+  if (checkAtts && checkAtts.length > 0) {
+    // Resolve access token early for rename
+    earlyAccessToken = await getValidAccessToken(supabase, companyId)
+  }
+}
 ```
-┌─────────────────────────────────────┐
-│ Anderson_Plan.pdf                   │
-│ Archived document preview           │
-├─────────────────────────────────────┤
-│ [-] 100% [+]              [Download]│
-├─────────────────────────────────────┤
-│                                     │
-│         [PDF Preview]               │
-│          (zoomable)                 │
-└─────────────────────────────────────┘
+
+Then use `earlyAccessToken` in the rename loop.
+
+### File: `supabase/functions/internal-upload/index.ts`
+
+Add the same `renameGoogleDriveFile` helper function for future use and consistency. The internal upload does not currently handle rejected document archival, so no rename logic is needed yet -- but having the helper available makes it easy to add later.
+
+## Visual Result in Google Drive
+
+**Before:**
+```
+SANTOS_Anderson_Diploma.jpeg    (rejected - unclear)
+SANTOS_Anderson_Diploma.pdf     (rejected - unclear)  
+SANTOS_Anderson_Diploma.pdf     (rejected - unclear)
+SANTOS_Anderson_Diploma.png     (current - unclear)
+```
+
+**After:**
+```
+REJECTED_SANTOS_Anderson_Diploma.jpeg    (clearly rejected)
+REJECTED_SANTOS_Anderson_Diploma.pdf     (clearly rejected)
+REJECTED_SANTOS_Anderson_Diploma.pdf     (clearly rejected)
+SANTOS_Anderson_Diploma.png              (clearly current)
 ```
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/pages/migration/ApplicationDetail.tsx` | Add historyZoom/historyRotation state, add zoom controls and download button to history preview dialog, apply transform to preview content |
+| `supabase/functions/client-portal-upload/index.ts` | Add `renameGoogleDriveFile` helper, add early access token resolution, rename Drive files during archival |
+| `supabase/functions/internal-upload/index.ts` | Add `renameGoogleDriveFile` helper for future use |
 
-## Required Imports
+## Edge Cases
 
-Add to existing imports (line 37):
-- `ZoomIn`, `ZoomOut`, `RotateCw` from lucide-react (already has `Download`)
-
+- **Non-Drive files** (Supabase Storage): File path does not start with `drive://`, so rename is skipped. These files are only referenced by path in the database, and renaming Supabase storage files is not straightforward -- but these are rarely used when Drive is connected.
+- **Token refresh failure**: If the access token cannot be resolved, the rename is skipped silently (logged as warning). The upload and archival still proceed normally.
+- **API rate limits**: Google Drive API has generous limits; renaming a few files during archival should not hit any limits.
