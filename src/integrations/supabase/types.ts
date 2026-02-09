@@ -659,6 +659,72 @@ export type Database = {
           },
         ]
       }
+      document_attachment_history: {
+        Row: {
+          archived_at: string
+          archived_reason: string
+          document_checklist_id: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string | null
+          id: string
+          review_comment_at_archive: string | null
+          review_status_at_archive: string | null
+          reviewed_by_at_archive: string | null
+          uploaded_at: string
+          uploaded_by: string | null
+          uploaded_by_client: string | null
+        }
+        Insert: {
+          archived_at?: string
+          archived_reason: string
+          document_checklist_id: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          review_comment_at_archive?: string | null
+          review_status_at_archive?: string | null
+          reviewed_by_at_archive?: string | null
+          uploaded_at: string
+          uploaded_by?: string | null
+          uploaded_by_client?: string | null
+        }
+        Update: {
+          archived_at?: string
+          archived_reason?: string
+          document_checklist_id?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          review_comment_at_archive?: string | null
+          review_status_at_archive?: string | null
+          reviewed_by_at_archive?: string | null
+          uploaded_at?: string
+          uploaded_by?: string | null
+          uploaded_by_client?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_attachment_history_document_checklist_id_fkey"
+            columns: ["document_checklist_id"]
+            isOneToOne: false
+            referencedRelation: "document_checklist"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_attachment_history_uploaded_by_client_fkey"
+            columns: ["uploaded_by_client"]
+            isOneToOne: false
+            referencedRelation: "client_portal_access"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_attachments: {
         Row: {
           created_at: string

@@ -380,7 +380,70 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Check current attachment count against max_files
+    // Get document's current review status to check if it's rejected
+    const { data: docStatusData } = await supabase
+      .from('document_checklist')
+      .select('review_status, review_comment, reviewed_by')
+      .eq('id', docId)
+      .single()
+
+    const currentReviewStatus = docStatusData?.review_status
+
+    // If document is rejected, archive existing attachments before processing new upload
+    if (currentReviewStatus === 'rejected') {
+      console.log('Document is rejected, archiving existing attachments before new upload')
+      
+      // Get all current attachments for this document
+      const { data: existingAttachments } = await supabase
+        .from('document_attachments')
+        .select('*')
+        .eq('document_checklist_id', docId)
+
+      if (existingAttachments && existingAttachments.length > 0) {
+        console.log(`Archiving ${existingAttachments.length} attachments to history`)
+        
+        // Insert all attachments into history table
+        const historyRecords = existingAttachments.map((att) => ({
+          document_checklist_id: docId,
+          file_path: att.file_path,
+          file_name: att.file_name,
+          file_type: att.file_type,
+          file_size: att.file_size,
+          uploaded_at: att.uploaded_at,
+          uploaded_by: att.uploaded_by,
+          uploaded_by_client: att.uploaded_by_client,
+          archived_reason: 'rejected',
+          review_status_at_archive: docStatusData?.review_status,
+          review_comment_at_archive: docStatusData?.review_comment,
+          reviewed_by_at_archive: docStatusData?.reviewed_by,
+        }))
+
+        const { error: historyError } = await supabase
+          .from('document_attachment_history')
+          .insert(historyRecords)
+
+        if (historyError) {
+          console.error('Failed to archive attachments to history:', historyError)
+          // Continue anyway - better to allow new upload than block completely
+        } else {
+          console.log('Successfully archived attachments to history')
+          
+          // Delete from document_attachments (but keep physical files for audit trail)
+          const { error: deleteError } = await supabase
+            .from('document_attachments')
+            .delete()
+            .eq('document_checklist_id', docId)
+
+          if (deleteError) {
+            console.error('Failed to delete old attachments after archiving:', deleteError)
+          } else {
+            console.log('Deleted old attachments from document_attachments table')
+          }
+        }
+      }
+    }
+
+    // Check current attachment count against max_files (after potential archival)
     const { count: currentAttachmentCount } = await supabase
       .from('document_attachments')
       .select('id', { count: 'exact', head: true })
@@ -648,13 +711,13 @@ Deno.serve(async (req) => {
 
     // Smart status handling:
     // - If status was 'pending_client', move to 'in_review' (client addressed feedback)
-    // - If status was 'rejected', keep as 'rejected' (agent must manually review)
+    // - If status was 'rejected', move to 'in_review' (client uploaded replacement, needs review)
     // - If status was 'approved', keep as 'approved' (don't regress)
     // - Otherwise, set to 'in_review'
     let newReviewStatus = currentStatus
-    if (currentStatus === 'pending_client') {
+    if (currentStatus === 'pending_client' || currentStatus === 'rejected') {
       newReviewStatus = 'in_review'
-    } else if (currentStatus !== 'rejected' && currentStatus !== 'approved') {
+    } else if (currentStatus !== 'approved') {
       newReviewStatus = 'in_review'
     }
 
