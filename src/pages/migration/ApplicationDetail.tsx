@@ -2202,12 +2202,12 @@ const VisaApplicationDetail = () => {
                               {doc.attachmentCount > 0 && (
                                 <Button
                                   variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-primary"
+                                  size="sm"
+                                  className="h-7 text-xs text-primary"
                                   onClick={() => setPreviewDoc(doc)}
-                                  title="Preview & Review"
                                 >
-                                  <Eye className="w-4 h-4" />
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  View
                                 </Button>
                               )}
                               {/* Toggle applicability for conditional documents */}
