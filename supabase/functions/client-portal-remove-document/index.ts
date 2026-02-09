@@ -64,7 +64,8 @@ Deno.serve(async (req) => {
           document_checklist!inner (
             id,
             visa_application_id,
-            min_files
+            min_files,
+            review_status
           )
         `)
         .eq('id', attachment_id)
@@ -86,6 +87,17 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({ error: 'Attachment does not belong to this application' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Block deletion of rejected documents - must upload a replacement instead
+      if (docChecklist?.review_status === 'rejected') {
+        console.log('Blocking deletion of rejected document attachment')
+        return new Response(
+          JSON.stringify({ 
+            error: 'Cannot delete rejected documents. Please upload a replacement document instead.' 
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 

@@ -1213,11 +1213,11 @@ export default function ClientPortal() {
                                                               disabled={uploadingDocId === doc.id}
                                                             />
                                                             <Button
-                                                              variant="outline"
+                                                              variant={isRejected ? "default" : "outline"}
                                                               size="sm"
                                                               asChild
                                                               disabled={uploadingDocId === doc.id}
-                                                              className="h-8"
+                                                              className={`h-8 ${isRejected ? "bg-primary hover:bg-primary/90" : ""}`}
                                                             >
                                                               <span>
                                                                 {uploadingDocId === doc.id ? (
@@ -1225,7 +1225,7 @@ export default function ClientPortal() {
                                                                 ) : (
                                                                   <>
                                                                     <Upload className="w-4 h-4 mr-1" />
-                                                                    {attachmentCount > 0 ? "Add" : "Upload"}
+                                                                    {isRejected ? "Upload Replacement" : (attachmentCount > 0 ? "Add" : "Upload")}
                                                                   </>
                                                                 )}
                                                               </span>
@@ -1238,15 +1238,37 @@ export default function ClientPortal() {
                                                     {/* Attachments List */}
                                                     {doc.attachments && doc.attachments.length > 0 && (
                                                       <div className="px-3 pb-3 pt-0">
-                                                        <div className="bg-muted/30 rounded-md p-2 space-y-1">
+                                                        <div className={`rounded-md p-2 space-y-1 ${
+                                                          isRejected 
+                                                            ? "bg-red-100/50 dark:bg-red-950/30" 
+                                                            : "bg-muted/30"
+                                                        }`}>
+                                                          {/* Show "Previous version" label for rejected documents */}
+                                                          {isRejected && (
+                                                            <p className="text-xs text-red-600 dark:text-red-400 font-medium px-2 py-1">
+                                                              Previous version (will be replaced)
+                                                            </p>
+                                                          )}
                                                           {doc.attachments.map((attachment) => (
                                                             <div 
                                                               key={attachment.id}
-                                                              className="flex items-center justify-between py-1.5 px-2 bg-background rounded text-sm"
+                                                              className={`flex items-center justify-between py-1.5 px-2 rounded text-sm ${
+                                                                isRejected 
+                                                                  ? "bg-red-50 dark:bg-red-950/50 opacity-70" 
+                                                                  : "bg-background"
+                                                              }`}
                                                             >
                                                               <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                                <File className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                                                                <span className="truncate text-muted-foreground">
+                                                                <File className={`w-4 h-4 flex-shrink-0 ${
+                                                                  isRejected 
+                                                                    ? "text-red-400 dark:text-red-500" 
+                                                                    : "text-muted-foreground"
+                                                                }`} />
+                                                                <span className={`truncate ${
+                                                                  isRejected 
+                                                                    ? "text-red-600 dark:text-red-400 line-through" 
+                                                                    : "text-muted-foreground"
+                                                                }`}>
                                                                   {attachment.file_name}
                                                                 </span>
                                                                 {attachment.file_size && (
@@ -1255,22 +1277,38 @@ export default function ClientPortal() {
                                                                   </span>
                                                                 )}
                                                               </div>
-                                                              <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={() => setAttachmentToDelete({
-                                                                  id: attachment.id,
-                                                                  fileName: attachment.file_name
-                                                                })}
-                                                                disabled={removingAttachmentId === attachment.id}
-                                                                className="text-destructive hover:text-destructive h-6 w-6 p-0 flex-shrink-0"
-                                                              >
-                                                                {removingAttachmentId === attachment.id ? (
-                                                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                                                ) : (
-                                                                  <X className="w-3 h-3" />
-                                                                )}
-                                                              </Button>
+                                                              {/* Hide delete button for rejected documents */}
+                                                              {!isRejected ? (
+                                                                <Button
+                                                                  variant="ghost"
+                                                                  size="sm"
+                                                                  onClick={() => setAttachmentToDelete({
+                                                                    id: attachment.id,
+                                                                    fileName: attachment.file_name
+                                                                  })}
+                                                                  disabled={removingAttachmentId === attachment.id}
+                                                                  className="text-destructive hover:text-destructive h-6 w-6 p-0 flex-shrink-0"
+                                                                >
+                                                                  {removingAttachmentId === attachment.id ? (
+                                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                                  ) : (
+                                                                    <X className="w-3 h-3" />
+                                                                  )}
+                                                                </Button>
+                                                              ) : (
+                                                                <TooltipProvider>
+                                                                  <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                      <div className="h-6 w-6 flex items-center justify-center text-muted-foreground/50">
+                                                                        <AlertCircle className="w-3 h-3" />
+                                                                      </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                      <p className="text-xs">Upload a replacement to resolve</p>
+                                                                    </TooltipContent>
+                                                                  </Tooltip>
+                                                                </TooltipProvider>
+                                                              )}
                                                             </div>
                                                           ))}
                                                         </div>
