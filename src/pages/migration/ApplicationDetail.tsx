@@ -567,23 +567,42 @@ const VisaApplicationDetail = () => {
     enabled: allHistoryProfileIds.length > 0,
   });
 
-  // Fetch history client uploader details
+  // Fetch history client uploader details (via client_portal_access → clients)
   const { data: historyClientProfiles } = useQuery({
     queryKey: ["history-client-profiles", historyClientUploaderIds],
     queryFn: async () => {
       if (historyClientUploaderIds.length === 0) return {};
       
-      const { data, error } = await supabase
-        .from("clients")
-        .select("id, first_name, last_name, email")
+      // Step 1: Get portal access records to find actual client IDs
+      const { data: portalAccess, error: portalError } = await supabase
+        .from("client_portal_access")
+        .select("id, client_id")
         .in("id", historyClientUploaderIds);
       
-      if (error) throw error;
+      if (portalError) throw portalError;
+      if (!portalAccess || portalAccess.length === 0) return {};
       
+      // Step 2: Get actual client details
+      const clientIds = [...new Set(portalAccess.map(p => p.client_id).filter(Boolean))];
+      if (clientIds.length === 0) return {};
+      
+      const { data: clients, error: clientError } = await supabase
+        .from("clients")
+        .select("id, first_name, last_name, email")
+        .in("id", clientIds);
+      
+      if (clientError) throw clientError;
+      
+      // Build lookup: portal_access_id → client details
       const clientMap: Record<string, { first_name: string | null; last_name: string | null; email: string | null }> = {};
-      (data || []).forEach(c => {
-        clientMap[c.id] = { first_name: c.first_name, last_name: c.last_name, email: c.email };
+      const clientDetailsMap = Object.fromEntries((clients || []).map(c => [c.id, c]));
+      
+      portalAccess.forEach(pa => {
+        if (pa.client_id && clientDetailsMap[pa.client_id]) {
+          clientMap[pa.id] = clientDetailsMap[pa.client_id];
+        }
       });
+      
       return clientMap;
     },
     enabled: historyClientUploaderIds.length > 0,
