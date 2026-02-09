@@ -1,91 +1,87 @@
 
-# Plan: Display Document History on Application Detail Page
 
-## Summary
-Move the document version history from the preview dialog to be displayed inline on the Application Detail page. Also remove the review comment that currently appears below the attachments on each document card.
+# Plan: Fix Document History Display on Application Detail Page
 
-## Changes Overview
+## Issues to Fix
 
-### 1. Add Document History Section to Each Document Card
+1. **View button opens new browser tab** - The `onViewDocument` callback is not being passed, so the component falls back to `window.open(signedUrl, "_blank")`
+2. **"Previous Versions" text still showing** - Using `inline={false}` which renders the collapsible header
 
-**File: `src/pages/migration/ApplicationDetail.tsx`**
+## Solution
 
-For each document that has history entries, display the `DocumentHistorySection` component directly below the attachments list. This will show the timeline of rejected/archived documents inline on the page.
+### File: `src/pages/migration/ApplicationDetail.tsx`
 
-**Location**: After the attachments list section (around line 2319-2325)
+**Change 1:** Update both instances of `DocumentHistorySection` to use `inline={true}` to remove the collapsible header and show history directly.
 
-**Add:**
+**Change 2:** Pass an `onViewDocument` callback that opens the document in the existing preview dialog instead of a new browser tab.
+
+**Location 1** (around line 2321-2328):
 ```tsx
-{/* Document History - show inline if history exists */}
-{documentHistoryByDoc?.[doc.id] && documentHistoryByDoc[doc.id].length > 0 && (
-  <div className="mt-2 ml-8">
+{/* Document History - inline on page */}
+{documentHistoryByDoc?.[doc.id] && (documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]).length > 0 && (
+  <div className="mt-2">
     <DocumentHistorySection
       history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
       companyId={visaApplication?.company_id}
-      inline={false}  // Use collapsible mode to save space
+      inline={true}  // Changed from false to true
+      onViewDocument={(url, fileName) => {
+        // Open in preview dialog using existing previewDoc state
+        setPreviewDoc({
+          ...doc,
+          previewUrl: url,
+          fileName: fileName,
+        });
+      }}
     />
   </div>
 )}
 ```
 
-### 2. Remove Review Comment Display
-
-**File: `src/pages/migration/ApplicationDetail.tsx`**
-
-Remove the review comment text that appears below attachments. Currently at two places:
-
-**Location 1** (lines 2320-2324): Remove this block
+**Location 2** (around line 2344-2351) - same changes for legacy single file display:
 ```tsx
-{doc.reviewComment && (
-  <p className="text-sm text-muted-foreground italic pl-1">
-    "{doc.reviewComment}"
-  </p>
+{/* Document History - inline on page for legacy files */}
+{documentHistoryByDoc?.[doc.id] && (documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]).length > 0 && (
+  <div className="mt-2">
+    <DocumentHistorySection
+      history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
+      companyId={visaApplication?.company_id}
+      inline={true}  // Changed from false to true
+      onViewDocument={(url, fileName) => {
+        setPreviewDoc({
+          ...doc,
+          previewUrl: url,
+          fileName: fileName,
+        });
+      }}
+    />
+  </div>
 )}
 ```
-
-**Location 2** (lines 2338-2342): Remove this block as well (for legacy single file display)
-```tsx
-{doc.reviewComment && (
-  <p className="text-sm text-muted-foreground italic pl-1">
-    "{doc.reviewComment}"
-  </p>
-)}
-```
-
-### 3. Keep History in Preview Dialog (Optional Enhancement)
-
-The history tab in the preview dialog can remain for detailed viewing, but it's now also visible on the main page for quick reference.
 
 ## Visual Result
 
 **Before:**
 ```
-┌─ Diploma ────────────────────────────────────────────────┐
-│  📄 Screenshot 2025-12-17.png (1686 KB)                  │
-│  "need to be another document"   <-- REMOVE THIS         │
-└──────────────────────────────────────────────────────────┘
+📄 current-document.pdf
+> Previous Versions (2)  [click to expand, view opens new tab]
 ```
 
 **After:**
 ```
-┌─ Diploma ────────────────────────────────────────────────┐
-│  📄 Screenshot 2025-12-17.png (1686 KB)                  │
-│                                                          │
-│  > Previous Versions (2)  [collapsed by default]         │
-│    ├─ Version 2 - Rejected Feb 9 "too blurry"           │
-│    └─ Version 1 - Rejected Feb 7 "wrong type"           │
-└──────────────────────────────────────────────────────────┘
+📄 current-document.pdf
+● rejected-doc-1.pdf [Rejected Feb 9] "reason"  [View opens in dialog]
+● rejected-doc-2.pdf [Rejected Feb 7] "reason"  [View opens in dialog]
 ```
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/pages/migration/ApplicationDetail.tsx` | 1. Import `DocumentHistorySection` (already imported)<br>2. Add history section after attachments<br>3. Remove review comment displays (2 locations) |
+| `src/pages/migration/ApplicationDetail.tsx` | 1. Change `inline={false}` to `inline={true}` (2 locations)<br>2. Add `onViewDocument` callback that uses `setPreviewDoc` (2 locations) |
 
 ## Technical Notes
 
-- The `documentHistoryByDoc` query is already available in the component - it fetches history grouped by document ID
-- `DocumentHistorySection` component already supports the `inline` prop for direct display or collapsible mode
-- Using `inline={false}` (collapsible mode) to keep the page compact while still showing history is available
-- The review comment remains visible within the history entries themselves (where it shows the rejection reason)
+- The `previewDoc` state and `setPreviewDoc` function already exist in the component for opening documents in the preview dialog
+- By passing a custom `previewUrl` and `fileName`, we can make the preview dialog show the historical document
+- The `inline={true}` prop already removes the collapsible wrapper and shows documents directly
+
