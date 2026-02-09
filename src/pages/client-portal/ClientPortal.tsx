@@ -1039,7 +1039,7 @@ export default function ClientPortal() {
                                                       isRejected
                                                         ? "bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-800 border-2"
                                                         : doc.is_completed 
-                                                          ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
+                                                          ? "bg-[#f4f8fd] dark:bg-slate-900/30 border-[#e0ecf8] dark:border-slate-700"
                                                           : dragOverDocId === doc.id
                                                             ? "bg-primary/10 border-primary border-dashed"
                                                             : "bg-background border-border/50 hover:border-border"
