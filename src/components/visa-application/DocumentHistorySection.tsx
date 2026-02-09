@@ -67,7 +67,7 @@ export function DocumentHistorySection({
   }
 
   const handleViewDocument = async (entry: DocumentHistoryEntry) => {
-    setLoadingId(entry.id);
+    setLoadingId(`${entry.id}:view`);
     try {
       let signedUrl: string | null = null;
 
@@ -128,7 +128,7 @@ export function DocumentHistorySection({
   };
 
   const handleDownload = async (entry: DocumentHistoryEntry) => {
-    setLoadingId(entry.id);
+    setLoadingId(`${entry.id}:download`);
     try {
       let signedUrl: string | null = null;
 
@@ -232,9 +232,9 @@ export function DocumentHistorySection({
                   size="sm"
                   className="h-7 text-xs text-muted-foreground"
                   onClick={() => handleDownload(entry)}
-                  disabled={loadingId === entry.id}
+                  disabled={loadingId === `${entry.id}:download`}
                 >
-                  {loadingId === entry.id ? (
+                  {loadingId === `${entry.id}:download` ? (
                     <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                   ) : (
                     <Download className="w-3 h-3 mr-1" />
@@ -246,9 +246,9 @@ export function DocumentHistorySection({
                   size="sm"
                   className="h-7 text-xs text-primary"
                   onClick={() => handleViewDocument(entry)}
-                  disabled={loadingId === entry.id}
+                  disabled={loadingId === `${entry.id}:view`}
                 >
-                  {loadingId === entry.id ? (
+                  {loadingId === `${entry.id}:view` ? (
                     <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                   ) : (
                     <Eye className="w-3 h-3 mr-1" />
