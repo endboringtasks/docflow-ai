@@ -2323,7 +2323,7 @@ const VisaApplicationDetail = () => {
                                   <DocumentHistorySection
                                     history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
                                     companyId={visaApplication?.company_id}
-                                    inline={false}
+                                    inline={true}
                                   />
                                 </div>
                               )}
@@ -2346,7 +2346,7 @@ const VisaApplicationDetail = () => {
                                   <DocumentHistorySection
                                     history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
                                     companyId={visaApplication?.company_id}
-                                    inline={false}
+                                    inline={true}
                                   />
                                 </div>
                               )}
