@@ -455,6 +455,24 @@ Deno.serve(async (req) => {
           // Continue anyway - better to allow new upload than block completely
         } else {
           console.log('Successfully archived attachments to history')
+
+          // Rename rejected Drive files to prepend REJECTED_ prefix
+          const driveAttachments = existingAttachments.filter(
+            (att) => att.file_path?.startsWith('drive://')
+          )
+          if (driveAttachments.length > 0) {
+            const earlyAccessToken = await getValidAccessToken(supabase, docData.company_id)
+            if (earlyAccessToken) {
+              for (const att of driveAttachments) {
+                const driveFileId = att.file_path.replace('drive://', '')
+                const rejectedName = `REJECTED_${att.file_name}`
+                console.log(`Renaming rejected Drive file ${driveFileId} to ${rejectedName}`)
+                await renameGoogleDriveFile(earlyAccessToken, driveFileId, rejectedName)
+              }
+            } else {
+              console.warn('No valid access token for renaming rejected Drive files, skipping rename')
+            }
+          }
           
           // Delete from document_attachments (but keep physical files for audit trail)
           const { error: deleteError } = await supabase
