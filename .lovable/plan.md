@@ -1,103 +1,122 @@
 
+# Plan: Fix Both Buttons Spinning Together
 
-# Plan: Move Download Button Next to View Button for Current Documents
+## Problem
 
-## Current Layout
+The Download and View buttons in the Document History section share a single `loadingId` state. When either button is clicked, both show the loading spinner because they both check `loadingId === entry.id`.
 
-Based on the screenshot:
-```
-┌─ Document Header ────────────────────────────────────────────────────────────┐
-│ Diploma [Original] [Ready to Review]  Uploaded...  Reviewed...        [View] │
-└──────────────────────────────────────────────────────────────────────────────┘
-│ Screenshot 2025-12-17... (1686 KB) [File]                          [Download]│
-└──────────────────────────────────────────────────────────────────────────────┘
-```
-
-The "View" button is in the header row (line 2311-2319), while "Download" is on the attachment row (line 2400-2408).
-
-## Target Layout
-
-Match the rejected documents layout where Download comes before View:
-```
-┌─ Document Header ────────────────────────────────────────────────────────────┐
-│ Diploma [Original] [Ready to Review]  Uploaded...  [Download] [View]         │
-└──────────────────────────────────────────────────────────────────────────────┘
-│ Screenshot 2025-12-17... (1686 KB) [File]                                    │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
-
-## Changes Required
-
-### File: `src/pages/migration/ApplicationDetail.tsx`
-
-#### Change 1: Add Download button before View button in header (lines 2308-2320)
-
-**Current code (View button only):**
+**Current code (line 63):**
 ```tsx
-<div className="flex items-center gap-2">
-  {/* File actions */}
-  {doc.attachmentCount > 0 && (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="h-7 text-xs text-primary"
-      onClick={() => setPreviewDoc(doc)}
-    >
-      <Eye className="w-3 h-3 mr-1" />
-      View
-    </Button>
-  )}
+const [loadingId, setLoadingId] = useState<string | null>(null);
 ```
 
-**New code (Download + View):**
+**Both buttons check the same condition (lines 235-256):**
 ```tsx
-<div className="flex items-center gap-2">
-  {/* File actions */}
-  {doc.attachmentCount > 0 && doc.attachments?.[0] && (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="h-7 text-xs text-muted-foreground"
-      onClick={() => handleDownloadFile(doc.attachments[0].file_path, doc.attachments[0].file_name)}
-    >
-      <Download className="w-3 h-3 mr-1" />
-      Download
-    </Button>
-  )}
-  {doc.attachmentCount > 0 && (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="h-7 text-xs text-primary"
-      onClick={() => setPreviewDoc(doc)}
-    >
-      <Eye className="w-3 h-3 mr-1" />
-      View
-    </Button>
-  )}
+// Download button
+disabled={loadingId === entry.id}
+{loadingId === entry.id ? <Loader2 ... /> : <Download ... />}
+
+// View button  
+disabled={loadingId === entry.id}
+{loadingId === entry.id ? <Loader2 ... /> : <Eye ... />}
 ```
 
-#### Change 2: Remove Download button from attachment row (lines 2400-2408)
+## Solution
 
-Remove the Download button from the individual attachment display since it's now in the header.
+Create separate loading states for each action type using a composite key that includes both the entry ID and the action type.
+
+**New approach:**
+```tsx
+const [loadingId, setLoadingId] = useState<string | null>(null);
+// loadingId format: "entryId:download" or "entryId:view"
+```
+
+## Changes
+
+### File: `src/components/visa-application/DocumentHistorySection.tsx`
+
+#### Change 1: Update handleViewDocument to use action-specific ID (line 70)
+
+**Before:**
+```tsx
+setLoadingId(entry.id);
+```
+
+**After:**
+```tsx
+setLoadingId(`${entry.id}:view`);
+```
+
+#### Change 2: Update handleDownload to use action-specific ID (line 131)
+
+**Before:**
+```tsx
+setLoadingId(entry.id);
+```
+
+**After:**
+```tsx
+setLoadingId(`${entry.id}:download`);
+```
+
+#### Change 3: Update Download button loading check (lines 235-242)
+
+**Before:**
+```tsx
+disabled={loadingId === entry.id}
+{loadingId === entry.id ? (
+  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+) : (
+  <Download className="w-3 h-3 mr-1" />
+)}
+```
+
+**After:**
+```tsx
+disabled={loadingId === `${entry.id}:download`}
+{loadingId === `${entry.id}:download` ? (
+  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+) : (
+  <Download className="w-3 h-3 mr-1" />
+)}
+```
+
+#### Change 4: Update View button loading check (lines 249-256)
+
+**Before:**
+```tsx
+disabled={loadingId === entry.id}
+{loadingId === entry.id ? (
+  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+) : (
+  <Eye className="w-3 h-3 mr-1" />
+)}
+```
+
+**After:**
+```tsx
+disabled={loadingId === `${entry.id}:view`}
+{loadingId === `${entry.id}:view` ? (
+  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+) : (
+  <Eye className="w-3 h-3 mr-1" />
+)}
+```
 
 ## Visual Result
 
-**Before:**
+**Before (clicking View):**
 ```
-Diploma [badges]  Uploaded...  Reviewed...                              [View]
-  Screenshot.png (1686 KB) [File]                                    [Download]
+[↻ Download]  [↻ View]   <- Both spinning
 ```
 
-**After (matching rejected documents):**
+**After (clicking View):**
 ```
-Diploma [badges]  Uploaded...  Reviewed...              [Download]      [View]
-  Screenshot.png (1686 KB) [File]
+[↓ Download]  [↻ View]   <- Only View spinning
 ```
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `src/pages/migration/ApplicationDetail.tsx` | Add Download button before View in header row (lines 2308-2320), remove Download from attachment row (lines 2400-2408) |
-
+| File | Lines | Changes |
+|------|-------|---------|
+| `src/components/visa-application/DocumentHistorySection.tsx` | 70, 131, 235-256 | Use action-specific loading IDs |
