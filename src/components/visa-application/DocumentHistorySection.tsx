@@ -150,7 +150,16 @@ export function DocumentHistorySection({
           throw new Error(result.error || "Failed to get file URL");
         }
         signedUrl = result.url;
-      } else if (!entry.file_path.startsWith("drive://")) {
+      } else if (entry.file_path.startsWith("drive://") && companyId) {
+        // Google Drive file - get download URL
+        const fileId = entry.file_path.replace("drive://", "");
+        const { data, error } = await supabase.functions.invoke(
+          "get-drive-file-url",
+          { body: { file_id: fileId, company_id: companyId } }
+        );
+        if (error) throw error;
+        signedUrl = data?.file?.webContentLink || data?.file?.webViewLink;
+      } else {
         const { data, error } = await supabase.storage
           .from("document-attachments")
           .createSignedUrl(entry.file_path, 3600);
@@ -218,22 +227,20 @@ export function DocumentHistorySection({
               </div>
               {/* Download and View buttons together */}
               <div className="flex items-center gap-1 flex-shrink-0">
-                {!entry.file_path.startsWith("drive://") && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs text-muted-foreground"
-                    onClick={() => handleDownload(entry)}
-                    disabled={loadingId === entry.id}
-                  >
-                    {loadingId === entry.id ? (
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    ) : (
-                      <Download className="w-3 h-3 mr-1" />
-                    )}
-                    Download
-                  </Button>
-                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-muted-foreground"
+                  onClick={() => handleDownload(entry)}
+                  disabled={loadingId === entry.id}
+                >
+                  {loadingId === entry.id ? (
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  ) : (
+                    <Download className="w-3 h-3 mr-1" />
+                  )}
+                  Download
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
