@@ -1,40 +1,78 @@
 
-# Plan: Fix Focus Ring Clipping on Select Components
+# Plan: Fix Nationality Select Keyboard Accessibility
 
 ## Problem Identified
-The blue focus ring on the Client Type select dropdown is being cut off on the left side. This occurs because:
+The Nationality select dropdown only opens when clicking with a mouse. It does not respond to:
+1. **Tab + typing letters** - should open the dropdown and start filtering
+2. **Arrow Down key** - should open the dropdown
+3. **Enter/Space keys** - should toggle the dropdown
 
-1. The form container uses `overflow-y-auto` to enable scrolling
-2. The SelectTrigger uses `ring-offset-2` which creates a focus ring that extends 2px **outside** the element bounds
-3. The overflow clipping from the parent container cuts off the ring
+This is a significant accessibility issue as keyboard-only users cannot access the nationality list.
+
+## Root Cause
+The `NationalitySelect` component uses a `Popover` with a `Button` as the trigger, but relies entirely on the default Radix Popover behavior which only opens on click events. The component needs explicit keyboard event handlers to open the popover on:
+- **Arrow Down / Arrow Up** - Standard combobox keyboard navigation
+- **Enter / Space** - Standard button activation (Radix handles this)
+- **Any letter key** - Should open and start searching
 
 ## Solution
-There are two approaches to fix this:
-
-### Approach A: Add padding to the scrollable container (Recommended)
-Add small padding to the scrollable form area so the focus rings have room to render without being clipped.
-
-### Approach B: Use inset focus styling instead of ring-offset
-Change the SelectTrigger to use an inset focus style (like `ring-inset`) that renders inside the element instead of outside.
-
-**Approach A is preferred** because it keeps the visual styling consistent with other form elements and is less invasive.
+Add an `onKeyDown` handler to the trigger Button that:
+1. Opens the popover when pressing Arrow Down, Arrow Up, or any printable character
+2. Lets Enter/Space work naturally (Radix Popover already handles these)
 
 ## Implementation
 
-### File: `src/pages/migration/Clients.tsx`
+### File: `src/components/ui/nationality-select.tsx`
 
-Update the scrollable form container on line 515 to add padding that accommodates the focus ring:
+Add keyboard handling to the Button trigger:
 
-| Before | After |
-|--------|-------|
-| `overflow-y-auto max-h-[60vh] pr-2` | `overflow-y-auto max-h-[60vh] px-1 -mx-1` |
+```typescript
+// Add onKeyDown handler to open popover on arrow keys or typing
+const handleKeyDown = (e: React.KeyboardEvent) => {
+  // Open on arrow down/up
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    setOpen(true);
+  }
+  // Open on any printable character (for type-ahead)
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+    setOpen(true);
+  }
+};
 
-The negative margin (`-mx-1`) keeps the content aligned with the dialog edges while the padding (`px-1`) provides space for the focus ring.
+// Apply to Button
+<Button
+  variant="outline"
+  role="combobox"
+  aria-expanded={open}
+  disabled={disabled}
+  onKeyDown={handleKeyDown}
+  className={...}
+>
+```
 
-This same fix should be applied to the Edit Client dialog as well.
+### Detailed Changes
+
+| Line | Current | After |
+|------|---------|-------|
+| 35-36 | `const [open, setOpen] = React.useState(false);` | Add keyboard handler function after this |
+| 44-64 | Button without onKeyDown | Add `onKeyDown={handleKeyDown}` prop |
+
+### Technical Details
+
+The keyboard handler will:
+1. **ArrowDown/ArrowUp**: Prevent default scroll behavior and open the popover
+2. **Printable characters**: Open popover so the user can immediately start searching (the cmdk CommandInput will receive focus and capture the keystrokes)
+
+The Enter and Space keys already work for Radix Popover triggers, but the issue is they may not be working due to the Button wrapper - we'll add explicit handling if needed.
 
 ## Expected Result
-- Focus ring will be fully visible on all sides of the Select component
-- No clipping on left, right, or any other edge
-- Scrolling behavior remains unchanged
-- Visual consistency maintained across all form fields
+- Users can Tab to the Nationality field and press Arrow Down to open
+- Users can Tab to the field and start typing to open and search
+- Full keyboard accessibility matching standard combobox behavior
+- Mouse functionality remains unchanged
+
+## Files to Modify
+| File | Changes |
+|------|---------|
+| `src/components/ui/nationality-select.tsx` | Add `onKeyDown` handler to Button trigger for keyboard accessibility |
