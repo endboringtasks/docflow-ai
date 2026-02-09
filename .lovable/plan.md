@@ -1,78 +1,41 @@
 
-# Plan: Fix Nationality Select Keyboard Accessibility
+# Plan: Fix Focus Ring Clipping in Create Application Dialog
 
 ## Problem Identified
-The Nationality select dropdown only opens when clicking with a mouse. It does not respond to:
-1. **Tab + typing letters** - should open the dropdown and start filtering
-2. **Arrow Down key** - should open the dropdown
-3. **Enter/Space keys** - should toggle the dropdown
+The "Create Application" dialog has the same focus ring clipping issue as the "Create New Client" dialog. The blue focus ring on the "Client" select dropdown is being cut off on the left side.
 
-This is a significant accessibility issue as keyboard-only users cannot access the nationality list.
+### Root Cause
+The scrollable form container on line 860 of `src/pages/migration/Applications.tsx` uses:
+```html
+<div className="space-y-4 py-4 overflow-y-auto max-h-[60vh] pr-4">
+```
 
-## Root Cause
-The `NationalitySelect` component uses a `Popover` with a `Button` as the trigger, but relies entirely on the default Radix Popover behavior which only opens on click events. The component needs explicit keyboard event handlers to open the popover on:
-- **Arrow Down / Arrow Up** - Standard combobox keyboard navigation
-- **Enter / Space** - Standard button activation (Radix handles this)
-- **Any letter key** - Should open and start searching
+The `overflow-y-auto` clips the focus ring which extends 2px outside the element bounds (due to `ring-offset-2` on SelectTrigger).
 
 ## Solution
-Add an `onKeyDown` handler to the trigger Button that:
-1. Opens the popover when pressing Arrow Down, Arrow Up, or any printable character
-2. Lets Enter/Space work naturally (Radix Popover already handles these)
+Apply the same fix used for the Clients page - add horizontal padding with matching negative margins to provide space for the focus ring without affecting visual alignment.
 
 ## Implementation
 
-### File: `src/components/ui/nationality-select.tsx`
-
-Add keyboard handling to the Button trigger:
-
-```typescript
-// Add onKeyDown handler to open popover on arrow keys or typing
-const handleKeyDown = (e: React.KeyboardEvent) => {
-  // Open on arrow down/up
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-    e.preventDefault();
-    setOpen(true);
-  }
-  // Open on any printable character (for type-ahead)
-  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-    setOpen(true);
-  }
-};
-
-// Apply to Button
-<Button
-  variant="outline"
-  role="combobox"
-  aria-expanded={open}
-  disabled={disabled}
-  onKeyDown={handleKeyDown}
-  className={...}
->
-```
-
-### Detailed Changes
+### File: `src/pages/migration/Applications.tsx`
 
 | Line | Current | After |
 |------|---------|-------|
-| 35-36 | `const [open, setOpen] = React.useState(false);` | Add keyboard handler function after this |
-| 44-64 | Button without onKeyDown | Add `onKeyDown={handleKeyDown}` prop |
+| 860 | `overflow-y-auto max-h-[60vh] pr-4` | `overflow-y-auto max-h-[60vh] px-1 -mx-1` |
 
-### Technical Details
+The Edit Application dialog (line 1232) doesn't have `overflow-y-auto`, so it should not experience the same clipping issue.
 
-The keyboard handler will:
-1. **ArrowDown/ArrowUp**: Prevent default scroll behavior and open the popover
-2. **Printable characters**: Open popover so the user can immediately start searching (the cmdk CommandInput will receive focus and capture the keystrokes)
-
-The Enter and Space keys already work for Radix Popover triggers, but the issue is they may not be working due to the Button wrapper - we'll add explicit handling if needed.
-
-## Expected Result
-- Users can Tab to the Nationality field and press Arrow Down to open
-- Users can Tab to the field and start typing to open and search
-- Full keyboard accessibility matching standard combobox behavior
-- Mouse functionality remains unchanged
+## Technical Details
+- `px-1` adds 4px (0.25rem) of horizontal padding, providing room for the 2px focus ring offset
+- `-mx-1` adds negative horizontal margins to maintain visual alignment with the dialog edges
+- The vertical spacing and scrolling behavior remain unchanged
 
 ## Files to Modify
 | File | Changes |
 |------|---------|
-| `src/components/ui/nationality-select.tsx` | Add `onKeyDown` handler to Button trigger for keyboard accessibility |
+| `src/pages/migration/Applications.tsx` | Update the Create Application dialog container class on line 860 |
+
+## Expected Result
+- Focus ring on all Select components (Client, Country, Category, etc.) will be fully visible
+- No clipping on left, right, or any edge
+- Scrolling and visual layout remain unchanged
