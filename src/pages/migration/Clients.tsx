@@ -512,7 +512,7 @@ const MigrationClients = () => {
                 </DialogDescription>
               </DialogHeader>
               
-              <div className="space-y-4 py-4 overflow-y-auto max-h-[60vh] pr-2">
+              <div className="space-y-4 py-4 overflow-y-auto max-h-[60vh] px-1 -mx-1">
                 <div className="space-y-2">
                   <Label>Client Type</Label>
                   <Select 
@@ -859,7 +859,7 @@ const MigrationClients = () => {
               </DialogDescription>
             </DialogHeader>
             
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-4 overflow-y-auto max-h-[60vh] px-1 -mx-1">
               <div className="space-y-2">
                 <Label>Client Type</Label>
                 <Select 
