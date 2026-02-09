@@ -1,98 +1,150 @@
 
 
-# Plan: Align Document Display Buttons for Current and Rejected Documents
+# Plan: Reposition "View" Button in Document History to Match Current Documents
 
 ## Issue Summary
-The current document preview button and the rejected document history "View" button are styled and positioned differently:
+The "View" button for rejected/historical documents is positioned at the **bottom left** of each entry card, while the current document's "View" button is at the **top right** of the header. This creates visual inconsistency.
 
-| Element | Current Behavior | Expected Behavior |
+| Element | Current Position | Expected Position |
 |---------|-----------------|-------------------|
-| Current document | Eye icon only (no text), positioned at the far right of the header | Should have "View" text like rejected documents |
-| Rejected document history | "View" button with text + icon, positioned at the bottom left | Should match the current document button position/style |
+| Current document View button | Top right of header row | ✓ (keep as is) |
+| Historical document View button | Bottom left of entry card | Top right of entry card (same row as file name) |
 
-## Solution Options
+## Solution
 
-**Option A (Recommended):** Add "View" text to the current document button to match rejected documents
-- Simpler change
-- Both will have consistent text+icon buttons
-
-**Option B:** Remove "View" text from rejected documents to match current
-- Would lose clarity in the history section
-
-I'll proceed with **Option A** since having the text "View" is clearer for users.
+Move the "View" button in `DocumentHistorySection.tsx` from the Actions section at the bottom to the file info header row at the top.
 
 ## Changes
 
-### File: `src/pages/migration/ApplicationDetail.tsx`
+### File: `src/components/visa-application/DocumentHistorySection.tsx`
 
-**Location:** Lines 2203-2211 (the current document preview button)
-
-Change from:
-```tsx
-{doc.attachmentCount > 0 && (
-  <Button
-    variant="ghost"
-    size="icon"
-    className="h-8 w-8 text-primary"
-    onClick={() => setPreviewDoc(doc)}
-    title="Preview & Review"
-  >
-    <Eye className="w-4 h-4" />
-  </Button>
-)}
+**Current structure (simplified):**
+```
+┌─ Entry Card ─────────────────────────────────────────────┐
+│ ● file_name.pdf (size)                                   │  <- file info row
+│   📅 Uploaded...  ⊗ Rejected...                          │  <- dates row
+│   "rejection reason"                                     │  <- reason
+│   👁 View  📥 Download                                    │  <- actions (BOTTOM)
+└──────────────────────────────────────────────────────────┘
 ```
 
-Change to:
+**After change:**
+```
+┌─ Entry Card ─────────────────────────────────────────────┐
+│ ● file_name.pdf (size)                     👁 View       │  <- file info + View
+│   📅 Uploaded...  ⊗ Rejected...                          │  <- dates row
+│   "rejection reason"                                     │  <- reason
+│   📥 Download                                            │  <- download only
+└──────────────────────────────────────────────────────────┘
+```
+
+**Location:** Lines 202-215 (file info section) and Lines 239-254 (actions section)
+
+**Change 1:** Add View button to file info header row (line 203-215)
+
+Move from:
 ```tsx
-{doc.attachmentCount > 0 && (
+{/* File info */}
+<div className="flex items-start justify-between gap-2">
+  <div className="flex items-center gap-2 min-w-0">
+    <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+    <span className="text-sm font-medium truncate line-through text-muted-foreground">
+      {entry.file_name}
+    </span>
+    {entry.file_size && (
+      <span className="text-xs text-muted-foreground/70 flex-shrink-0">
+        ({formatFileSize(entry.file_size)})
+      </span>
+    )}
+  </div>
+</div>
+```
+
+To:
+```tsx
+{/* File info */}
+<div className="flex items-start justify-between gap-2">
+  <div className="flex items-center gap-2 min-w-0">
+    <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+    <span className="text-sm font-medium truncate line-through text-muted-foreground">
+      {entry.file_name}
+    </span>
+    {entry.file_size && (
+      <span className="text-xs text-muted-foreground/70 flex-shrink-0">
+        ({formatFileSize(entry.file_size)})
+      </span>
+    )}
+  </div>
+  {/* View button - same position as current documents */}
   <Button
     variant="ghost"
     size="sm"
-    className="h-7 text-xs text-primary"
-    onClick={() => setPreviewDoc(doc)}
+    className="h-7 text-xs text-primary flex-shrink-0"
+    onClick={() => handleViewDocument(entry)}
+    disabled={loadingId === entry.id}
   >
-    <Eye className="w-3 h-3 mr-1" />
+    {loadingId === entry.id ? (
+      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+    ) : (
+      <Eye className="w-3 h-3 mr-1" />
+    )}
     View
   </Button>
-)}
+</div>
 ```
 
-This change:
-- Switches from `size="icon"` to `size="sm"` to allow text
-- Adds "View" text after the icon
-- Uses the same styling pattern as the history section buttons (`h-7 text-xs`, icon with `mr-1`)
+**Change 2:** Remove View button from Actions section (lines 239-254)
+
+The Actions section will only contain the Download button:
+```tsx
+{/* Actions - Download only */}
+{!entry.file_path.startsWith("drive://") && (
+  <div className="flex items-center gap-2 pt-1">
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-7 text-xs"
+      onClick={() => handleDownload(entry)}
+      disabled={loadingId === entry.id}
+    >
+      {loadingId === entry.id ? (
+        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+      ) : (
+        <Download className="w-3 h-3 mr-1" />
+      )}
+      Download
+    </Button>
+  </div>
+)}
+```
 
 ## Visual Result
 
 **Before:**
 ```
-┌─ Diploma  [Ready to Review]                      📅 Uploaded...  👁 ┐
-│  📄 Screenshot 2025-12-17.png (1686 KB)  [File]                      │
-│                                                                      │
-│  ⭕ Anderson_Plan.pdf                                                │
-│     📅 Uploaded...  ⊗ Rejected...                                   │
-│     "need to be another document"                                    │
-│     👁 View                                                          │
-└──────────────────────────────────────────────────────────────────────┘
+Diploma [Ready to Review]      📅 Uploaded 2/9/26...     👁 View
+  📄 Screenshot 2025-12-17.png (1686 KB)
+  
+  ● Anderson_Plan.pdf (45 KB)
+     📅 Uploaded...  ⊗ Rejected...
+     "need to be another document"
+     👁 View  📥 Download     <- View at bottom
 ```
 
 **After:**
 ```
-┌─ Diploma  [Ready to Review]                  📅 Uploaded...  👁 View ┐
-│  📄 Screenshot 2025-12-17.png (1686 KB)  [File]                      │
-│                                                                      │
-│  ⭕ Anderson_Plan.pdf                                                │
-│     📅 Uploaded...  ⊗ Rejected...                                   │
-│     "need to be another document"                                    │
-│     👁 View                                                          │
-└──────────────────────────────────────────────────────────────────────┘
+Diploma [Ready to Review]      📅 Uploaded 2/9/26...     👁 View
+  📄 Screenshot 2025-12-17.png (1686 KB)
+  
+  ● Anderson_Plan.pdf (45 KB)                            👁 View  <- View at top right
+     📅 Uploaded...  ⊗ Rejected...
+     "need to be another document"
+     📥 Download               <- Only download at bottom
 ```
-
-Both buttons now consistently show "View" with an icon.
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `src/pages/migration/ApplicationDetail.tsx` | Update the preview button at lines 2203-2211 to include "View" text |
+| File | Changes |
+|------|---------|
+| `src/components/visa-application/DocumentHistorySection.tsx` | 1. Add View button to file info header row (lines 203-215)<br>2. Remove View button from Actions section (lines 241-254)<br>3. Conditionally render Actions section only when Download is available |
 
