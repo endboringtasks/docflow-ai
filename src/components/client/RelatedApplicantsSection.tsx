@@ -63,6 +63,7 @@ const RelatedApplicantsSection = ({
   const queryClient = useQueryClient();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [applicantToDelete, setApplicantToDelete] = useState<RelatedApplicant | null>(null);
+  const [applicantToEdit, setApplicantToEdit] = useState<RelatedApplicant | null>(null);
 
   // Remove related applicant mutation
   const removeApplicantMutation = useMutation({
