@@ -2099,11 +2099,7 @@ const VisaApplicationDetail = () => {
                   const isMatch = sum === documents.length;
                   
                   return (
-                    <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span className="font-medium">Total Documents:</span>
-                        <span className="font-bold text-foreground">{documents.length}</span>
-                      </div>
+                    <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-end">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
