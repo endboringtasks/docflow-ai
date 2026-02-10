@@ -1,55 +1,33 @@
 
 
-# Plan: Add Optional Completion Count to Client Portal Badge
+# Plan: Fix Review Status Count and Add Label
 
 ## Problem
 
-The Client Portal badge shows `1/28 required + 1 optional` but doesn't track optional completion. The Application Detail page shows `0/28 complete` for required and `0/1 complete` for optional. These should be consistent.
+The "Review Status" section shows `{completedCount} of {documents.length} collected`, which uses `documents.length` (unfiltered, may include non-applicable documents). It should use `applicableDocuments.length` (required + optional) and include a "(required + optional)" label.
 
 ## Changes
 
-### File: `src/pages/client-portal/ClientPortal.tsx`
+### File: `src/pages/migration/ApplicationDetail.tsx` (line 1992)
 
-**1. Add optional completed count (after line 702):**
-
+Change:
 ```tsx
-const optionalCompleted = optionalDocuments.filter(d => 
-  d.is_completed && 
-  d.review_status !== 'pending_client' && 
-  d.review_status !== 'rejected'
-).length;
-```
-
-**2. Update badge display (line 933):**
-
-Change from:
-```tsx
-{completedDocs}/{totalDocs} required{optionalCount > 0 ? ` + ${optionalCount} optional` : ''}
+{completedCount} of {documents.length} collected
 ```
 
 To:
 ```tsx
-{completedDocs}/{totalDocs} required{optionalCount > 0 ? ` + ${optionalCompleted}/${optionalCount} optional` : ''}
+{completedCount} of {applicableDocuments.length} collected (required + optional)
 ```
 
-This will display: `1/28 required + 0/1 optional`
-
-**3. Update submit confirmation dialog (around lines 1414-1416):**
-
-Update to also show optional completion:
-```tsx
-<strong>{completedDocs}</strong> of <strong>{totalDocs}</strong> required documents uploaded.
-{optionalCount > 0 && <> Plus <strong>{optionalCompleted}/{optionalCount}</strong> optional.</>}
-```
-
-## Result
-
-- Client Portal badge: `1/28 required + 0/1 optional` (matches Application Detail format)
-- Both views consistently show completion counts for required and optional documents
+This ensures:
+- The total count matches required + optional documents only (excluding non-applicable)
+- The label clarifies what the number represents
+- Consistency with the header stats showing Required and Optional separately
 
 ## File to Modify
 
-| File | Change |
-|------|--------|
-| `src/pages/client-portal/ClientPortal.tsx` | Add `optionalCompleted` variable; update badge and submit dialog to show optional completion |
+| File | Line | Change |
+|------|------|--------|
+| `src/pages/migration/ApplicationDetail.tsx` | 1992 | Replace `documents.length` with `applicableDocuments.length` and add "(required + optional)" label |
 
