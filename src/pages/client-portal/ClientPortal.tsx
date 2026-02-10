@@ -1416,7 +1416,8 @@ export default function ClientPortal() {
             <AlertDialogDescription>
               Once submitted, you won't be able to make changes. Make sure all your information is correct and all required documents are uploaded.
               <br /><br />
-              <strong>{completedDocs}</strong> of <strong>{totalDocs}</strong> documents uploaded.
+              <strong>{completedDocs}</strong> of <strong>{totalDocs}</strong> required documents uploaded.
+              {optionalCount > 0 && <> Plus <strong>{optionalCount}</strong> optional.</>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

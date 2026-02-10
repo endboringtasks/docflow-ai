@@ -1911,6 +1911,15 @@ const VisaApplicationDetail = () => {
                 <p className="font-medium">{requiredCompleted}/{requiredCount} complete</p>
               </div>
             </div>
+            {optionalCount > 0 && (
+              <div className="flex items-center gap-3">
+                <Circle className="w-5 h-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Optional</p>
+                  <p className="font-medium">{optionalCount} document{optionalCount !== 1 ? 's' : ''}</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
