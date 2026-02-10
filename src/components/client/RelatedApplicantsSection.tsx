@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, User, Trash2, Calendar, FileText } from "lucide-react";
+import { Plus, User, Trash2, Calendar, FileText, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -63,6 +63,7 @@ const RelatedApplicantsSection = ({
   const queryClient = useQueryClient();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [applicantToDelete, setApplicantToDelete] = useState<RelatedApplicant | null>(null);
+  const [applicantToEdit, setApplicantToEdit] = useState<RelatedApplicant | null>(null);
 
   // Remove related applicant mutation
   const removeApplicantMutation = useMutation({
@@ -118,12 +119,46 @@ const RelatedApplicantsSection = ({
     },
   });
 
+  // Edit related applicant mutation
+  const editApplicantMutation = useMutation({
+    mutationFn: async (updatedApplicant: RelatedApplicant) => {
+      const updatedApplicants = relatedApplicants.map(a =>
+        a.id === updatedApplicant.id ? updatedApplicant : a
+      );
+
+      const { error } = await supabase
+        .from("clients")
+        .update({ related_applicants: updatedApplicants as unknown as Json })
+        .eq("id", clientId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client", clientId] });
+      if (companyId) {
+        queryClient.invalidateQueries({ queryKey: ["clients", companyId] });
+      }
+      setApplicantToEdit(null);
+      toast.success("Related applicant updated");
+    },
+    onError: (error) => {
+      toast.error("Failed to update applicant", {
+        description: error.message,
+      });
+    },
+  });
+
   const handleAddApplicant = (applicant: Omit<RelatedApplicant, "id">) => {
     const newApplicant: RelatedApplicant = {
       ...applicant,
       id: crypto.randomUUID(),
     };
     addApplicantMutation.mutate(newApplicant);
+  };
+
+  const handleEditApplicant = (applicant: Omit<RelatedApplicant, "id">) => {
+    if (!applicantToEdit) return;
+    editApplicantMutation.mutate({ ...applicant, id: applicantToEdit.id });
   };
 
   return (
@@ -188,14 +223,24 @@ const RelatedApplicantsSection = ({
                   </div>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-destructive h-8 w-8"
-                onClick={() => setApplicantToDelete(applicant)}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground h-8 w-8"
+                  onClick={() => setApplicantToEdit(applicant)}
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-destructive h-8 w-8"
+                  onClick={() => setApplicantToDelete(applicant)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           ))}
         </div>
@@ -207,6 +252,16 @@ const RelatedApplicantsSection = ({
         onOpenChange={setIsAddDialogOpen}
         onAdd={handleAddApplicant}
         isLoading={addApplicantMutation.isPending}
+      />
+
+      {/* Edit Dialog */}
+      <AddRelatedApplicantDialog
+        open={!!applicantToEdit}
+        onOpenChange={(open) => { if (!open) setApplicantToEdit(null); }}
+        onAdd={handleEditApplicant}
+        isLoading={editApplicantMutation.isPending}
+        mode="edit"
+        initialData={applicantToEdit ?? undefined}
       />
 
       {/* Delete Confirmation Dialog */}

@@ -35,6 +35,8 @@ interface AddRelatedApplicantDialogProps {
   onOpenChange: (open: boolean) => void;
   onAdd: (applicant: RelatedApplicantFormData) => void;
   isLoading?: boolean;
+  mode?: "add" | "edit";
+  initialData?: RelatedApplicantFormData;
 }
 
 const RELATIONSHIP_OPTIONS: Record<"partner" | "dependant" | "witness", string[]> = {
@@ -58,15 +60,17 @@ const AddRelatedApplicantDialog = ({
   onOpenChange,
   onAdd,
   isLoading = false,
+  mode = "add",
+  initialData,
 }: AddRelatedApplicantDialogProps) => {
   const [form, setForm] = useState<RelatedApplicantFormData>(DEFAULT_FORM);
 
-  // Reset form when dialog opens
+  // Reset form when dialog opens — pre-fill if editing
   useEffect(() => {
     if (open) {
-      setForm(DEFAULT_FORM);
+      setForm(initialData ?? DEFAULT_FORM);
     }
-  }, [open]);
+  }, [open, initialData]);
 
   // Update relationship when type changes
   const handleTypeChange = (type: "partner" | "dependant" | "witness") => {
@@ -100,9 +104,11 @@ const AddRelatedApplicantDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add Related Applicant</DialogTitle>
+          <DialogTitle>{mode === "edit" ? "Edit Related Applicant" : "Add Related Applicant"}</DialogTitle>
           <DialogDescription>
-            Add a partner, dependant, or witness to this client's profile.
+            {mode === "edit"
+              ? "Update the details for this related applicant."
+              : "Add a partner, dependant, or witness to this client's profile."}
           </DialogDescription>
         </DialogHeader>
 
@@ -199,7 +205,7 @@ const AddRelatedApplicantDialog = ({
             </Button>
             <Button type="submit" disabled={!isValid || isLoading}>
               {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Add Applicant
+              {mode === "edit" ? "Save Changes" : "Add Applicant"}
             </Button>
           </DialogFooter>
         </form>
