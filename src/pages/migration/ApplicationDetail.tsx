@@ -2167,8 +2167,8 @@ const VisaApplicationDetail = () => {
                     )}
                   </h2>
                   <Badge variant="outline">
-                    {Object.values(groupedByApplicantType[applicantType]).flat().filter(d => d.completed).length}/
-                    {Object.values(groupedByApplicantType[applicantType]).flat().length}
+                    {Object.values(groupedByApplicantType[applicantType]).flat().filter(d => d.isApplicable && d.completed).length}/
+                    {Object.values(groupedByApplicantType[applicantType]).flat().filter(d => d.isApplicable).length}
                   </Badge>
                 </div>
                 
@@ -2181,7 +2181,7 @@ const VisaApplicationDetail = () => {
                       <FileText className="w-4 h-4" />
                       {category}
                       <Badge variant="outline" className="ml-2">
-                        {docs.filter(d => d.completed).length}/{docs.length}
+                        {docs.filter(d => d.isApplicable && d.completed).length}/{docs.filter(d => d.isApplicable).length}
                       </Badge>
                     </h3>
                     <div className="space-y-3">
