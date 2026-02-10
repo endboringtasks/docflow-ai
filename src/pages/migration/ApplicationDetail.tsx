@@ -2197,7 +2197,7 @@ const VisaApplicationDetail = () => {
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 flex-wrap">
-                              <span className={doc.completed ? "line-through text-muted-foreground" : ""}>
+                              <span>
                               {doc.name.replace(/\s*\(Translation\)\s*/gi, "").trim()}
                               </span>
                               {/* Requirement Type Badge */}
