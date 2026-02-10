@@ -2082,7 +2082,7 @@ const VisaApplicationDetail = () => {
                     </div>
                     <div>
                       <p className="text-2xl font-bold text-destructive">
-                        {documents.filter(d => d.reviewStatus === "rejected").length}
+                        {applicableDocuments.filter(d => d.reviewStatus === "rejected").length}
                       </p>
                       <p className="text-xs text-muted-foreground">Rejected</p>
                     </div>
