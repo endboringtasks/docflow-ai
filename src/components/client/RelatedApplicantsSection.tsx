@@ -223,14 +223,24 @@ const RelatedApplicantsSection = ({
                   </div>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground hover:text-destructive h-8 w-8"
-                onClick={() => setApplicantToDelete(applicant)}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground h-8 w-8"
+                  onClick={() => setApplicantToEdit(applicant)}
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-destructive h-8 w-8"
+                  onClick={() => setApplicantToDelete(applicant)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           ))}
         </div>
