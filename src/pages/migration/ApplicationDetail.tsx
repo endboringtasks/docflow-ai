@@ -2028,7 +2028,7 @@ const VisaApplicationDetail = () => {
                     </div>
                     <div>
                       <p className="text-2xl font-bold">
-                        {documents.filter(d => !d.filePath).length}
+                        {applicableDocuments.filter(d => !d.filePath).length}
                       </p>
                       <p className="text-xs text-muted-foreground">Pending Client</p>
                     </div>
