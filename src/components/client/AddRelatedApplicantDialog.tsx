@@ -60,15 +60,17 @@ const AddRelatedApplicantDialog = ({
   onOpenChange,
   onAdd,
   isLoading = false,
+  mode = "add",
+  initialData,
 }: AddRelatedApplicantDialogProps) => {
   const [form, setForm] = useState<RelatedApplicantFormData>(DEFAULT_FORM);
 
-  // Reset form when dialog opens
+  // Reset form when dialog opens — pre-fill if editing
   useEffect(() => {
     if (open) {
-      setForm(DEFAULT_FORM);
+      setForm(initialData ?? DEFAULT_FORM);
     }
-  }, [open]);
+  }, [open, initialData]);
 
   // Update relationship when type changes
   const handleTypeChange = (type: "partner" | "dependant" | "witness") => {
