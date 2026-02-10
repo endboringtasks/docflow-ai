@@ -1,33 +1,47 @@
 
 
-# Plan: Fix Review Status Count and Add Label
+# Plan: Fix Review Status Counts to Use Applicable Documents Only
 
 ## Problem
 
-The "Review Status" section shows `{completedCount} of {documents.length} collected`, which uses `documents.length` (unfiltered, may include non-applicable documents). It should use `applicableDocuments.length` (required + optional) and include a "(required + optional)" label.
+The four status count buttons (Pending Client, Ready to Review, Approved, Rejected) all filter from `documents` (which includes non-applicable documents) instead of `applicableDocuments`. This causes inflated numbers -- e.g., "Pending Client" shows 34 instead of the correct count based on required + optional only.
 
 ## Changes
 
-### File: `src/pages/migration/ApplicationDetail.tsx` (line 1992)
+### File: `src/pages/migration/ApplicationDetail.tsx`
 
-Change:
+Update all four status count calculations to use `applicableDocuments` instead of `documents`:
+
+| Line | Status | Current | Fix |
+|------|--------|---------|-----|
+| 2031 | Pending Client | `documents.filter(d => !d.filePath).length` | `applicableDocuments.filter(d => !d.filePath).length` |
+| 2049 | Ready to Review | `documents.filter(d => d.reviewStatus === "in_review").length` | `applicableDocuments.filter(d => d.reviewStatus === "in_review").length` |
+| 2067 | Approved | `documents.filter(d => d.reviewStatus === "approved").length` | `applicableDocuments.filter(d => d.reviewStatus === "approved").length` |
+| 2085 | Rejected | `documents.filter(d => d.reviewStatus === "rejected").length` | `applicableDocuments.filter(d => d.reviewStatus === "rejected").length` |
+
+Also update the `filteredDocuments` filter (line 1687-1691) to filter from `applicableDocuments` instead of `documents`, so clicking a status button only shows applicable documents:
+
 ```tsx
-{completedCount} of {documents.length} collected
+const filteredDocuments = useMemo(() => {
+  if (reviewFilter === "all") return applicableDocuments;
+  if (reviewFilter === "pending_client") return applicableDocuments.filter(d => !d.filePath);
+  return applicableDocuments.filter(d => d.filePath && d.reviewStatus === reviewFilter);
+}, [applicableDocuments, reviewFilter]);
 ```
 
-To:
-```tsx
-{completedCount} of {applicableDocuments.length} collected (required + optional)
-```
+## Result
 
-This ensures:
-- The total count matches required + optional documents only (excluding non-applicable)
-- The label clarifies what the number represents
-- Consistency with the header stats showing Required and Optional separately
+- All status counts reflect only required + optional documents
+- Pending Client count will match the "29" total shown in the header
+- Filtering by status also scopes to applicable documents only
 
-## File to Modify
+## Files to Modify
 
-| File | Line | Change |
-|------|------|--------|
-| `src/pages/migration/ApplicationDetail.tsx` | 1992 | Replace `documents.length` with `applicableDocuments.length` and add "(required + optional)" label |
+| File | Lines | Change |
+|------|-------|--------|
+| `src/pages/migration/ApplicationDetail.tsx` | 1687-1691 | Change `documents` to `applicableDocuments` in `filteredDocuments` |
+| `src/pages/migration/ApplicationDetail.tsx` | 2031 | Change `documents` to `applicableDocuments` |
+| `src/pages/migration/ApplicationDetail.tsx` | 2049 | Change `documents` to `applicableDocuments` |
+| `src/pages/migration/ApplicationDetail.tsx` | 2067 | Change `documents` to `applicableDocuments` |
+| `src/pages/migration/ApplicationDetail.tsx` | 2085 | Change `documents` to `applicableDocuments` |
 
