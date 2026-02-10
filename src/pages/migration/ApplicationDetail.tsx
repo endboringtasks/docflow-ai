@@ -1989,7 +1989,7 @@ const VisaApplicationDetail = () => {
                     <div>
                       <h3 className="font-semibold">Review Status</h3>
                       <span className="text-sm text-muted-foreground">
-                        {completedCount} of {documents.length} collected
+                        {completedCount} of {applicableDocuments.length} collected (required + optional)
                       </span>
                     </div>
                   </div>
