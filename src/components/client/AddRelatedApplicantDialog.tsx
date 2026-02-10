@@ -35,6 +35,8 @@ interface AddRelatedApplicantDialogProps {
   onOpenChange: (open: boolean) => void;
   onAdd: (applicant: RelatedApplicantFormData) => void;
   isLoading?: boolean;
+  mode?: "add" | "edit";
+  initialData?: RelatedApplicantFormData;
 }
 
 const RELATIONSHIP_OPTIONS: Record<"partner" | "dependant" | "witness", string[]> = {
