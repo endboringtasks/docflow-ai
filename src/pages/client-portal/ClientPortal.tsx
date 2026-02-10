@@ -700,6 +700,11 @@ export default function ClientPortal() {
   ).length;
   const totalDocs = requiredDocuments.length;
   const optionalCount = optionalDocuments.length;
+  const optionalCompleted = optionalDocuments.filter(d => 
+    d.is_completed && 
+    d.review_status !== 'pending_client' && 
+    d.review_status !== 'rejected'
+  ).length;
   const progress = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
 
   // Check if any documents need attention (pending_client or rejected)
