@@ -1679,6 +1679,7 @@ const VisaApplicationDetail = () => {
   const requiredCount = applicableDocuments.filter(d => d.required || d.requirementType === 'required').length;
   const requiredCompleted = applicableDocuments.filter(d => (d.required || d.requirementType === 'required') && d.completed).length;
   const optionalCount = applicableDocuments.filter(d => d.requirementType === 'optional').length;
+  const optionalCompleted = applicableDocuments.filter(d => d.requirementType === 'optional' && d.completed).length;
   const progress = applicableDocuments.length > 0 ? Math.round((completedCount / applicableDocuments.length) * 100) : 0;
 
   // Apply review status filter - MUST be before any conditional returns (hooks rule)
@@ -1898,13 +1899,6 @@ const VisaApplicationDetail = () => {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <p className="text-sm text-muted-foreground">Documents</p>
-                <p className="font-medium">{completedCount}/{documents.length} completed</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
               <Circle className="w-5 h-5 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground">Required</p>
@@ -1916,7 +1910,7 @@ const VisaApplicationDetail = () => {
                 <Circle className="w-5 h-5 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">Optional</p>
-                  <p className="font-medium">{optionalCount} document{optionalCount !== 1 ? 's' : ''}</p>
+                  <p className="font-medium">{optionalCompleted}/{optionalCount} complete</p>
                 </div>
               </div>
             )}
