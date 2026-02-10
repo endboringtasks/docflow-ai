@@ -1,46 +1,38 @@
 
 
-# Plan: Fix Category, Applicant, and Required Counts When Toggling Conditional Documents
+# Plan: Include Enabled Conditional Documents in the Optional Count
 
 ## Problem
 
-When a conditional document (e.g., "Previous Visas") is disabled, it still appears in the checklist (correct), but the category count (e.g., "0/4"), applicant count (e.g., "0/22"), and top-level required/optional counts (e.g., "0/29 complete") include the disabled document in the total. When toggling enable/disable, these counts should update to reflect only applicable documents.
+When a conditional document (e.g., "Previous Visas") is toggled to enabled, the "Required" and "Optional" counts in the Review Status section don't update. This is because conditional documents have `requirementType === 'conditional'`, which is excluded from both the required count (`requirementType === 'required'`) and the optional count (`requirementType === 'optional'`).
 
-## Root Cause
-
-The category and applicant badge counts are computed from `groupedByApplicantType`, which is built from `filteredDocuments`. Since the previous fix added disabled conditional documents to `filteredDocuments`, they are now included in the `docs.length` and `flat().length` totals used for the badges.
+Enabled conditional documents end up in a counting blind spot -- they exist in `applicableDocuments` but are not reflected in any visible counter.
 
 ## Fix
 
 ### File: `src/pages/migration/ApplicationDetail.tsx`
 
-**1. Category count badge (line 2184)** -- filter out non-applicable documents from the count:
+Update the optional count calculation (lines 1681-1682) to also include enabled conditional documents:
 
+**Before:**
 ```tsx
-// Before:
-{docs.filter(d => d.completed).length}/{docs.length}
-
-// After:
-{docs.filter(d => d.isApplicable && d.completed).length}/{docs.filter(d => d.isApplicable).length}
+const optionalCount = applicableDocuments.filter(d => d.requirementType === 'optional').length;
+const optionalCompleted = applicableDocuments.filter(d => d.requirementType === 'optional' && d.completed).length;
 ```
 
-**2. Applicant count badge (lines 2170-2171)** -- same filter:
-
+**After:**
 ```tsx
-// Before:
-{Object.values(groupedByApplicantType[applicantType]).flat().filter(d => d.completed).length}/
-{Object.values(groupedByApplicantType[applicantType]).flat().length}
-
-// After:
-{Object.values(groupedByApplicantType[applicantType]).flat().filter(d => d.isApplicable && d.completed).length}/
-{Object.values(groupedByApplicantType[applicantType]).flat().filter(d => d.isApplicable).length}
+const optionalCount = applicableDocuments.filter(d => d.requirementType === 'optional' || d.requirementType === 'conditional').length;
+const optionalCompleted = applicableDocuments.filter(d => (d.requirementType === 'optional' || d.requirementType === 'conditional') && d.completed).length;
 ```
 
-The top-level required/optional counts (lines 1678-1682) already use `applicableDocuments` which filters by `isApplicable`, so those are correct and need no changes.
+Since conditional documents are only in `applicableDocuments` when `isApplicable` is true (i.e., the user explicitly enabled them), this means:
+- Toggling a conditional document ON increases the optional count
+- Toggling it OFF decreases it
+- The required count remains unchanged (conditional docs are never "required")
 
-## Result
+## Files to Modify
 
-- Disabling a conditional document decreases the category, applicant, and overall totals
-- Enabling it increases them back
-- Disabled conditional documents remain visible in the list with their toggle
-- Top-level required/optional counts remain correct (already scoped to applicable)
+| File | Lines | Change |
+|------|-------|--------|
+| `src/pages/migration/ApplicationDetail.tsx` | 1681-1682 | Include `requirementType === 'conditional'` in optional count filters |
