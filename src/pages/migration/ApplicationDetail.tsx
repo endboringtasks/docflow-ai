@@ -1684,12 +1684,19 @@ const VisaApplicationDetail = () => {
 
   // Apply review status filter - MUST be before any conditional returns (hooks rule)
   const filteredDocuments = useMemo(() => {
-    if (reviewFilter === "all") return applicableDocuments;
-    // "pending_client" means documents awaiting client upload (no file yet)
-    if (reviewFilter === "pending_client") return applicableDocuments.filter(d => !d.filePath);
-    // Other filters apply to documents with files
-    return applicableDocuments.filter(d => d.filePath && d.reviewStatus === reviewFilter);
-  }, [applicableDocuments, reviewFilter]);
+    // Always include disabled conditional documents so the toggle remains visible
+    const conditionalDisabled = documents.filter(d => d.requirementType === "conditional" && !d.isApplicable);
+
+    if (reviewFilter === "all") return [...applicableDocuments, ...conditionalDisabled];
+    if (reviewFilter === "pending_client") return [
+      ...applicableDocuments.filter(d => !d.filePath),
+      ...conditionalDisabled,
+    ];
+    return [
+      ...applicableDocuments.filter(d => d.filePath && d.reviewStatus === reviewFilter),
+      ...conditionalDisabled,
+    ];
+  }, [documents, applicableDocuments, reviewFilter]);
 
   // Group documents by applicant type, then by category
   const groupedByApplicantType = useMemo(() => {
