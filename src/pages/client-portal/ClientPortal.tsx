@@ -690,13 +690,16 @@ export default function ClientPortal() {
     return client.first_name ? `${client.first_name}${client.last_name ? ` ${client.last_name}` : ""}` : "Client";
   };
 
-  // Documents with pending_client or rejected status should not count as complete
-  const completedDocs = documents.filter(d => 
+  // Split documents into required and optional for progress tracking
+  const requiredDocuments = documents.filter(d => d.requirement_type !== 'optional');
+  const optionalDocuments = documents.filter(d => d.requirement_type === 'optional');
+  const completedDocs = requiredDocuments.filter(d => 
     d.is_completed && 
     d.review_status !== 'pending_client' && 
     d.review_status !== 'rejected'
   ).length;
-  const totalDocs = documents.length;
+  const totalDocs = requiredDocuments.length;
+  const optionalCount = optionalDocuments.length;
   const progress = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
 
   // Check if any documents need attention (pending_client or rejected)
