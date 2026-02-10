@@ -104,9 +104,11 @@ const AddRelatedApplicantDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add Related Applicant</DialogTitle>
+          <DialogTitle>{mode === "edit" ? "Edit Related Applicant" : "Add Related Applicant"}</DialogTitle>
           <DialogDescription>
-            Add a partner, dependant, or witness to this client's profile.
+            {mode === "edit"
+              ? "Update the details for this related applicant."
+              : "Add a partner, dependant, or witness to this client's profile."}
           </DialogDescription>
         </DialogHeader>
 
