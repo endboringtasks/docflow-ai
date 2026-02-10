@@ -1679,6 +1679,7 @@ const VisaApplicationDetail = () => {
   const requiredCount = applicableDocuments.filter(d => d.required || d.requirementType === 'required').length;
   const requiredCompleted = applicableDocuments.filter(d => (d.required || d.requirementType === 'required') && d.completed).length;
   const optionalCount = applicableDocuments.filter(d => d.requirementType === 'optional').length;
+  const optionalCompleted = applicableDocuments.filter(d => d.requirementType === 'optional' && d.completed).length;
   const progress = applicableDocuments.length > 0 ? Math.round((completedCount / applicableDocuments.length) * 100) : 0;
 
   // Apply review status filter - MUST be before any conditional returns (hooks rule)
