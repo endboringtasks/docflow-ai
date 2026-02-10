@@ -935,7 +935,7 @@ export default function ClientPortal() {
                     )}
                   </div>
                   <Badge variant="outline">
-                    {completedDocs}/{totalDocs} required{optionalCount > 0 ? ` + ${optionalCount} optional` : ''}
+                    {completedDocs}/{totalDocs} required{optionalCount > 0 ? ` + ${optionalCompleted}/${optionalCount} optional` : ''}
                   </Badge>
                 </div>
               </CardHeader>
