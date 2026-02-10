@@ -1684,12 +1684,12 @@ const VisaApplicationDetail = () => {
 
   // Apply review status filter - MUST be before any conditional returns (hooks rule)
   const filteredDocuments = useMemo(() => {
-    if (reviewFilter === "all") return documents;
+    if (reviewFilter === "all") return applicableDocuments;
     // "pending_client" means documents awaiting client upload (no file yet)
-    if (reviewFilter === "pending_client") return documents.filter(d => !d.filePath);
+    if (reviewFilter === "pending_client") return applicableDocuments.filter(d => !d.filePath);
     // Other filters apply to documents with files
-    return documents.filter(d => d.filePath && d.reviewStatus === reviewFilter);
-  }, [documents, reviewFilter]);
+    return applicableDocuments.filter(d => d.filePath && d.reviewStatus === reviewFilter);
+  }, [applicableDocuments, reviewFilter]);
 
   // Group documents by applicant type, then by category
   const groupedByApplicantType = useMemo(() => {
@@ -2028,7 +2028,7 @@ const VisaApplicationDetail = () => {
                     </div>
                     <div>
                       <p className="text-2xl font-bold">
-                        {documents.filter(d => !d.filePath).length}
+                        {applicableDocuments.filter(d => !d.filePath).length}
                       </p>
                       <p className="text-xs text-muted-foreground">Pending Client</p>
                     </div>
@@ -2046,7 +2046,7 @@ const VisaApplicationDetail = () => {
                     </div>
                     <div>
                       <p className="text-2xl font-bold text-blue-600">
-                        {documents.filter(d => d.reviewStatus === "in_review").length}
+                        {applicableDocuments.filter(d => d.reviewStatus === "in_review").length}
                       </p>
                       <p className="text-xs text-muted-foreground">Ready to Review</p>
                     </div>
@@ -2064,7 +2064,7 @@ const VisaApplicationDetail = () => {
                     </div>
                     <div>
                       <p className="text-2xl font-bold text-green-600">
-                        {documents.filter(d => d.reviewStatus === "approved").length}
+                        {applicableDocuments.filter(d => d.reviewStatus === "approved").length}
                       </p>
                       <p className="text-xs text-muted-foreground">Approved</p>
                     </div>
@@ -2082,7 +2082,7 @@ const VisaApplicationDetail = () => {
                     </div>
                     <div>
                       <p className="text-2xl font-bold text-destructive">
-                        {documents.filter(d => d.reviewStatus === "rejected").length}
+                        {applicableDocuments.filter(d => d.reviewStatus === "rejected").length}
                       </p>
                       <p className="text-xs text-muted-foreground">Rejected</p>
                     </div>
