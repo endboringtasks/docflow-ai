@@ -1,47 +1,52 @@
 
 
-# Plan: Fix Review Status Counts to Use Applicable Documents Only
+# Plan: Add Edit Functionality for Related Applicants
 
-## Problem
+## Overview
 
-The four status count buttons (Pending Client, Ready to Review, Approved, Rejected) all filter from `documents` (which includes non-applicable documents) instead of `applicableDocuments`. This causes inflated numbers -- e.g., "Pending Client" shows 34 instead of the correct count based on required + optional only.
+Add an edit button next to each related applicant's delete button, and reuse the existing `AddRelatedApplicantDialog` by converting it to support both add and edit modes.
 
 ## Changes
 
-### File: `src/pages/migration/ApplicationDetail.tsx`
+### 1. Update `AddRelatedApplicantDialog.tsx` to support edit mode
 
-Update all four status count calculations to use `applicableDocuments` instead of `documents`:
+- Rename to a dual-purpose dialog (keep filename, update props)
+- Add optional `initialData` prop with the applicant data to edit
+- Add optional `mode` prop (`"add"` | `"edit"`, default `"add"`)
+- When `initialData` is provided, pre-fill the form with existing values instead of `DEFAULT_FORM`
+- Change dialog title to "Edit Related Applicant" and button to "Save Changes" when in edit mode
 
-| Line | Status | Current | Fix |
-|------|--------|---------|-----|
-| 2031 | Pending Client | `documents.filter(d => !d.filePath).length` | `applicableDocuments.filter(d => !d.filePath).length` |
-| 2049 | Ready to Review | `documents.filter(d => d.reviewStatus === "in_review").length` | `applicableDocuments.filter(d => d.reviewStatus === "in_review").length` |
-| 2067 | Approved | `documents.filter(d => d.reviewStatus === "approved").length` | `applicableDocuments.filter(d => d.reviewStatus === "approved").length` |
-| 2085 | Rejected | `documents.filter(d => d.reviewStatus === "rejected").length` | `applicableDocuments.filter(d => d.reviewStatus === "rejected").length` |
+### 2. Update `RelatedApplicantsSection.tsx`
 
-Also update the `filteredDocuments` filter (line 1687-1691) to filter from `applicableDocuments` instead of `documents`, so clicking a status button only shows applicable documents:
+- Add `Pencil` icon import from lucide-react
+- Add `applicantToEdit` state (`RelatedApplicant | null`)
+- Add `editApplicantMutation` that updates the specific applicant in the JSONB array (maps over `relatedApplicants`, replaces matching ID, writes back to Supabase)
+- Add an edit button (pencil icon) next to the delete button for each applicant row
+- Render the dialog in edit mode when `applicantToEdit` is set, passing the applicant data as `initialData`
 
-```tsx
-const filteredDocuments = useMemo(() => {
-  if (reviewFilter === "all") return applicableDocuments;
-  if (reviewFilter === "pending_client") return applicableDocuments.filter(d => !d.filePath);
-  return applicableDocuments.filter(d => d.filePath && d.reviewStatus === reviewFilter);
-}, [applicableDocuments, reviewFilter]);
-```
+## Technical Details
 
-## Result
+### `AddRelatedApplicantDialog.tsx` changes
 
-- All status counts reflect only required + optional documents
-- Pending Client count will match the "29" total shown in the header
-- Filtering by status also scopes to applicable documents only
+| Area | Change |
+|------|--------|
+| Props | Add `initialData?: RelatedApplicantFormData & { id?: string }` and `mode?: "add" \| "edit"` |
+| useEffect | Pre-fill form from `initialData` when provided, otherwise use `DEFAULT_FORM` |
+| Dialog title | Conditional: "Edit Related Applicant" vs "Add Related Applicant" |
+| Submit button | Conditional: "Save Changes" vs "Add Applicant" |
 
-## Files to Modify
+### `RelatedApplicantsSection.tsx` changes
 
-| File | Lines | Change |
-|------|-------|--------|
-| `src/pages/migration/ApplicationDetail.tsx` | 1687-1691 | Change `documents` to `applicableDocuments` in `filteredDocuments` |
-| `src/pages/migration/ApplicationDetail.tsx` | 2031 | Change `documents` to `applicableDocuments` |
-| `src/pages/migration/ApplicationDetail.tsx` | 2049 | Change `documents` to `applicableDocuments` |
-| `src/pages/migration/ApplicationDetail.tsx` | 2067 | Change `documents` to `applicableDocuments` |
-| `src/pages/migration/ApplicationDetail.tsx` | 2085 | Change `documents` to `applicableDocuments` |
+| Area | Change |
+|------|--------|
+| State | Add `applicantToEdit` state |
+| Mutation | Add `editApplicantMutation` that maps over array and replaces matching entry by ID |
+| UI | Add pencil edit button next to trash button per row |
+| Dialog | Pass `initialData` and `mode="edit"` when editing; reuse `onAdd` callback for both add/edit by checking mode |
+
+### Applicant row actions layout
+
+Each row will have two icon buttons side by side:
+- Pencil (edit) -- opens dialog pre-filled with that applicant's data
+- Trash (delete) -- existing delete confirmation behavior
 
