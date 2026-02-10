@@ -2064,7 +2064,7 @@ const VisaApplicationDetail = () => {
                     </div>
                     <div>
                       <p className="text-2xl font-bold text-green-600">
-                        {documents.filter(d => d.reviewStatus === "approved").length}
+                        {applicableDocuments.filter(d => d.reviewStatus === "approved").length}
                       </p>
                       <p className="text-xs text-muted-foreground">Approved</p>
                     </div>
