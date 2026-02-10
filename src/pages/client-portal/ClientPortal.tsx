@@ -700,6 +700,11 @@ export default function ClientPortal() {
   ).length;
   const totalDocs = requiredDocuments.length;
   const optionalCount = optionalDocuments.length;
+  const optionalCompleted = optionalDocuments.filter(d => 
+    d.is_completed && 
+    d.review_status !== 'pending_client' && 
+    d.review_status !== 'rejected'
+  ).length;
   const progress = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
 
   // Check if any documents need attention (pending_client or rejected)
@@ -930,7 +935,7 @@ export default function ClientPortal() {
                     )}
                   </div>
                   <Badge variant="outline">
-                    {completedDocs}/{totalDocs} required{optionalCount > 0 ? ` + ${optionalCount} optional` : ''}
+                    {completedDocs}/{totalDocs} required{optionalCount > 0 ? ` + ${optionalCompleted}/${optionalCount} optional` : ''}
                   </Badge>
                 </div>
               </CardHeader>
@@ -1417,7 +1422,7 @@ export default function ClientPortal() {
               Once submitted, you won't be able to make changes. Make sure all your information is correct and all required documents are uploaded.
               <br /><br />
               <strong>{completedDocs}</strong> of <strong>{totalDocs}</strong> required documents uploaded.
-              {optionalCount > 0 && <> Plus <strong>{optionalCount}</strong> optional.</>}
+              {optionalCount > 0 && <> Plus <strong>{optionalCompleted}/{optionalCount}</strong> optional.</>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
