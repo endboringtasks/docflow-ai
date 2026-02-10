@@ -1,56 +1,46 @@
 
 
-# Plan: Restore Visibility of Conditional Documents (e.g., Previous Visas)
+# Plan: Fix Category, Applicant, and Required Counts When Toggling Conditional Documents
 
 ## Problem
 
-After the recent change to filter the Review Status section by `applicableDocuments`, conditional documents (like "Previous Visas") that are disabled (`isApplicable: false`) are completely hidden from the checklist. Since they're invisible, agents can no longer find or re-enable them using the toggle switch.
+When a conditional document (e.g., "Previous Visas") is disabled, it still appears in the checklist (correct), but the category count (e.g., "0/4"), applicant count (e.g., "0/22"), and top-level required/optional counts (e.g., "0/29 complete") include the disabled document in the total. When toggling enable/disable, these counts should update to reflect only applicable documents.
 
 ## Root Cause
 
-Line 1687 changed `filteredDocuments` to start from `applicableDocuments` (which excludes disabled conditional docs). The document list renders from `filteredDocuments`, so disabled conditionals disappear entirely.
+The category and applicant badge counts are computed from `groupedByApplicantType`, which is built from `filteredDocuments`. Since the previous fix added disabled conditional documents to `filteredDocuments`, they are now included in the `docs.length` and `flat().length` totals used for the badges.
 
 ## Fix
 
 ### File: `src/pages/migration/ApplicationDetail.tsx`
 
-Update the `filteredDocuments` memo to include **all conditional documents** alongside applicable ones, so the enable/disable toggle remains accessible.
+**1. Category count badge (line 2184)** -- filter out non-applicable documents from the count:
 
-**Current (line 1686-1692):**
 ```tsx
-const filteredDocuments = useMemo(() => {
-  if (reviewFilter === "all") return applicableDocuments;
-  if (reviewFilter === "pending_client") return applicableDocuments.filter(d => !d.filePath);
-  return applicableDocuments.filter(d => d.filePath && d.reviewStatus === reviewFilter);
-}, [applicableDocuments, reviewFilter]);
+// Before:
+{docs.filter(d => d.completed).length}/{docs.length}
+
+// After:
+{docs.filter(d => d.isApplicable && d.completed).length}/{docs.filter(d => d.isApplicable).length}
 ```
 
-**Updated:**
-```tsx
-const filteredDocuments = useMemo(() => {
-  // Always include disabled conditional documents so the toggle remains visible
-  const conditionalDisabled = documents.filter(d => d.requirementType === "conditional" && !d.isApplicable);
+**2. Applicant count badge (lines 2170-2171)** -- same filter:
 
-  if (reviewFilter === "all") return [...applicableDocuments, ...conditionalDisabled];
-  if (reviewFilter === "pending_client") return [
-    ...applicableDocuments.filter(d => !d.filePath),
-    ...conditionalDisabled,
-  ];
-  return [
-    ...applicableDocuments.filter(d => d.filePath && d.reviewStatus === reviewFilter),
-    ...conditionalDisabled,
-  ];
-}, [documents, applicableDocuments, reviewFilter]);
+```tsx
+// Before:
+{Object.values(groupedByApplicantType[applicantType]).flat().filter(d => d.completed).length}/
+{Object.values(groupedByApplicantType[applicantType]).flat().length}
+
+// After:
+{Object.values(groupedByApplicantType[applicantType]).flat().filter(d => d.isApplicable && d.completed).length}/
+{Object.values(groupedByApplicantType[applicantType]).flat().filter(d => d.isApplicable).length}
 ```
 
-This ensures:
-- Disabled conditional documents (like "Previous Visas") always appear in the checklist with their toggle switch
-- Progress counts and status counts remain scoped to applicable documents only (unchanged)
-- Once a user enables a conditional document via the toggle, it moves into the applicable set and participates in counts normally
+The top-level required/optional counts (lines 1678-1682) already use `applicableDocuments` which filters by `isApplicable`, so those are correct and need no changes.
 
-## Files to Modify
+## Result
 
-| File | Lines | Change |
-|------|-------|--------|
-| `src/pages/migration/ApplicationDetail.tsx` | 1686-1692 | Include disabled conditional documents in `filteredDocuments` |
-
+- Disabling a conditional document decreases the category, applicant, and overall totals
+- Enabling it increases them back
+- Disabled conditional documents remain visible in the list with their toggle
+- Top-level required/optional counts remain correct (already scoped to applicable)
