@@ -254,6 +254,16 @@ const RelatedApplicantsSection = ({
         isLoading={addApplicantMutation.isPending}
       />
 
+      {/* Edit Dialog */}
+      <AddRelatedApplicantDialog
+        open={!!applicantToEdit}
+        onOpenChange={(open) => { if (!open) setApplicantToEdit(null); }}
+        onAdd={handleEditApplicant}
+        isLoading={editApplicantMutation.isPending}
+        mode="edit"
+        initialData={applicantToEdit ?? undefined}
+      />
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!applicantToDelete} onOpenChange={() => setApplicantToDelete(null)}>
         <AlertDialogContent>

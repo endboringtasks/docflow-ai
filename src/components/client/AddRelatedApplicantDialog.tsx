@@ -205,7 +205,7 @@ const AddRelatedApplicantDialog = ({
             </Button>
             <Button type="submit" disabled={!isValid || isLoading}>
               {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Add Applicant
+              {mode === "edit" ? "Save Changes" : "Add Applicant"}
             </Button>
           </DialogFooter>
         </form>
