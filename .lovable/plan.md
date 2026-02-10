@@ -1,48 +1,55 @@
 
 
-# Plan: Clean Up Application Detail Stats
+# Plan: Add Optional Completion Count to Client Portal Badge
+
+## Problem
+
+The Client Portal badge shows `1/28 required + 1 optional` but doesn't track optional completion. The Application Detail page shows `0/28 complete` for required and `0/1 complete` for optional. These should be consistent.
 
 ## Changes
 
-### File: `src/pages/migration/ApplicationDetail.tsx`
+### File: `src/pages/client-portal/ClientPortal.tsx`
 
-**1. Add optional completed count (after line 1681):**
+**1. Add optional completed count (after line 702):**
 
 ```tsx
-const optionalCompleted = applicableDocuments.filter(d => d.requirementType === 'optional' && d.completed).length;
+const optionalCompleted = optionalDocuments.filter(d => 
+  d.is_completed && 
+  d.review_status !== 'pending_client' && 
+  d.review_status !== 'rejected'
+).length;
 ```
 
-**2. Replace lines 1900-1922** -- Remove the "Documents" block, keep Required and Optional inline, and show completion for Optional too:
+**2. Update badge display (line 933):**
 
+Change from:
 ```tsx
-<div className="flex items-center gap-3">
-  <Circle className="w-5 h-5 text-muted-foreground" />
-  <div>
-    <p className="text-sm text-muted-foreground">Required</p>
-    <p className="font-medium">{requiredCompleted}/{requiredCount} complete</p>
-  </div>
-</div>
-{optionalCount > 0 && (
-  <div className="flex items-center gap-3">
-    <Circle className="w-5 h-5 text-muted-foreground" />
-    <div>
-      <p className="text-sm text-muted-foreground">Optional</p>
-      <p className="font-medium">{optionalCompleted}/{optionalCount} complete</p>
-    </div>
-  </div>
-)}
+{completedDocs}/{totalDocs} required{optionalCount > 0 ? ` + ${optionalCount} optional` : ''}
+```
+
+To:
+```tsx
+{completedDocs}/{totalDocs} required{optionalCount > 0 ? ` + ${optionalCompleted}/${optionalCount} optional` : ''}
+```
+
+This will display: `1/28 required + 0/1 optional`
+
+**3. Update submit confirmation dialog (around lines 1414-1416):**
+
+Update to also show optional completion:
+```tsx
+<strong>{completedDocs}</strong> of <strong>{totalDocs}</strong> required documents uploaded.
+{optionalCount > 0 && <> Plus <strong>{optionalCompleted}/{optionalCount}</strong> optional.</>}
 ```
 
 ## Result
 
-- "Documents" stat removed
-- Required shows: `0/28 complete`
-- Optional shows: `0/1 complete` (same format as Required)
-- Both stats appear on the same row
+- Client Portal badge: `1/28 required + 0/1 optional` (matches Application Detail format)
+- Both views consistently show completion counts for required and optional documents
 
 ## File to Modify
 
 | File | Change |
 |------|--------|
-| `src/pages/migration/ApplicationDetail.tsx` | Add `optionalCompleted` variable; remove "Documents" block; update Optional to show completion count |
+| `src/pages/client-portal/ClientPortal.tsx` | Add `optionalCompleted` variable; update badge and submit dialog to show optional completion |
 
