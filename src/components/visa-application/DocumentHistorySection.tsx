@@ -253,7 +253,7 @@ export function DocumentHistorySection({
                   ) : (
                     <Eye className="w-3 h-3 mr-1" />
                   )}
-                  View
+                  Review
                 </Button>
               </div>
             </div>

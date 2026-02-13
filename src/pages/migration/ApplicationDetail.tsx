@@ -2337,7 +2337,7 @@ const VisaApplicationDetail = () => {
                                   onClick={() => setPreviewDoc(doc)}
                                 >
                                   <Eye className="w-3 h-3 mr-1" />
-                                  View
+                                  Review
                                 </Button>
                               )}
                               {/* Toggle applicability for conditional documents */}
