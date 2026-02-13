@@ -17,6 +17,7 @@ import {
   Download,
   Eye,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -208,10 +209,18 @@ export function DocumentHistorySection({
           
           <div className="flex gap-3">
             {/* Timeline dot */}
-            <div className="flex-shrink-0 w-4 h-4 rounded-full bg-destructive/20 border-2 border-destructive mt-1" />
+            <div className={`flex-shrink-0 w-4 h-4 rounded-full mt-1 ${
+              entry.archived_reason === 'client_deleted'
+                ? 'bg-muted border-2 border-muted-foreground/40'
+                : 'bg-destructive/20 border-2 border-destructive'
+            }`} />
             
             {/* Content */}
-            <div className="flex-1 bg-destructive/5 border border-destructive/20 rounded-lg p-3 space-y-2">
+            <div className={`flex-1 rounded-lg p-3 space-y-2 ${
+              entry.archived_reason === 'client_deleted'
+                ? 'bg-muted/30 border border-border'
+                : 'bg-destructive/5 border border-destructive/20'
+            }`}>
             {/* File info */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
@@ -269,13 +278,20 @@ export function DocumentHistorySection({
                     <span>by {entry.uploader_name}</span>
                   ) : null}
                 </span>
-                <span className="flex items-center gap-1 text-destructive">
-                  <XCircle className="w-3 h-3" />
-                  Reviewed {format(new Date(entry.archived_at), "MMM d, yyyy 'at' h:mm a")}
-                  {entry.reviewer_name && (
-                    <span className="text-muted-foreground">by {entry.reviewer_name}</span>
-                  )}
-                </span>
+                {entry.archived_reason === 'client_deleted' ? (
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <Trash2 className="w-3 h-3" />
+                    Deleted by Client {format(new Date(entry.archived_at), "MMM d, yyyy 'at' h:mm a")}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-destructive">
+                    <XCircle className="w-3 h-3" />
+                    Reviewed {format(new Date(entry.archived_at), "MMM d, yyyy 'at' h:mm a")}
+                    {entry.reviewer_name && (
+                      <span className="text-muted-foreground">by {entry.reviewer_name}</span>
+                    )}
+                  </span>
+                )}
               </div>
 
               {/* Rejection reason */}
