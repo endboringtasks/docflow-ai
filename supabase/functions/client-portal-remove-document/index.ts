@@ -13,7 +13,6 @@ Deno.serve(async (req) => {
   try {
     const { token, doc_id, attachment_id } = await req.json()
 
-    // Require token and either doc_id (legacy) or attachment_id (new multi-file)
     if (!token || (!doc_id && !attachment_id)) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields: token and (doc_id or attachment_id)' }),
@@ -25,7 +24,6 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Validate the portal access token
     const { data: accessData, error: accessError } = await supabase
       .rpc("validate_portal_access_token", { p_token: token })
 
@@ -39,7 +37,6 @@ Deno.serve(async (req) => {
 
     const portalAccess = accessData[0]
 
-    // Check if already submitted
     if (portalAccess.is_submitted) {
       return new Response(
         JSON.stringify({ error: 'Application already submitted, cannot remove documents' }),
@@ -47,19 +44,21 @@ Deno.serve(async (req) => {
       )
     }
 
-    let documentChecklistId: string
-    let filePath: string | null = null
-
     if (attachment_id) {
       // New multi-file flow: remove specific attachment
       console.log('Removing attachment:', attachment_id)
 
-      // Get the attachment and verify it belongs to this application
       const { data: attachmentData, error: attachmentError } = await supabase
         .from('document_attachments')
         .select(`
           id, 
-          file_path, 
+          file_path,
+          file_name,
+          file_type,
+          file_size,
+          uploaded_at,
+          uploaded_by,
+          uploaded_by_client,
           document_checklist_id,
           document_checklist!inner (
             id,
@@ -79,7 +78,6 @@ Deno.serve(async (req) => {
         )
       }
 
-      // Verify the document belongs to this visa application
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const docChecklist = attachmentData.document_checklist as any
       
@@ -90,7 +88,6 @@ Deno.serve(async (req) => {
         )
       }
 
-      // Block deletion of rejected documents - must upload a replacement instead
       if (docChecklist?.review_status === 'rejected') {
         console.log('Blocking deletion of rejected document attachment')
         return new Response(
@@ -101,8 +98,31 @@ Deno.serve(async (req) => {
         )
       }
 
-      documentChecklistId = attachmentData.document_checklist_id
-      filePath = attachmentData.file_path
+      const documentChecklistId = attachmentData.document_checklist_id
+      const filePath = attachmentData.file_path
+
+      // Archive to history before deleting
+      const { error: archiveError } = await supabase
+        .from('document_attachment_history')
+        .insert({
+          document_checklist_id: documentChecklistId,
+          file_path: attachmentData.file_path,
+          file_name: attachmentData.file_name,
+          file_type: attachmentData.file_type,
+          file_size: attachmentData.file_size,
+          uploaded_at: attachmentData.uploaded_at,
+          uploaded_by: attachmentData.uploaded_by,
+          uploaded_by_client: attachmentData.uploaded_by_client,
+          archived_reason: 'client_deleted',
+          review_status_at_archive: docChecklist?.review_status || null,
+        })
+
+      if (archiveError) {
+        console.error('Failed to archive attachment to history:', archiveError)
+        // Continue anyway - deletion is more important than archival
+      } else {
+        console.log('Attachment archived to history before deletion')
+      }
 
       // Delete the attachment record
       const { error: deleteError } = await supabase
@@ -126,7 +146,6 @@ Deno.serve(async (req) => {
 
         if (removeError) {
           console.error('Failed to remove file from storage:', removeError)
-          // Continue anyway since the record is already deleted
         }
       }
 
@@ -153,25 +172,34 @@ Deno.serve(async (req) => {
         newFilePath = firstAttachment?.file_path || null
       }
 
+      // Preserve pending_client status
+      const previousStatus = docChecklist?.review_status
+      let newReviewStatus: string
+      if (previousStatus === 'pending_client') {
+        newReviewStatus = 'pending_client'
+      } else {
+        newReviewStatus = isCompleted ? 'in_review' : 'pending'
+      }
+
       // Update the document checklist
       const { error: updateError } = await supabase
         .from('document_checklist')
         .update({ 
           file_path: newFilePath, 
           is_completed: isCompleted,
-          review_status: isCompleted ? 'in_review' : 'pending'
+          review_status: newReviewStatus
         })
         .eq('id', documentChecklistId)
 
       if (updateError) {
         console.error('Failed to update document:', updateError)
-        // Don't fail - attachment is already deleted
       }
 
       console.log('Attachment removed successfully:', { 
         attachmentId: attachment_id, 
         remainingCount, 
-        isCompleted 
+        isCompleted,
+        newReviewStatus
       })
 
       return new Response(
@@ -186,10 +214,9 @@ Deno.serve(async (req) => {
       // Legacy flow: remove document by doc_id (removes all attachments)
       console.log('Legacy remove for doc_id:', doc_id)
 
-      // Get the document to find the file path
       const { data: docData, error: docError } = await supabase
         .from('document_checklist')
-        .select('id, visa_application_id, file_path')
+        .select('id, visa_application_id, file_path, review_status')
         .eq('id', doc_id)
         .eq('visa_application_id', portalAccess.visa_application_id)
         .single()
@@ -205,11 +232,35 @@ Deno.serve(async (req) => {
       // Get all attachments for this document
       const { data: attachments } = await supabase
         .from('document_attachments')
-        .select('id, file_path')
+        .select('id, file_path, file_name, file_type, file_size, uploaded_at, uploaded_by, uploaded_by_client')
         .eq('document_checklist_id', doc_id)
 
-      // Delete all attachments
+      // Archive and delete all attachments
       if (attachments && attachments.length > 0) {
+        // Archive to history
+        const historyRecords = attachments.map(a => ({
+          document_checklist_id: doc_id,
+          file_path: a.file_path,
+          file_name: a.file_name,
+          file_type: a.file_type,
+          file_size: a.file_size,
+          uploaded_at: a.uploaded_at,
+          uploaded_by: a.uploaded_by,
+          uploaded_by_client: a.uploaded_by_client,
+          archived_reason: 'client_deleted',
+          review_status_at_archive: docData.review_status || null,
+        }))
+
+        const { error: archiveError } = await supabase
+          .from('document_attachment_history')
+          .insert(historyRecords)
+
+        if (archiveError) {
+          console.error('Failed to archive attachments to history:', archiveError)
+        } else {
+          console.log('Archived', attachments.length, 'attachments to history')
+        }
+
         // Remove files from storage
         const supabaseFiles = attachments
           .filter(a => a.file_path && !a.file_path.startsWith('drive://'))
@@ -236,7 +287,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Also remove legacy file if it exists (backward compatibility)
+      // Also remove legacy file if it exists
       if (docData.file_path && !docData.file_path.startsWith('drive://')) {
         const { error: removeError } = await supabase.storage
           .from('document-attachments')
@@ -247,10 +298,19 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Update the document checklist to clear the file
+      // Preserve pending_client status
+      const previousStatus = docData.review_status
+      let newReviewStatus: string
+      if (previousStatus === 'pending_client') {
+        newReviewStatus = 'pending_client'
+      } else {
+        newReviewStatus = 'pending'
+      }
+
+      // Update the document checklist
       const { error: updateError } = await supabase
         .from('document_checklist')
-        .update({ file_path: null, is_completed: false, review_status: 'pending' })
+        .update({ file_path: null, is_completed: false, review_status: newReviewStatus })
         .eq('id', doc_id)
 
       if (updateError) {
@@ -261,7 +321,7 @@ Deno.serve(async (req) => {
         )
       }
 
-      console.log('Document removed successfully:', doc_id)
+      console.log('Document removed successfully:', doc_id, 'new status:', newReviewStatus)
       return new Response(
         JSON.stringify({ success: true, attachment_count: 0, is_completed: false }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
