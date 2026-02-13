@@ -1,8 +1,136 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
+import { decryptToken, isEncrypted, encryptToken } from '../_shared/token-encryption.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!
+const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
+
+interface DriveConnection {
+  access_token: string
+  refresh_token: string
+  token_expires_at: string
+  tokens_encrypted: boolean | null
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getValidAccessToken(
+  supabase: any,
+  companyId: string
+): Promise<string | null> {
+  const { data: connection, error: connError } = await supabase
+    .from('google_drive_connections')
+    .select('access_token, refresh_token, token_expires_at, tokens_encrypted')
+    .eq('company_id', companyId)
+    .single()
+
+  if (connError || !connection) {
+    console.log('No Google Drive connection found for company:', companyId)
+    return null
+  }
+
+  const conn = connection as DriveConnection
+
+  let accessToken = conn.access_token
+  let refreshToken = conn.refresh_token
+  let tokensNeedReencrypt = false
+
+  if (conn.tokens_encrypted === true) {
+    try {
+      accessToken = await decryptToken(conn.access_token)
+      refreshToken = await decryptToken(conn.refresh_token)
+    } catch (decryptError) {
+      const errName = decryptError instanceof Error ? decryptError.name : ''
+      const errMsg = decryptError instanceof Error ? decryptError.message : String(decryptError)
+      const looksLikePlaintext = errName === 'InvalidCharacterError' || /base64/i.test(errMsg)
+      if (!looksLikePlaintext) return null
+      tokensNeedReencrypt = true
+    }
+  } else {
+    const accessLooksEncrypted = isEncrypted(conn.access_token)
+    const refreshLooksEncrypted = isEncrypted(conn.refresh_token)
+    if (accessLooksEncrypted || refreshLooksEncrypted) {
+      try {
+        if (accessLooksEncrypted) accessToken = await decryptToken(conn.access_token)
+        if (refreshLooksEncrypted) refreshToken = await decryptToken(conn.refresh_token)
+      } catch {
+        accessToken = conn.access_token
+        refreshToken = conn.refresh_token
+      }
+    }
+    tokensNeedReencrypt = true
+  }
+
+  if (tokensNeedReencrypt) {
+    try {
+      const encryptedAccessToken = await encryptToken(accessToken)
+      const encryptedRefreshToken = await encryptToken(refreshToken)
+      await supabase
+        .from('google_drive_connections')
+        .update({ access_token: encryptedAccessToken, refresh_token: encryptedRefreshToken, tokens_encrypted: true })
+        .eq('company_id', companyId)
+    } catch { /* continue */ }
+  }
+
+  const expiresAt = new Date(conn.token_expires_at)
+  if (expiresAt <= new Date()) {
+    const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    })
+    const refreshData = await refreshResponse.json()
+    if (refreshData.error) {
+      console.error('Token refresh failed:', refreshData)
+      return null
+    }
+    accessToken = refreshData.access_token
+    const newExpiresAt = new Date(Date.now() + refreshData.expires_in * 1000).toISOString()
+    const encryptedAccessToken = await encryptToken(accessToken)
+    const encryptedRefreshToken = await encryptToken(refreshToken)
+    await supabase
+      .from('google_drive_connections')
+      .update({ access_token: encryptedAccessToken, refresh_token: encryptedRefreshToken, token_expires_at: newExpiresAt, tokens_encrypted: true })
+      .eq('company_id', companyId)
+  }
+
+  return accessToken
+}
+
+async function renameGoogleDriveFile(
+  accessToken: string,
+  fileId: string,
+  newName: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName }),
+      }
+    )
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null)
+      console.error('Google Drive rename error:', response.status, errorData)
+    }
+    return response.ok
+  } catch (error) {
+    console.error('Failed to rename Drive file:', error)
+    return false
+  }
 }
 
 Deno.serve(async (req) => {
@@ -64,7 +192,8 @@ Deno.serve(async (req) => {
             id,
             visa_application_id,
             min_files,
-            review_status
+            review_status,
+            company_id
           )
         `)
         .eq('id', attachment_id)
@@ -100,6 +229,7 @@ Deno.serve(async (req) => {
 
       const documentChecklistId = attachmentData.document_checklist_id
       const filePath = attachmentData.file_path
+      const companyId = docChecklist?.company_id
 
       // Archive to history before deleting
       const { error: archiveError } = await supabase
@@ -119,7 +249,6 @@ Deno.serve(async (req) => {
 
       if (archiveError) {
         console.error('Failed to archive attachment to history:', archiveError)
-        // Continue anyway - deletion is more important than archival
       } else {
         console.log('Attachment archived to history before deletion')
       }
@@ -138,12 +267,21 @@ Deno.serve(async (req) => {
         )
       }
 
-      // Remove file from storage if it's a Supabase storage file (not Drive)
-      if (filePath && !filePath.startsWith('drive://')) {
+      // Handle file: rename Drive files with DELETED_ prefix, remove Supabase storage files
+      if (filePath && filePath.startsWith('drive://') && companyId) {
+        const driveFileId = filePath.replace('drive://', '')
+        const accessToken = await getValidAccessToken(supabase, companyId)
+        if (accessToken) {
+          const deletedName = `DELETED_${attachmentData.file_name}`
+          console.log(`Renaming deleted Drive file ${driveFileId} to ${deletedName}`)
+          await renameGoogleDriveFile(accessToken, driveFileId, deletedName)
+        } else {
+          console.warn('No valid access token for renaming deleted Drive file, skipping rename')
+        }
+      } else if (filePath && !filePath.startsWith('drive://')) {
         const { error: removeError } = await supabase.storage
           .from('document-attachments')
           .remove([filePath])
-
         if (removeError) {
           console.error('Failed to remove file from storage:', removeError)
         }
@@ -216,7 +354,7 @@ Deno.serve(async (req) => {
 
       const { data: docData, error: docError } = await supabase
         .from('document_checklist')
-        .select('id, visa_application_id, file_path, review_status')
+        .select('id, visa_application_id, file_path, review_status, company_id')
         .eq('id', doc_id)
         .eq('visa_application_id', portalAccess.visa_application_id)
         .single()
@@ -261,7 +399,23 @@ Deno.serve(async (req) => {
           console.log('Archived', attachments.length, 'attachments to history')
         }
 
-        // Remove files from storage
+        // Rename Drive files with DELETED_ prefix
+        const driveAttachments = attachments.filter(a => a.file_path && a.file_path.startsWith('drive://'))
+        if (driveAttachments.length > 0 && docData.company_id) {
+          const accessToken = await getValidAccessToken(supabase, docData.company_id)
+          if (accessToken) {
+            for (const att of driveAttachments) {
+              const driveFileId = att.file_path.replace('drive://', '')
+              const deletedName = `DELETED_${att.file_name}`
+              console.log(`Renaming deleted Drive file ${driveFileId} to ${deletedName}`)
+              await renameGoogleDriveFile(accessToken, driveFileId, deletedName)
+            }
+          } else {
+            console.warn('No valid access token for renaming deleted Drive files, skipping rename')
+          }
+        }
+
+        // Remove Supabase storage files
         const supabaseFiles = attachments
           .filter(a => a.file_path && !a.file_path.startsWith('drive://'))
           .map(a => a.file_path!)
@@ -295,6 +449,13 @@ Deno.serve(async (req) => {
 
         if (removeError) {
           console.error('Failed to remove legacy file from storage:', removeError)
+        }
+      } else if (docData.file_path && docData.file_path.startsWith('drive://') && docData.company_id) {
+        // Rename legacy Drive file too
+        const driveFileId = docData.file_path.replace('drive://', '')
+        const accessToken = await getValidAccessToken(supabase, docData.company_id)
+        if (accessToken) {
+          await renameGoogleDriveFile(accessToken, driveFileId, `DELETED_legacy_file`)
         }
       }
 
