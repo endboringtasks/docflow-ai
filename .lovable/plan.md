@@ -1,73 +1,122 @@
 
-# Plan: Archive Deleted Documents and Preserve Review Status
+# Implementation Plan: Handle Client-Deleted Documents in Google Drive and History
 
-## Problem
-When a client deletes an uploaded document in the client portal:
-1. The document card doesn't return to the correct color because the edge function resets `review_status` to `'pending'` instead of preserving the previous status (e.g., `'pending_client'`)
-2. The deleted file is permanently removed without being archived to the history table, so agents have no record of what was deleted
+## Overview
+Three key changes to properly handle when a client deletes a document from the portal:
+1. **Rename Drive files** with "DELETED_" prefix instead of just removing them from the record
+2. **Update history display** to show "Deleted by Client" instead of "Reviewed" based on `archived_reason`
+3. **Apply conditional styling** to visually distinguish client deletions from agent rejections
 
-## Changes
+## File Changes
 
-### 1. Edge Function: `supabase/functions/client-portal-remove-document/index.ts`
+### 1. Update Edge Function: `supabase/functions/client-portal-remove-document/index.ts`
 
-**Archive before deleting**: Before removing the attachment record, insert it into `document_attachment_history` with `archived_reason: 'client_deleted'`. This mirrors the existing pattern used in `client-portal-upload` for rejected documents.
+**Current State:**
+- The function archives attachments with `archived_reason: 'client_deleted'` ✓ (already done)
+- The function preserves `pending_client` status ✓ (already done)
+- BUT: Google Drive files are skipped for removal instead of being renamed with "DELETED_" prefix
 
-**Preserve review status**: When updating the document checklist after deletion:
-- If the previous `review_status` was `'pending_client'`, keep it as `'pending_client'` (the agent requested a document and the client removed it -- it's still pending from the client)
-- Only use `'in_review'` or `'pending'` for documents that weren't in a special review state
+**Changes Needed:**
+- Add imports for token decryption at the top:
+  ```ts
+  import { decryptToken, isEncrypted, encryptToken } from '../_shared/token-encryption.ts'
+  ```
+- Add constants for Google credentials:
+  ```ts
+  const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!
+  const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
+  ```
+- Copy two helper functions from `client-portal-upload/index.ts`:
+  - `getValidAccessToken()` - handles token decryption, refresh, and re-encryption
+  - `renameGoogleDriveFile()` - calls Google Drive API to rename a file
 
-**Specifically, in the attachment removal flow (around lines 104-163):**
-- After fetching the attachment data but before deleting the record, insert a row into `document_attachment_history` with:
-  - All attachment fields (file_path, file_name, file_type, file_size, uploaded_at, uploaded_by, uploaded_by_client)
-  - `archived_reason: 'client_deleted'`
-  - `review_status_at_archive` from the current document checklist status
-- Update the review_status logic: if previous status was `'pending_client'`, preserve it; otherwise use the current logic (`isCompleted ? 'in_review' : 'pending'`)
+- **In the attachment flow** (around line 141-150):
+  - Replace the simple storage removal with Google Drive rename logic
+  - When deleting a Drive file (`drive://` path), rename it to `DELETED_{original_filename}`
+  - Keep Supabase storage file removal as-is
 
-### 2. Edge Function: Legacy flow (doc_id removal, around lines 195-260)
-- Same archival pattern: archive all attachments to history with `archived_reason: 'client_deleted'` before deleting them
-- Preserve `pending_client` status if that was the previous state
+- **In the legacy flow** (around line 264-277):
+  - Apply same rename logic to any Drive attachments before deletion
+  - Extract Drive files from the attachment list and rename them
 
-## No UI Changes Needed
-The client portal already uses `refreshDocuments()` after deletion, which re-fetches from the database. Once the edge function correctly preserves the `review_status`, the card colors will automatically reflect the right state (amber for `pending_client`).
-
-## Technical Details
-
-### New history record shape
+**Key Logic:**
 ```ts
-{
-  document_checklist_id: documentChecklistId,
-  file_path: attachment.file_path,
-  file_name: attachment.file_name,
-  file_type: attachment.file_type,
-  file_size: attachment.file_size,
-  uploaded_at: attachment.uploaded_at,
-  uploaded_by: attachment.uploaded_by,
-  uploaded_by_client: attachment.uploaded_by_client,
-  archived_reason: 'client_deleted',
-  review_status_at_archive: docChecklist.review_status,
+// For Drive files
+if (filePath && filePath.startsWith('drive://')) {
+  const driveFileId = filePath.replace('drive://', '')
+  const accessToken = await getValidAccessToken(supabase, portalAccess.company_id)
+  if (accessToken) {
+    const deletedName = `DELETED_${attachmentData.file_name}`
+    await renameGoogleDriveFile(accessToken, driveFileId, deletedName)
+  }
+}
+// For Supabase storage files
+else if (filePath) {
+  await supabase.storage.from('document-attachments').remove([filePath])
 }
 ```
 
-### Status preservation logic
-```ts
-// Determine new review_status
-const previousStatus = docChecklist?.review_status
-let newReviewStatus: string
-if (previousStatus === 'pending_client') {
-  newReviewStatus = 'pending_client'  // Agent requested doc, keep pending
-} else {
-  newReviewStatus = isCompleted ? 'in_review' : 'pending'
-}
+### 2. Update Component: `src/components/visa-application/DocumentHistorySection.tsx`
+
+**Current State:**
+- Lines 272-278 always show "Reviewed" with destructive red styling for all archived documents
+- No distinction between rejected documents and client-deleted documents
+
+**Changes Needed:**
+- **Lines 266-280** (timeline dot and status display):
+  - Add conditional rendering based on `entry.archived_reason`
+  - If `archived_reason === 'client_deleted'`: 
+    - Use `Trash2` icon instead of `XCircle`
+    - Show "Deleted by Client {timestamp}" instead of "Reviewed {timestamp}"
+    - Use `text-muted-foreground` color instead of `text-destructive`
+    - Remove reviewer name display (not applicable for client deletions)
+  - If archived_reason is anything else (rejected, rejected_replacement):
+    - Keep existing "Reviewed" text and destructive red styling
+    - Keep `XCircle` icon
+    - Keep reviewer name display
+
+- **Lines 218-220** (timeline dot styling):
+  - Change from hardcoded destructive red to conditional based on `archived_reason`
+  - If `client_deleted`: use muted/neutral color classes
+  - Otherwise: keep destructive red
+
+- **Lines 211-213** (card background styling):
+  - Change from hardcoded `bg-destructive/5` to conditional
+  - If `client_deleted`: use neutral background like `bg-muted/30` or `bg-background`
+  - Otherwise: keep `bg-destructive/5` and `border-destructive/20`
+
+**Visual Distinction:**
+```
+Rejected Document (existing style):
+- Red dot (destructive)
+- Red/destructive card background
+- "Reviewed" text with red icon
+
+Deleted by Client (new style):
+- Muted/gray dot (muted-foreground)
+- Neutral/muted card background  
+- "Deleted by Client" text with trash icon
 ```
 
-### Files to modify
+### 3. No Breaking Changes
+- The `DocumentHistoryEntry` interface already includes `archived_reason` field
+- The database already records the reason for archival
+- The edge function already stores `archived_reason: 'client_deleted'`
+- All styling changes are conditional based on existing data
 
-| File | Change |
-|------|--------|
-| `supabase/functions/client-portal-remove-document/index.ts` | Archive attachments to history before deletion; preserve `pending_client` status |
+## Implementation Order
+1. Copy helper functions from `client-portal-upload` to `client-portal-remove-document`
+2. Add Google Drive rename logic to both attachment and legacy flows
+3. Update DocumentHistorySection component to show different UI based on `archived_reason`
+4. Deploy the edge function
+5. Test end-to-end: delete a document and verify it appears as "Deleted by Client" in history with correct styling
 
-### Edge function to deploy
+## Files to Modify
+| File | Changes |
+|------|---------|
+| `supabase/functions/client-portal-remove-document/index.ts` | Add token/encryption imports, copy helper functions, add Drive rename logic |
+| `src/components/visa-application/DocumentHistorySection.tsx` | Conditional rendering for "Deleted by Client" vs "Reviewed", conditional styling |
+
+## Edge Functions to Deploy
 - `client-portal-remove-document`
 
-### Additional data needed from attachment query
-The current select for attachments needs to also fetch `file_name`, `file_type`, `file_size`, `uploaded_at`, `uploaded_by`, `uploaded_by_client` to populate the history record.
