@@ -28,7 +28,10 @@ import {
   X,
   Eye,
   Settings,
-  User
+  User,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -245,6 +248,20 @@ const DocumentTemplates = () => {
   const [selectedApplicationType, setSelectedApplicationType] = useState<string>("");
   const [searchName, setSearchName] = useState("");
   
+  // Sort states for application types overview
+  const [sortColumn, setSortColumn] = useState<'name' | 'code' | 'country' | 'category' | 'documents'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (column: typeof sortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+
   // Dialog states
   const [isAddDocOpen, setIsAddDocOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState<DocumentTemplate | null>(null);
@@ -458,6 +475,20 @@ const DocumentTemplates = () => {
     },
     enabled: !selectedApplicationType, // Only fetch when no app type selected
   });
+
+  const sortedApplicationSummary = useMemo(() => {
+    return [...applicationSummary].sort((a, b) => {
+      let cmp = 0;
+      switch (sortColumn) {
+        case 'name': cmp = a.name.localeCompare(b.name); break;
+        case 'code': cmp = a.code.localeCompare(b.code); break;
+        case 'country': cmp = (a.country?.name || '').localeCompare(b.country?.name || ''); break;
+        case 'category': cmp = (a.category?.name || '').localeCompare(b.category?.name || ''); break;
+        case 'documents': cmp = a.document_count - b.document_count; break;
+      }
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+  }, [applicationSummary, sortColumn, sortDirection]);
 
   // Get unique categories from templates
   const docCategories = [...new Set([
@@ -913,17 +944,42 @@ const DocumentTemplates = () => {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Application Name</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Country</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead className="text-center">Documents</TableHead>
+                   <TableRow>
+                    <TableHead className="cursor-pointer select-none hover:text-foreground" onClick={() => handleSort('name')}>
+                      <span className="flex items-center gap-1">
+                        Application Name
+                        {sortColumn === 'name' ? (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
+                      </span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none hover:text-foreground" onClick={() => handleSort('code')}>
+                      <span className="flex items-center gap-1">
+                        Code
+                        {sortColumn === 'code' ? (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
+                      </span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none hover:text-foreground" onClick={() => handleSort('country')}>
+                      <span className="flex items-center gap-1">
+                        Country
+                        {sortColumn === 'country' ? (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
+                      </span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none hover:text-foreground" onClick={() => handleSort('category')}>
+                      <span className="flex items-center gap-1">
+                        Category
+                        {sortColumn === 'category' ? (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
+                      </span>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none hover:text-foreground text-center" onClick={() => handleSort('documents')}>
+                      <span className="flex items-center justify-center gap-1">
+                        Documents
+                        {sortColumn === 'documents' ? (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
+                      </span>
+                    </TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {applicationSummary.map((app) => (
+                  {sortedApplicationSummary.map((app) => (
                     <TableRow key={app.id} className="cursor-pointer hover:bg-muted/50" onClick={() => {
                       if (app.country_id && app.country_id !== selectedCountry) {
                         setSelectedCountry(app.country_id);
