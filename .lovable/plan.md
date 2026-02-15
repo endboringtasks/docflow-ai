@@ -1,92 +1,56 @@
 
 
-# Plan: Add Column Sorting to Application Types Overview Table
+# Fix: Client Portal Delete Not Resetting Document Status
 
-## Overview
-Add clickable column headers to the "Application Types Overview" table so users can sort by Application Name, Code, Country, Category, and Documents count. Clicking a header toggles between ascending and descending order, with a visual arrow indicator.
+## Root Cause
 
-## Changes
+The edge function `client-portal-remove-document` has a bug where it tries to set `review_status = 'pending'` when a client deletes all attachments and the previous status was NOT `pending_client`. However, the database has a check constraint that only allows: `pending_client`, `in_review`, `approved`, `rejected`.
 
-### File: `src/pages/migration/DocumentChecklist.tsx`
+This causes the `UPDATE` on `document_checklist` to **fail silently** -- the error is logged but the function still returns `{ success: true }`. As a result:
+- `is_completed` stays `true` (green checkmark persists)
+- `file_path` keeps pointing to the old Drive file
+- The client portal shows stale data
 
-1. **Add sort state** (around line 246, with the other filter states):
-   - `sortColumn`: tracks which column is active (`'name' | 'code' | 'country' | 'category' | 'documents'`)
-   - `sortDirection`: tracks `'asc' | 'desc'`
-   - Default: sort by name ascending
+## Fix
 
-2. **Add sorted data memo** (after `applicationSummary` query):
-   - Create a `sortedApplicationSummary` useMemo that sorts the `applicationSummary` array based on the active sort column and direction
-   - String columns use `localeCompare`, documents column uses numeric comparison
+### File: `supabase/functions/client-portal-remove-document/index.ts`
 
-3. **Make table headers clickable** (lines 916-923):
-   - Replace plain text headers with clickable elements that call a `handleSort` function
-   - Add `ArrowUpDown` / `ArrowUp` / `ArrowDown` icon from lucide-react to indicate sort state
-   - Apply `cursor-pointer` and hover styling to sortable headers
+**Change 1 - Attachment flow (around line 318-319):**
 
-4. **Use sorted data in table body** (line 926):
-   - Replace `applicationSummary.map(...)` with `sortedApplicationSummary.map(...)`
+Replace `'pending'` with `'in_review'` as the fallback status when the previous status is not `pending_client`:
 
-## Technical Details
-
-### New state variables
 ```ts
-const [sortColumn, setSortColumn] = useState<'name' | 'code' | 'country' | 'category' | 'documents'>('name');
-const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+// Before (BROKEN):
+newReviewStatus = isCompleted ? 'in_review' : 'pending'
+
+// After (FIXED):
+newReviewStatus = 'in_review'
 ```
 
-### Sort handler
+**Change 2 - Legacy flow (around line 450):**
+
+Same fix -- replace `'pending'` with `'in_review'`:
+
 ```ts
-const handleSort = (column: typeof sortColumn) => {
-  if (sortColumn === column) {
-    setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-  } else {
-    setSortColumn(column);
-    setSortDirection('asc');
-  }
-};
+// Before (BROKEN):
+newReviewStatus = 'pending'
+
+// After (FIXED):
+newReviewStatus = 'in_review'
 ```
 
-### Sorted memo
-```ts
-const sortedApplicationSummary = useMemo(() => {
-  return [...applicationSummary].sort((a, b) => {
-    let cmp = 0;
-    switch (sortColumn) {
-      case 'name': cmp = a.name.localeCompare(b.name); break;
-      case 'code': cmp = a.code.localeCompare(b.code); break;
-      case 'country': cmp = (a.country?.name || '').localeCompare(b.country?.name || ''); break;
-      case 'category': cmp = (a.category?.name || '').localeCompare(b.category?.name || ''); break;
-      case 'documents': cmp = a.document_count - b.document_count; break;
-    }
-    return sortDirection === 'asc' ? cmp : -cmp;
-  });
-}, [applicationSummary, sortColumn, sortDirection]);
-```
+The rationale: when a client deletes their files, the document should go back to `in_review` status (agent can see it needs attention), unless it was already `pending_client` (which is preserved to keep the "request different doc" workflow intact).
 
-### Sortable header component (inline)
-Each header cell becomes clickable with an icon showing sort direction:
-```tsx
-<TableHead 
-  className="cursor-pointer select-none hover:text-foreground"
-  onClick={() => handleSort('name')}
->
-  <span className="flex items-center gap-1">
-    Application Name
-    {sortColumn === 'name' ? (
-      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
-    ) : (
-      <ArrowUpDown className="w-3 h-3 opacity-40" />
-    )}
-  </span>
-</TableHead>
-```
+### Manual Data Fix
 
-### New icon imports
-Add `ArrowUp`, `ArrowDown`, `ArrowUpDown` to the existing lucide-react import.
+The CoE document `f68000bc-a9e1-49e9-b1da-826d4eba3a66` currently has stale data (`is_completed: true`, `file_path` pointing to deleted Drive file, `review_status: in_review` with 0 attachments). This needs a one-time fix via SQL after deploying the edge function fix, or alternatively, the client can re-upload and re-delete to trigger the corrected logic.
 
-### Files to modify
+### Edge Function to Deploy
+- `client-portal-remove-document`
+
+## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/pages/migration/DocumentChecklist.tsx` | Add sort state, sort handler, sorted memo, clickable headers with icons |
+| `supabase/functions/client-portal-remove-document/index.ts` | Replace invalid `'pending'` status with `'in_review'` in both attachment and legacy flows |
 
