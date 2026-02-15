@@ -316,7 +316,7 @@ Deno.serve(async (req) => {
       if (previousStatus === 'pending_client') {
         newReviewStatus = 'pending_client'
       } else {
-        newReviewStatus = isCompleted ? 'in_review' : 'pending'
+        newReviewStatus = 'in_review'
       }
 
       // Update the document checklist
@@ -465,7 +465,7 @@ Deno.serve(async (req) => {
       if (previousStatus === 'pending_client') {
         newReviewStatus = 'pending_client'
       } else {
-        newReviewStatus = 'pending'
+        newReviewStatus = 'in_review'
       }
 
       // Update the document checklist
