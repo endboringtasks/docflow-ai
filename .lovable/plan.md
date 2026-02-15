@@ -1,122 +1,92 @@
 
-# Implementation Plan: Handle Client-Deleted Documents in Google Drive and History
+
+# Plan: Add Column Sorting to Application Types Overview Table
 
 ## Overview
-Three key changes to properly handle when a client deletes a document from the portal:
-1. **Rename Drive files** with "DELETED_" prefix instead of just removing them from the record
-2. **Update history display** to show "Deleted by Client" instead of "Reviewed" based on `archived_reason`
-3. **Apply conditional styling** to visually distinguish client deletions from agent rejections
+Add clickable column headers to the "Application Types Overview" table so users can sort by Application Name, Code, Country, Category, and Documents count. Clicking a header toggles between ascending and descending order, with a visual arrow indicator.
 
-## File Changes
+## Changes
 
-### 1. Update Edge Function: `supabase/functions/client-portal-remove-document/index.ts`
+### File: `src/pages/migration/DocumentChecklist.tsx`
 
-**Current State:**
-- The function archives attachments with `archived_reason: 'client_deleted'` ✓ (already done)
-- The function preserves `pending_client` status ✓ (already done)
-- BUT: Google Drive files are skipped for removal instead of being renamed with "DELETED_" prefix
+1. **Add sort state** (around line 246, with the other filter states):
+   - `sortColumn`: tracks which column is active (`'name' | 'code' | 'country' | 'category' | 'documents'`)
+   - `sortDirection`: tracks `'asc' | 'desc'`
+   - Default: sort by name ascending
 
-**Changes Needed:**
-- Add imports for token decryption at the top:
-  ```ts
-  import { decryptToken, isEncrypted, encryptToken } from '../_shared/token-encryption.ts'
-  ```
-- Add constants for Google credentials:
-  ```ts
-  const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!
-  const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
-  ```
-- Copy two helper functions from `client-portal-upload/index.ts`:
-  - `getValidAccessToken()` - handles token decryption, refresh, and re-encryption
-  - `renameGoogleDriveFile()` - calls Google Drive API to rename a file
+2. **Add sorted data memo** (after `applicationSummary` query):
+   - Create a `sortedApplicationSummary` useMemo that sorts the `applicationSummary` array based on the active sort column and direction
+   - String columns use `localeCompare`, documents column uses numeric comparison
 
-- **In the attachment flow** (around line 141-150):
-  - Replace the simple storage removal with Google Drive rename logic
-  - When deleting a Drive file (`drive://` path), rename it to `DELETED_{original_filename}`
-  - Keep Supabase storage file removal as-is
+3. **Make table headers clickable** (lines 916-923):
+   - Replace plain text headers with clickable elements that call a `handleSort` function
+   - Add `ArrowUpDown` / `ArrowUp` / `ArrowDown` icon from lucide-react to indicate sort state
+   - Apply `cursor-pointer` and hover styling to sortable headers
 
-- **In the legacy flow** (around line 264-277):
-  - Apply same rename logic to any Drive attachments before deletion
-  - Extract Drive files from the attachment list and rename them
+4. **Use sorted data in table body** (line 926):
+   - Replace `applicationSummary.map(...)` with `sortedApplicationSummary.map(...)`
 
-**Key Logic:**
+## Technical Details
+
+### New state variables
 ```ts
-// For Drive files
-if (filePath && filePath.startsWith('drive://')) {
-  const driveFileId = filePath.replace('drive://', '')
-  const accessToken = await getValidAccessToken(supabase, portalAccess.company_id)
-  if (accessToken) {
-    const deletedName = `DELETED_${attachmentData.file_name}`
-    await renameGoogleDriveFile(accessToken, driveFileId, deletedName)
+const [sortColumn, setSortColumn] = useState<'name' | 'code' | 'country' | 'category' | 'documents'>('name');
+const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+```
+
+### Sort handler
+```ts
+const handleSort = (column: typeof sortColumn) => {
+  if (sortColumn === column) {
+    setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+  } else {
+    setSortColumn(column);
+    setSortDirection('asc');
   }
-}
-// For Supabase storage files
-else if (filePath) {
-  await supabase.storage.from('document-attachments').remove([filePath])
-}
+};
 ```
 
-### 2. Update Component: `src/components/visa-application/DocumentHistorySection.tsx`
-
-**Current State:**
-- Lines 272-278 always show "Reviewed" with destructive red styling for all archived documents
-- No distinction between rejected documents and client-deleted documents
-
-**Changes Needed:**
-- **Lines 266-280** (timeline dot and status display):
-  - Add conditional rendering based on `entry.archived_reason`
-  - If `archived_reason === 'client_deleted'`: 
-    - Use `Trash2` icon instead of `XCircle`
-    - Show "Deleted by Client {timestamp}" instead of "Reviewed {timestamp}"
-    - Use `text-muted-foreground` color instead of `text-destructive`
-    - Remove reviewer name display (not applicable for client deletions)
-  - If archived_reason is anything else (rejected, rejected_replacement):
-    - Keep existing "Reviewed" text and destructive red styling
-    - Keep `XCircle` icon
-    - Keep reviewer name display
-
-- **Lines 218-220** (timeline dot styling):
-  - Change from hardcoded destructive red to conditional based on `archived_reason`
-  - If `client_deleted`: use muted/neutral color classes
-  - Otherwise: keep destructive red
-
-- **Lines 211-213** (card background styling):
-  - Change from hardcoded `bg-destructive/5` to conditional
-  - If `client_deleted`: use neutral background like `bg-muted/30` or `bg-background`
-  - Otherwise: keep `bg-destructive/5` and `border-destructive/20`
-
-**Visual Distinction:**
-```
-Rejected Document (existing style):
-- Red dot (destructive)
-- Red/destructive card background
-- "Reviewed" text with red icon
-
-Deleted by Client (new style):
-- Muted/gray dot (muted-foreground)
-- Neutral/muted card background  
-- "Deleted by Client" text with trash icon
+### Sorted memo
+```ts
+const sortedApplicationSummary = useMemo(() => {
+  return [...applicationSummary].sort((a, b) => {
+    let cmp = 0;
+    switch (sortColumn) {
+      case 'name': cmp = a.name.localeCompare(b.name); break;
+      case 'code': cmp = a.code.localeCompare(b.code); break;
+      case 'country': cmp = (a.country?.name || '').localeCompare(b.country?.name || ''); break;
+      case 'category': cmp = (a.category?.name || '').localeCompare(b.category?.name || ''); break;
+      case 'documents': cmp = a.document_count - b.document_count; break;
+    }
+    return sortDirection === 'asc' ? cmp : -cmp;
+  });
+}, [applicationSummary, sortColumn, sortDirection]);
 ```
 
-### 3. No Breaking Changes
-- The `DocumentHistoryEntry` interface already includes `archived_reason` field
-- The database already records the reason for archival
-- The edge function already stores `archived_reason: 'client_deleted'`
-- All styling changes are conditional based on existing data
+### Sortable header component (inline)
+Each header cell becomes clickable with an icon showing sort direction:
+```tsx
+<TableHead 
+  className="cursor-pointer select-none hover:text-foreground"
+  onClick={() => handleSort('name')}
+>
+  <span className="flex items-center gap-1">
+    Application Name
+    {sortColumn === 'name' ? (
+      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+    ) : (
+      <ArrowUpDown className="w-3 h-3 opacity-40" />
+    )}
+  </span>
+</TableHead>
+```
 
-## Implementation Order
-1. Copy helper functions from `client-portal-upload` to `client-portal-remove-document`
-2. Add Google Drive rename logic to both attachment and legacy flows
-3. Update DocumentHistorySection component to show different UI based on `archived_reason`
-4. Deploy the edge function
-5. Test end-to-end: delete a document and verify it appears as "Deleted by Client" in history with correct styling
+### New icon imports
+Add `ArrowUp`, `ArrowDown`, `ArrowUpDown` to the existing lucide-react import.
 
-## Files to Modify
-| File | Changes |
-|------|---------|
-| `supabase/functions/client-portal-remove-document/index.ts` | Add token/encryption imports, copy helper functions, add Drive rename logic |
-| `src/components/visa-application/DocumentHistorySection.tsx` | Conditional rendering for "Deleted by Client" vs "Reviewed", conditional styling |
+### Files to modify
 
-## Edge Functions to Deploy
-- `client-portal-remove-document`
+| File | Change |
+|------|--------|
+| `src/pages/migration/DocumentChecklist.tsx` | Add sort state, sort handler, sorted memo, clickable headers with icons |
 
