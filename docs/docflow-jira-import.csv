@@ -1,0 +1,332 @@
+Issue Type,Summary,Description,Acceptance Criteria,Epic Link,Labels,Priority
+Epic,Authentication & Multi-Company,"Implement user authentication (email/password, Google OAuth), multi-company support, onboarding wizard, team invitations, and company switching.",,,,High
+Story,Email/Password Sign-Up,"As a new user, I want to sign up with my email and password so that I can create an account and access the platform.","- User can enter email and password on /auth page
+- Validation prevents weak passwords and invalid email formats
+- Successful sign-up creates auth.users and profiles records
+- User is redirected to onboarding wizard
+- Duplicate email shows appropriate error message",Authentication & Multi-Company,auth,High
+Story,Google OAuth Sign-In,"As a user, I want to sign in with my Google account so that I can access the platform without managing another password.","- Google sign-in button is visible on /auth page
+- Clicking initiates Google OAuth consent flow
+- Successful auth creates or links account
+- User is redirected to dashboard (existing company) or onboarding (new user)
+- OAuth errors display user-friendly messages",Authentication & Multi-Company,auth,Medium
+Story,Company Creation via Onboarding,"As a new user, I want to create my company workspace so that I can start managing my clients and documents.","- Onboarding wizard has 3 steps: niche selection, company name, user profile
+- Niche options: Migration, Audit, HR
+- Company record created with selected niche
+- User added as owner in company_members
+- Profile display name saved
+- Redirect to niche-specific dashboard on completion",Authentication & Multi-Company,auth onboarding,High
+Story,Company Switching,"As a multi-company user, I want to switch between my companies so that I can manage different workspaces.","- CompanySwitcher dropdown visible in sidebar when user belongs to 2+ companies
+- Selecting a company changes the active context
+- All data reloads for the selected company
+- Current company name displayed in switcher",Authentication & Multi-Company,multi-company,Medium
+Story,Team Member Invitation,"As a company owner or admin, I want to invite team members by email so that they can join my workspace.","- Invitation form accepts email and role (admin, member, guest)
+- Invitation record created in team_invitations with status 'pending'
+- Only owners and admins can send invitations
+- Duplicate email for same company shows error
+- Pending invitations visible in team members list",Authentication & Multi-Company,team,High
+Story,Pending Invitation Acceptance,"As an invited user, I want to automatically join a company when I log in so that I don't need a separate acceptance flow.","- On login, system checks team_invitations for matching email
+- Matching pending invitation auto-creates company_members record
+- Invitation status updated to 'accepted'
+- User can access the company immediately",Authentication & Multi-Company,team,Medium
+Story,Protected Route Guard,"As a system, I want to prevent unauthenticated users from accessing protected pages so that data remains secure.","- Unauthenticated users redirected to /auth
+- Auth state checked before rendering protected routes
+- Loading state shown during auth check
+- Deep links preserved after authentication",Authentication & Multi-Company,auth security,High
+Epic,Client Management,"Manage client records including personal and corporate types, with CRUD operations, related applicants, and Google Drive folder status tracking.",,,,High
+Story,Client List View,"As a team member, I want to see all my company's clients in a list so that I can find and manage them.","- Client list shows name, type, email, folder status
+- Search filters clients by name or email
+- List loads only clients for active company
+- Empty state shown when no clients exist",Client Management,clients,High
+Story,Create Personal Client,"As a team member, I want to create a personal client record so that I can manage their visa application documents.","- Form collects: first name, last name, email, phone, nationality, passport number, date of birth
+- Client type set to 'personal'
+- Company_id auto-set to active company
+- Automation event triggered for folder creation
+- Client appears in list after creation",Client Management,clients,High
+Story,Create Corporate Client,"As a team member, I want to create a corporate client record so that I can manage a business entity's applications.","- Form collects: company name, email, phone
+- Client type set to 'corporate'
+- First/last name fields hidden for corporate type
+- Company_id auto-set to active company
+- Automation event triggered for folder creation",Client Management,clients,High
+Story,Client Detail View,"As a team member, I want to view a client's full profile and their applications so that I can manage their case.","- Detail page shows all client fields
+- Associated visa applications listed
+- Related applicants section visible
+- Folder status indicator shown
+- Edit and delete actions available based on role",Client Management,clients,Medium
+Story,Edit Client Information,"As a team member, I want to update a client's details so that their record stays current.","- All client fields are editable
+- Changes saved to database on submit
+- Success toast shown after save
+- Validation prevents empty required fields",Client Management,clients,Medium
+Story,Delete Client,"As an owner or admin, I want to delete a client so that I can remove incorrect or duplicate records.","- Delete requires confirmation dialog
+- Only owners and admins see delete option
+- Client and associated data removed
+- User redirected to client list after deletion",Client Management,clients,Medium
+Story,Related Applicants Management,"As a team member, I want to link clients as related applicants so that I can track family groups.","- Add related applicant dialog allows selecting existing clients
+- Relationship type selectable (spouse, child, etc.)
+- Related applicants displayed on client detail page
+- Related applicants stored in client.related_applicants JSON field",Client Management,clients,Low
+Story,Client Folder Status Tracking,"As a team member, I want to see the real-time status of folder creation so that I know when Drive folders are ready.","- Folder status badge shows: not_started, pending, created, error
+- Status updates in real-time via Supabase Realtime
+- Error state is visually distinct
+- Created state shows folder is ready for document uploads",Client Management,clients drive,Medium
+Epic,Visa Application Management,"Manage visa/migration applications with lifecycle status tracking, category selection, applicant assignment, and document checklists.",,,,High
+Story,Application List View,"As a team member, I want to see all applications so that I can track their status and progress.","- List shows application name, client, status, category
+- Filterable by status (draft, active, done)
+- Searchable by name
+- Only shows applications for active company",Visa Application Management,applications,High
+Story,Create Visa Application,"As a team member, I want to create a new visa application for a client so that I can manage their case documents.","- Form requires: application name, client selection
+- Optional: country, category, subcategory
+- Categories filter by selected country
+- Subcategories filter by selected category
+- Status defaults to 'draft'
+- Document checklist auto-generated from templates",Visa Application Management,applications,High
+Story,Application Detail View,"As a team member, I want to view full application details including documents and applicants so that I can manage the case.","- Shows application metadata (name, status, category, subclass)
+- Document checklist with upload/review capabilities
+- Applicants section with add/remove
+- Folder status indicator
+- Client portal invitation action",Visa Application Management,applications,High
+Story,Application Status Management,"As a team member, I want to change an application's status so that I can track its lifecycle.","- Status options: Draft, Active, Done
+- Status changeable via dropdown/select
+- No transition validation rules enforced
+- Status change saved immediately",Visa Application Management,applications,Medium
+Story,Applicant Assignment,"As a team member, I want to add applicants to an application so that each person's documents are tracked separately.","- Add applicant dialog with client and type selection
+- Applicant types from reference data (primary, spouse, child, etc.)
+- Primary applicant auto-assigned on creation
+- Sort order maintained
+- Remove applicant with confirmation",Visa Application Management,applications,Medium
+Story,Category and Subcategory Selection,"As a team member, I want to select visa categories hierarchically so that the correct document templates are applied.","- Country selection filters available categories
+- Category selection filters available subcategories
+- Selections stored on visa_applications record
+- Document templates may change based on category",Visa Application Management,applications reference-data,Medium
+Epic,Document Management,"Upload, review, and manage documents within application checklists including multi-file attachments, review workflows, translation requirements, and document history.",,,,High
+Story,Document Checklist Display,"As a team member, I want to see the document checklist for an application so that I know which documents are needed.","- Checklist auto-generated from templates on application creation
+- Shows document name, description, requirement type (required/conditional/optional)
+- Completion status indicator per item
+- Review status badge (pending_client, in_review, approved, rejected)
+- Category grouping for documents",Document Management,documents,High
+Story,Document Upload,"As a team member, I want to upload documents to a checklist item so that the client's file is stored securely.","- Upload to Supabase Storage
+- If Drive connected, also upload to Google Drive
+- Multiple files supported per checklist item (up to max_files)
+- File metadata (name, size, type) recorded
+- Upload progress indicator shown
+- Checklist item marked as completed after upload",Document Management,documents upload,High
+Story,Document Review Workflow,"As a team member, I want to approve or reject uploaded documents so that the client knows if resubmission is needed.","- Review status: pending_client → in_review → approved/rejected
+- Approve action sets status to 'approved'
+- Reject action requires a review comment
+- Reject sets status to 'rejected'
+- Review timestamp and reviewer recorded",Document Management,documents review,High
+Story,Multi-File Attachments,"As a team member, I want to attach multiple files to a single checklist item so that composite documents are handled correctly.","- Multiple files uploadable per checklist item
+- Each attachment tracked in document_attachments
+- Min/max file constraints from template (min_files, max_files)
+- Individual attachment removal supported
+- Completion status based on min_files threshold",Document Management,documents,Medium
+Story,Document History and Archival,"As a team member, I want to see the history of replaced documents so that I can track what was previously submitted.","- When attachment replaced, old version archived to document_attachment_history
+- History shows: file name, upload date, review status at time of archive, archive reason
+- History viewable per checklist item
+- Archived files retain their metadata",Document Management,documents history,Medium
+Story,Document Templates Configuration,"As an admin, I want to configure document checklist templates so that applications auto-generate the correct checklists.","- Templates configurable per visa type and applicant type
+- Template fields: document name, description, requirement type, category
+- Translation requirements configurable per template
+- Applicability conditions (age-based, etc.) supported
+- Templates linked to visa types via document_template_applications",Document Management,documents templates,Medium
+Story,Translation Requirements,"As a team member, I want to mark documents requiring translation so that the client knows which documents need certified translations.","- requires_translation flag on checklist items
+- Translation target language selectable
+- Translation certification type selectable (NAATI, sworn, etc.)
+- Translation notes field for special instructions
+- Translation-of reference links translation to original document",Document Management,documents translation,Low
+Story,Document Preview,"As a team member, I want to preview uploaded documents so that I can review them without downloading.","- PDF thumbnail generation
+- Preview dialog with full document view
+- Support for common document types
+- Fallback for unsupported types",Document Management,documents preview,Medium
+Epic,Client Portal,"Provide external clients with token-based access to upload documents, fill forms, and submit completed packages without requiring authentication.",,,,High
+Story,Portal Invitation Creation,"As a team member, I want to generate a client portal link so that my client can upload their documents remotely.","- Generate portal access from application detail
+- Set token expiration date
+- Enter client email
+- Unique access token generated
+- Portal link displayed for sharing (manual copy)
+- Record created in client_portal_access",Client Portal,portal,High
+Story,Token-Based Portal Access,"As an external client, I want to access my document portal via a link so that I can upload required documents without creating an account.","- Portal accessible via URL with token parameter
+- Token validated against client_portal_access
+- Expired tokens show expiry message
+- Submitted portals show read-only view
+- Last accessed timestamp updated on each visit",Client Portal,portal,High
+Story,Client Document Upload via Portal,"As an external client, I want to upload documents through the portal so that my agent receives the files they need.","- Document checklist displayed with descriptions
+- Upload button per checklist item
+- Files uploaded via client-portal-upload edge function
+- Review status set to pending_client after upload
+- Upload confirmation shown",Client Portal,portal upload,High
+Story,Client Document Removal via Portal,"As an external client, I want to remove a document I uploaded so that I can replace it with a correct version.","- Remove button on uploaded documents
+- Confirmation dialog before removal
+- File removed from Storage and Drive
+- If all attachments removed, is_completed reset to false
+- Review status reset to in_review",Client Portal,portal,Medium
+Story,Portal Form Data Entry,"As an external client, I want to fill in my personal information so that my agent has the details they need.","- Form fields displayed in portal
+- Data saved to client_form_data table
+- Auto-save or explicit save
+- Form data linked to client, application, and company",Client Portal,portal forms,Medium
+Story,Portal Submission,"As an external client, I want to submit my completed portal so that my agent knows I'm done uploading.","- Submit button available when documents are uploaded
+- Submission is one-time and irreversible
+- is_submitted set to true, submitted_at recorded
+- Portal becomes read-only after submission
+- Notification sent to company members",Client Portal,portal,High
+Epic,Google Drive Integration,"Connect company Google Drive accounts via OAuth, manage folder structure, sync uploaded documents, and track folder creation status.",,,,High
+Story,Google Drive OAuth Connection,"As an owner or admin, I want to connect my company's Google Drive so that client documents are automatically stored there.","- Connect button in Settings → Google Drive
+- Initiates OAuth 2.0 flow via google-drive-auth edge function
+- Callback handles token exchange and storage
+- Tokens encrypted before database storage
+- Connected email displayed after success",Google Drive Integration,drive auth,High
+Story,Root Folder Selection,"As an owner or admin, I want to select a root folder in Drive so that all client folders are created under it.","- Folder browser dialog after connection
+- Navigate Drive folder hierarchy
+- Select folder and confirm
+- Root folder ID and name stored on connection
+- Drive folder structure created under this root",Google Drive Integration,drive,High
+Story,Automatic Client Folder Creation,"As a system, I want to auto-create client folders in Drive so that documents have an organized storage structure.","- Client creation triggers automation event
+- Webhook dispatches to Make.com
+- Make.com creates folder in Drive: {Root}/{Client Name}/
+- Callback updates client.client_folder_id and folder_status
+- Documents Received subfolder created if setting enabled
+- 30-second timeout marks folder as error if no callback",Google Drive Integration,drive automation,High
+Story,Automatic Application Folder Creation,"As a system, I want to auto-create application folders in Drive so that each case has its own document storage.","- Application creation triggers automation event
+- Webhook dispatches to Make.com
+- Make.com creates folder in Drive: {Root}/{Client}/{Application}/
+- Callback updates visa_applications.visa_application_folder_id
+- Folder created as subfolder of client folder",Google Drive Integration,drive automation,High
+Story,Document Sync to Drive,"As a system, I want to upload documents to both Storage and Drive so that files are accessible from Drive.","- File uploaded to Supabase Storage first
+- If Drive connected, internal-upload edge function copies to Drive
+- File placed in correct application folder
+- Drive file ID not stored (uses folder structure)
+- If Drive upload fails, Storage copy is retained",Google Drive Integration,drive upload,High
+Story,Google Drive Disconnection,"As an owner or admin, I want to disconnect Google Drive so that I can switch accounts or stop syncing.","- Disconnect button in Settings → Google Drive
+- Confirmation dialog required
+- Tokens revoked and connection record deleted
+- Existing files in Drive remain untouched
+- New uploads go to Storage only",Google Drive Integration,drive,Medium
+Story,Folder Status Real-Time Tracking,"As a team member, I want to see folder creation status update in real-time so that I know when folders are ready.","- Supabase Realtime subscription on folder_status columns
+- Status badge updates without page refresh
+- States: not_started → pending → created / error
+- useFolderStatusRealtime hook handles subscriptions",Google Drive Integration,drive realtime,Medium
+Epic,Webhook & Automation System,"Configure platform-level webhooks for event dispatching with payload customization, HMAC signing, retry logic, rate limiting, and monitoring.",,,,Medium
+Story,Webhook Configuration,"As a platform admin, I want to create webhook endpoints so that external systems receive event notifications.","- Create webhook with: name, URL, selected events, included fields
+- Configure timeout (seconds), max retries, retry backoff
+- Optional secret key for HMAC signing
+- Enable/disable toggle
+- Webhook saved to platform_webhooks",Webhook & Automation System,webhooks admin,High
+Story,Webhook Event Selection,"As a platform admin, I want to choose which events trigger a webhook so that endpoints only receive relevant data.","- Event types: client.created/updated/deleted, application.created/updated/deleted
+- Multi-select for events per webhook
+- Events grouped by entity (Client, Application)
+- At least one event required per webhook",Webhook & Automation System,webhooks,Medium
+Story,Webhook Payload Field Selection,"As a platform admin, I want to select which fields are included in webhook payloads so that only necessary data is transmitted.","- Field selection per entity category (client, visa_application)
+- Each field has label and description
+- Default fields pre-selected
+- Selected fields stored in included_fields array",Webhook & Automation System,webhooks,Medium
+Story,Webhook Secret Key Signing,"As a platform admin, I want to sign webhook payloads with a secret key so that receivers can verify authenticity.","- Optional secret key per webhook
+- HMAC-SHA256 signature included in request headers
+- Secret key stored securely
+- Timing-safe comparison utility available for verification",Webhook & Automation System,webhooks security,Medium
+Story,Webhook Retry Configuration,"As a platform admin, I want to configure retry behavior so that transient failures are handled automatically.","- Max retries configurable (default 3)
+- Retry backoff in seconds (exponential)
+- Timeout per request configurable
+- Failed deliveries retried automatically",Webhook & Automation System,webhooks,Medium
+Story,Webhook Monitoring Dashboard,"As a platform admin, I want to monitor webhook delivery status so that I can identify and troubleshoot failures.","- Request log showing: endpoint, status code, duration, timestamp
+- Success/failure counts
+- Rate-limited request tracking
+- Hourly stats aggregation via get_webhook_hourly_stats()
+- Error messages displayed for failed requests",Webhook & Automation System,webhooks monitoring,Medium
+Story,Webhook Rate Limiting,"As a system, I want to rate-limit webhook consumers so that the platform is protected from abuse.","- Per-endpoint rate limiting via check_rate_limit() function
+- Configurable max requests and window size
+- Rate limit records in webhook_rate_limits table
+- Periodic cleanup via cleanup-rate-limits edge function
+- Rate-limited requests logged with rate_limited flag",Webhook & Automation System,webhooks security,Medium
+Epic,Platform Administration,"Provide super-admin capabilities including company management, user management, impersonation, audit logging, platform settings, and reference data management.",,,,Medium
+Story,Admin Dashboard,"As a platform admin, I want to see platform-wide metrics so that I can monitor system health and usage.","- Overview of total companies, users, applications
+- Accessible only to platform_admins
+- Separate admin layout with dedicated navigation
+- Dashboard at /admin route",Platform Administration,admin,High
+Story,Company Management,"As a platform admin, I want to view and manage all companies so that I can provide support and oversight.","- List all companies with name, niche, plan, member count
+- View company detail with members and settings
+- Edit company properties
+- Navigate to company detail page",Platform Administration,admin companies,High
+Story,User Management,"As a platform admin, I want to view and manage all users so that I can handle account issues.","- List all user profiles
+- View user details and company memberships
+- Delete user action via admin-delete-user edge function
+- User deletion removes auth.users record",Platform Administration,admin users,High
+Story,User Impersonation,"As a super admin, I want to act as another user so that I can debug issues they report.","- Impersonate action generates temporary auth token
+- ImpersonationBanner displayed during session
+- Admin can end impersonation and return to admin account
+- Only super_admin role can impersonate
+- Audit log entry created for impersonation",Platform Administration,admin security,High
+Story,Audit Log Viewing,"As a platform admin, I want to review audit logs so that I can track administrative actions.","- Audit logs list: action, entity type, entity ID, timestamp, user
+- Details column with JSON payload
+- IP address recorded where available
+- Filterable by action type and date range",Platform Administration,admin audit,Medium
+Story,Platform Settings Management,"As a platform admin, I want to manage platform-level settings so that I can configure system behavior.","- Key-value settings store
+- Secret flag for sensitive values
+- Settings editable by platform admins
+- Updated_by and updated_at tracking",Platform Administration,admin settings,Medium
+Story,Reference Data Management,"As a platform admin, I want to manage reference data so that the system has current visa types, countries, and categories.","- CRUD for: countries, languages, applicant types, categories, subcategories, visa types, translation cert types
+- Category-applicant type rules configuration
+- Sort order and active/inactive toggle
+- Reference data used across all companies",Platform Administration,admin reference-data,Medium
+Story,Feedback Management,"As a platform admin, I want to review user feedback so that I can prioritize improvements.","- List all feedback submissions
+- Filter by type (bug, feature request, general) and status
+- Admin notes field for internal comments
+- Status tracking for feedback resolution",Platform Administration,admin feedback,Low
+Epic,Billing & Subscriptions,"Display subscription plan information and billing status. Stripe integration schema exists but payment processing is not implemented.",,,,Low
+Story,Company Billing Page,"As an owner or admin, I want to view my company's billing information so that I can manage my subscription.","- Display current subscription plan
+- Show Stripe customer ID if linked
+- Billing page accessible from main navigation
+- Only owners and admins can access
+- NOTE: No actual payment processing or plan changes available",Billing & Subscriptions,billing,Medium
+Story,Admin Billing Overview,"As a platform admin, I want to see billing status across all companies so that I can track revenue.","- List companies with their subscription plans
+- Show subscription status
+- Platform-level billing metrics
+- NOTE: Display only; no payment processing",Billing & Subscriptions,billing admin,Low
+Epic,Notification System,"Deliver in-app notifications for key events with real-time updates, read tracking, and notification bell UI.",,,,Medium
+Story,Notification Bell,"As a user, I want to see a notification indicator so that I know when something requires my attention.","- Bell icon in app header
+- Unread count badge displayed
+- Click opens notification dropdown/panel
+- Notifications specific to user and active company",Notification System,notifications,High
+Story,Real-Time Notification Delivery,"As a user, I want to receive notifications in real-time so that I'm immediately aware of new events.","- Supabase Realtime subscription on notifications table
+- New notifications appear without page refresh
+- Notification types: client_portal_submitted, document_uploaded, etc.
+- Each notification has title, message, and metadata",Notification System,notifications realtime,High
+Story,Mark Notifications as Read,"As a user, I want to mark notifications as read so that I can track what I've already reviewed.","- Individual mark-as-read action
+- Bulk mark-all-as-read action
+- Read timestamp recorded
+- Read notifications visually distinguished from unread",Notification System,notifications,Medium
+Epic,User Feedback System,"Allow users to submit bug reports, feature requests, and general feedback via an in-app widget.",,,,Low
+Story,Feedback Widget,"As a user, I want to submit feedback from any page so that I can report issues or suggest features.","- Floating feedback button visible on all authenticated pages
+- Feedback dialog with: title, description, type selector
+- Types: bug report, feature request, general feedback
+- User agent and current page auto-captured
+- Submission saved to beta_feedback table",User Feedback System,feedback,Medium
+Story,Feedback Status Tracking,"As a platform admin, I want to track feedback resolution so that submissions are addressed.","- Status field on feedback records
+- Admin notes for internal discussion
+- Status visible in admin feedback list
+- Updated_at timestamp on status changes",User Feedback System,feedback admin,Low
+Epic,Internationalization,"Support multiple languages (EN, ES, PT) with UI translation, database entity translations, and per-company language preferences.",,,,Medium
+Story,Language Switching,"As a user, I want to switch the interface language so that I can use the app in my preferred language.","- Language switcher in app header/sidebar
+- Supported languages: English, Spanish, Portuguese
+- Selection persisted across sessions
+- UI immediately updates on language change",Internationalization,i18n,High
+Story,UI Translation,"As a user, I want all UI text in my selected language so that I can navigate without language barriers.","- All UI strings externalized to translation files
+- Translation files: public/locales/{lang}/translation.json
+- i18next framework with browser language detection
+- HTTP backend for lazy loading translations",Internationalization,i18n,High
+Story,Company Preferred Language,"As an owner, I want to set a default language for my company so that new members see the right language.","- Preferred language setting on company record
+- Used as fallback when user has no preference
+- Configurable in company settings
+- Stored in companies.preferred_language",Internationalization,i18n,Low
+Epic,SEO & Marketing Pages,"Implement search engine optimization with meta tags, sitemaps, and static legal pages.",,,,Low
+Story,Dynamic Meta Tags,"As a system, I want to set appropriate meta tags per page so that search engines index the site correctly.","- SEO component sets title, description, OG tags per page
+- Title under 60 characters with main keyword
+- Meta description under 160 characters
+- noIndex flag for authenticated pages
+- react-helmet-async for head management",SEO & Marketing Pages,seo,Medium
+Story,Sitemap and Robots,"As a system, I want to provide sitemap.xml and robots.txt so that search crawlers discover pages efficiently.","- Static sitemap.xml in public directory
+- robots.txt with crawl directives
+- Google Search Console verification file present",SEO & Marketing Pages,seo,Low
+Story,Legal Pages,"As a visitor, I want to read privacy policy and terms of service so that I understand the platform's legal terms.","- /privacy route with Privacy Policy content
+- /terms route with Terms of Service content
+- Pages accessible without authentication
+- Linked from footer/auth pages",SEO & Marketing Pages,legal,Low
