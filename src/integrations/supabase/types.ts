@@ -1682,6 +1682,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_pending_invitations: {
+        Args: { p_email: string; p_user_id: string }
+        Returns: undefined
+      }
       check_rate_limit: {
         Args: {
           p_endpoint: string
