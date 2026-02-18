@@ -242,6 +242,21 @@ const MigrationClients = () => {
   // Delete client mutation
   const deleteClientMutation = useMutation({
     mutationFn: async (client: Client) => {
+      // Best-effort: rename Google Drive folder with DELETED_ prefix before deleting
+      if (client.client_folder_id && currentCompany?.id) {
+        try {
+          await supabase.functions.invoke("google-drive-rename-folder", {
+            body: {
+              companyId: currentCompany.id,
+              folderId: client.client_folder_id,
+              newPrefix: "DELETED_",
+            },
+          });
+        } catch (renameError) {
+          console.warn("Failed to rename Drive folder (best-effort):", renameError);
+        }
+      }
+
       const { error } = await supabase
         .from("clients")
         .delete()
