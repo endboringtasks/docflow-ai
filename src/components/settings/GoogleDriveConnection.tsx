@@ -16,12 +16,21 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { HardDrive, Link2, Unlink, Loader2, CheckCircle2, Mail, Folder, RefreshCw } from "lucide-react";
+import { HardDrive, Link2, Unlink, Loader2, CheckCircle2, Mail, Folder, RefreshCw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
@@ -45,6 +54,9 @@ export function GoogleDriveConnection() {
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [saveOriginalEnabled, setSaveOriginalEnabled] = useState(true);
   const [isUpdatingSaveOriginal, setIsUpdatingSaveOriginal] = useState(false);
+  const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
+  const [disconnectCheckbox, setDisconnectCheckbox] = useState(false);
+  const [disconnectConfirmText, setDisconnectConfirmText] = useState("");
 
   const canManage = currentRole === "owner" || currentRole === "admin";
 
@@ -189,8 +201,9 @@ export function GoogleDriveConnection() {
 
       if (error) throw error;
 
-      toast.success("Google Drive disconnected");
+      toast.success("Google Drive integration has been disconnected.");
       setConnection(null);
+      setDisconnectDialogOpen(false);
     } catch (error) {
       console.error("Error disconnecting:", error);
       toast.error("Failed to disconnect Google Drive");
@@ -347,39 +360,121 @@ export function GoogleDriveConnection() {
                     </Tooltip>
                   </TooltipProvider>
                   
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="sm" disabled={isDisconnecting || isReconnecting}>
-                        {isDisconnecting ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <>
-                            <Unlink className="w-4 h-4" />
-                            Disconnect
-                          </>
-                        )}
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Disconnect Google Drive?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will remove the connection to Google Drive. Existing folder links in clients 
-                          and matters will still point to the same folders, but the app won't be able to 
-                          create new folders or access files until reconnected.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={handleDisconnect}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={isDisconnecting || isReconnecting}
+                    onClick={() => setDisconnectDialogOpen(true)}
+                  >
+                    {isDisconnecting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Unlink className="w-4 h-4" />
+                        Disconnect
+                      </>
+                    )}
+                  </Button>
+
+                  <Dialog 
+                    open={disconnectDialogOpen} 
+                    onOpenChange={(open) => {
+                      setDisconnectDialogOpen(open);
+                      if (!open) {
+                        setDisconnectCheckbox(false);
+                        setDisconnectConfirmText("");
+                      }
+                    }}
+                  >
+                    <DialogContent className="max-w-lg">
+                      <DialogHeader>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                            <AlertTriangle className="w-5 h-5 text-destructive" />
+                          </div>
+                          <DialogTitle className="text-lg font-semibold">
+                            Disconnect Google Drive Integration
+                          </DialogTitle>
+                        </div>
+                      </DialogHeader>
+
+                      <div className="space-y-4 text-sm text-muted-foreground">
+                        <p>
+                          You are about to disconnect your organization's Google Drive integration. 
+                          This action will permanently remove all stored Drive folder references from the platform.
+                        </p>
+
+                        <div>
+                          <p className="font-medium text-foreground mb-2">Consequences include:</p>
+                          <ul className="list-disc list-inside space-y-1.5">
+                            <li>Loss of access to all linked client folders</li>
+                            <li>Inability to receive new client file uploads</li>
+                            <li>Loss of document traceability within the system</li>
+                            <li>Interruption of file audit continuity</li>
+                            <li>Potential impact on regulatory compliance and document retention obligations</li>
+                          </ul>
+                        </div>
+
+                        <p className="font-semibold text-destructive">
+                          This action is irreversible.
+                        </p>
+
+                        <p>
+                          If you reconnect using a different Google account, a new folder structure will be created. 
+                          Previous folder links cannot be restored automatically.
+                        </p>
+
+                        <div className="border-t pt-4 space-y-4">
+                          <div className="flex items-start gap-3">
+                            <Checkbox
+                              id="disconnect-confirm-check"
+                              checked={disconnectCheckbox}
+                              onCheckedChange={(checked) => setDisconnectCheckbox(checked === true)}
+                            />
+                            <label htmlFor="disconnect-confirm-check" className="text-sm leading-snug cursor-pointer">
+                              I understand that disconnecting Google Drive will permanently remove folder links and impact document traceability.
+                            </label>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label htmlFor="disconnect-confirm-text" className="text-sm font-medium text-foreground">
+                              Type <span className="font-mono font-bold text-destructive">DISCONNECT</span> to confirm this irreversible action.
+                            </label>
+                            <Input
+                              id="disconnect-confirm-text"
+                              value={disconnectConfirmText}
+                              onChange={(e) => setDisconnectConfirmText(e.target.value)}
+                              placeholder="Type DISCONNECT to confirm"
+                              autoComplete="off"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <DialogFooter className="gap-2 sm:gap-0">
+                        <Button
+                          variant="outline"
+                          onClick={() => setDisconnectDialogOpen(false)}
                         >
-                          Disconnect
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          disabled={!disconnectCheckbox || disconnectConfirmText !== "DISCONNECT" || isDisconnecting}
+                          onClick={handleDisconnect}
+                        >
+                          {isDisconnecting ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Disconnecting...
+                            </>
+                          ) : (
+                            "Disconnect Integration"
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               )}
             </div>
