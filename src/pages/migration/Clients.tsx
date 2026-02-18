@@ -70,7 +70,7 @@ interface Client {
   email: string | null;
   phone: string | null;
   client_folder_id: string | null;
-  folder_status: string;
+  folder_status: string | null;
   created_at: string;
   visa_applications_count: number;
 }
@@ -206,6 +206,12 @@ const MigrationClients = () => {
 
       // Only dispatch folder-creation webhook if Drive is connected
       if (rootFolderId) {
+        // Set folder_status to 'pending' since Drive is connected
+        await supabase
+          .from("clients")
+          .update({ folder_status: "pending" })
+          .eq("id", data.id);
+
         try {
           await supabase.functions.invoke("dispatch-webhook", {
             body: {
@@ -799,8 +805,10 @@ const MigrationClients = () => {
                               )}
                             </Button>
                           </div>
-                        ) : (
+                        ) : client.folder_status === "pending" ? (
                           <Badge variant="secondary">Pending</Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
                         )}
                       </td>
                       <td className="p-4">
