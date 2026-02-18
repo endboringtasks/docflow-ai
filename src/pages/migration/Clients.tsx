@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,9 @@ import {
   Trash2,
   Pencil,
   RotateCcw,
-  ExternalLink
+  ExternalLink,
+  AlertTriangle,
+  Settings
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -159,6 +161,68 @@ const MigrationClients = () => {
     clients,
     ["clients", currentCompany?.id || ""]
   );
+
+  // Drive connection status query
+  const { data: driveStatus } = useQuery({
+    queryKey: ["drive-connection-status", currentCompany?.id],
+    queryFn: async () => {
+      if (!currentCompany?.id) return null;
+      const { data } = await supabase
+        .rpc("get_drive_connection_status", { p_company_id: currentCompany.id });
+      return data?.[0] ?? null;
+    },
+    enabled: !!currentCompany?.id,
+  });
+
+  const isDriveConnected = !!driveStatus?.root_folder_id;
+
+  // Track previous drive connection state to detect reconnection
+  const prevDriveConnectedRef = useRef<boolean | null>(null);
+
+  // Auto-create pending folders when Drive is reconnected
+  useEffect(() => {
+    const wasDisconnected = prevDriveConnectedRef.current === false;
+    prevDriveConnectedRef.current = isDriveConnected;
+
+    if (!isDriveConnected || !wasDisconnected || !clients.length || !currentCompany?.id) return;
+
+    const clientsWithoutFolders = clients.filter(c => c.folder_status === null);
+    if (clientsWithoutFolders.length === 0) return;
+
+    const createPendingFolders = async () => {
+      toast.info(`Google Drive connected! Creating folders for ${clientsWithoutFolders.length} client(s)...`);
+
+      for (const client of clientsWithoutFolders) {
+        try {
+          await supabase
+            .from("clients")
+            .update({ folder_status: "pending" })
+            .eq("id", client.id);
+
+          await supabase.functions.invoke("dispatch-webhook", {
+            body: {
+              event_type: "client.created",
+              data: {
+                client_id: client.id,
+                company_id: currentCompany.id,
+                client_type: client.client_type,
+                first_name: client.first_name,
+                last_name: client.last_name,
+                company_name: client.company_name,
+                root_folder_id: driveStatus?.root_folder_id,
+              },
+            },
+          });
+        } catch (err) {
+          console.warn(`Failed to create folder for client ${client.id}:`, err);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["clients", currentCompany.id] });
+    };
+
+    createPendingFolders();
+  }, [isDriveConnected]);
 
   // Create client mutation
   const createClientMutation = useMutation({
@@ -759,6 +823,7 @@ const MigrationClients = () => {
                         </div>
                       </td>
                       <td className="p-4 hidden lg:table-cell">
+                        {/* Always show Open Folder if folder exists, regardless of connection */}
                         {client.folder_status === "created" && client.client_folder_id ? (
                           <TooltipProvider>
                             <Tooltip>
@@ -777,6 +842,39 @@ const MigrationClients = () => {
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p>Opens in Google Drive</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : !isDriveConnected ? (
+                          /* Drive not connected - show warning with instructions */
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-destructive/10 text-destructive text-xs font-medium cursor-help">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  Not Connected
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-xs p-3">
+                                <p className="font-semibold mb-2">Google Drive is not connected</p>
+                                <ol className="text-xs space-y-1 list-decimal list-inside text-muted-foreground">
+                                  <li>Go to <strong>Settings</strong></li>
+                                  <li>Scroll to <strong>Google Drive Integration</strong></li>
+                                  <li>Click <strong>Connect Google Drive</strong></li>
+                                  <li>Authorize access</li>
+                                </ol>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="mt-2 w-full text-xs h-7"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate("/app/migration/settings");
+                                  }}
+                                >
+                                  <Settings className="w-3 h-3 mr-1" />
+                                  Go to Settings
+                                </Button>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
