@@ -1,37 +1,24 @@
 
 
-# Export Product Documentation as Markdown Files
+## Fix: "Failed to delete client" foreign key constraint error
 
-## Overview
-Create two structured markdown files from the product documentation previously generated:
-1. **Confluence wiki document** - Full product documentation formatted for Confluence import
-2. **Jira import file** - Epics and User Stories in a CSV-compatible format for Jira bulk import
+### Problem
+When deleting a client, the operation fails because the `document_checklist` table has a foreign key `uploaded_by_client` referencing `clients(id)` with no cascade rule (defaults to RESTRICT). If any document checklist row references this client via `uploaded_by_client`, the delete is blocked.
 
-## Files to Create
+### Solution
+Create a database migration to alter the foreign key constraint on `document_checklist.uploaded_by_client` to use `ON DELETE SET NULL`. This means when a client is deleted, any document checklist rows that reference that client will simply have their `uploaded_by_client` column set to NULL instead of blocking the delete.
 
-### 1. `docs/docflow-confluence-documentation.md`
-Complete product documentation structured with Confluence-compatible markdown headings:
-- System Overview and Architecture
-- Feature Mapping by Domain (all EPICs)
-- Business Rules
-- Permissions and Roles Matrix
-- Data Model Summary
-- Technical Constraints
-- Test Scenarios
-- Gaps and Risks
+Similarly, the `document_attachment_history.uploaded_by_client` column likely has the same issue and should also be updated.
 
-### 2. `docs/docflow-jira-import.csv`
-CSV file formatted for Jira bulk import with columns:
-- Issue Type (Epic / Story)
-- Summary
-- Description
-- Acceptance Criteria
-- Epic Link
-- Labels
-- Priority
+### Technical Details
 
-This covers all 14 EPICs and their associated User Stories extracted from the codebase analysis.
+**Migration SQL:**
+- Drop the existing foreign key constraint `document_checklist_uploaded_by_client_fkey`
+- Re-add it with `ON DELETE SET NULL`
+- Do the same for `document_attachment_history` if it has a similar constraint
 
-## Content Source
-All content is derived from the codebase exploration already performed -- no new analysis needed. The documentation will reflect only currently implemented features with no fabricated roadmap items.
+**File changes:**
+- 1 new migration file in `supabase/migrations/`
+
+No frontend code changes are needed -- the delete logic in `src/pages/migration/Clients.tsx` is already correct.
 
