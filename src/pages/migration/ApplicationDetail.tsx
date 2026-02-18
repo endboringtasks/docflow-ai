@@ -36,6 +36,7 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCw,
+  AlertTriangle,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -337,6 +338,20 @@ const VisaApplicationDetail = () => {
     applicationName: "",
     visaSubclass: "",
   });
+
+  // Drive connection status query
+  const { data: driveStatus } = useQuery({
+    queryKey: ["drive-connection-status", currentCompany?.id],
+    queryFn: async () => {
+      if (!currentCompany?.id) return null;
+      const { data } = await supabase
+        .rpc("get_drive_connection_status", { p_company_id: currentCompany.id });
+      return data?.[0] ?? null;
+    },
+    enabled: !!currentCompany?.id,
+  });
+
+  const isDriveConnected = !!driveStatus?.root_folder_id;
 
   // Fetch visa application details
   const { data: visaApplication, isLoading: isLoadingApplication } = useQuery({
@@ -1885,6 +1900,26 @@ const VisaApplicationDetail = () => {
                       </TooltipTrigger>
                       <TooltipContent>
                         <p>Opens in Google Drive</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : !isDriveConnected ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-destructive/10 text-destructive text-xs font-medium cursor-help">
+                          <AlertTriangle className="w-3 h-3" />
+                          Not Connected
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs p-3">
+                        <p className="font-semibold mb-2">Google Drive is not connected</p>
+                        <ol className="text-xs space-y-1 list-decimal list-inside text-muted-foreground">
+                          <li>Go to <strong>Settings</strong></li>
+                          <li>Scroll to <strong>Google Drive Integration</strong></li>
+                          <li>Click <strong>Connect Google Drive</strong></li>
+                          <li>Authorize access</li>
+                        </ol>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
