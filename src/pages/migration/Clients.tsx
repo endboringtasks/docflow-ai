@@ -204,24 +204,28 @@ const MigrationClients = () => {
         console.warn("Could not fetch drive connection:", e);
       }
 
-      // Dispatch webhook for client.created event
-      try {
-        await supabase.functions.invoke("dispatch-webhook", {
-          body: {
-            event_type: "client.created",
-            data: {
-              client_id: data.id,
-              company_id: currentCompany.id,
-              client_type: data.client_type,
-              first_name: data.first_name,
-              last_name: data.last_name,
-              company_name: data.company_name,
-              root_folder_id: rootFolderId,
+      // Only dispatch folder-creation webhook if Drive is connected
+      if (rootFolderId) {
+        try {
+          await supabase.functions.invoke("dispatch-webhook", {
+            body: {
+              event_type: "client.created",
+              data: {
+                client_id: data.id,
+                company_id: currentCompany.id,
+                client_type: data.client_type,
+                first_name: data.first_name,
+                last_name: data.last_name,
+                company_name: data.company_name,
+                root_folder_id: rootFolderId,
+              },
             },
-          },
-        });
-      } catch (webhookError) {
-        console.warn("Failed to dispatch webhook:", webhookError);
+          });
+        } catch (webhookError) {
+          console.warn("Failed to dispatch webhook:", webhookError);
+        }
+      } else {
+        console.log("Google Drive not connected — skipping folder creation webhook");
       }
 
       return data;
@@ -243,7 +247,9 @@ const MigrationClients = () => {
   const deleteClientMutation = useMutation({
     mutationFn: async (client: Client) => {
       // Best-effort: rename Google Drive folder with DELETED_ prefix before deleting
-      if (client.client_folder_id && currentCompany?.id) {
+      // Only attempt if folder was actually created (has ID and status is not "failed")
+      const shouldRenameFolder = client.client_folder_id && client.folder_status !== "failed" && currentCompany?.id;
+      if (shouldRenameFolder) {
         try {
           const { error: renameError } = await supabase.functions.invoke("google-drive-rename-folder", {
             body: {
@@ -290,11 +296,17 @@ const MigrationClients = () => {
       } catch (webhookError) {
         console.warn("Failed to dispatch webhook:", webhookError);
       }
+
+      return { shouldRenameFolder };
     },
-    onSuccess: () => {
+    onSuccess: (_data) => {
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
       setClientToDelete(null);
-      toast.success("Client deleted successfully");
+      if (_data?.shouldRenameFolder) {
+        toast.success("Client deleted and Drive folder renamed");
+      } else {
+        toast.success("Client deleted successfully");
+      }
     },
     onError: (error) => {
       toast.error("Failed to delete client", {
@@ -375,6 +387,20 @@ const MigrationClients = () => {
     mutationFn: async (client: Client) => {
       if (!currentCompany?.id) throw new Error("No company selected");
 
+      // Check if Drive is connected before retrying
+      let rootFolderId: string | null = null;
+      try {
+        const { data: driveConnection } = await supabase
+          .rpc("get_drive_connection_status", { p_company_id: currentCompany.id });
+        rootFolderId = driveConnection?.[0]?.root_folder_id ?? null;
+      } catch (e) {
+        console.warn("Could not fetch drive connection:", e);
+      }
+
+      if (!rootFolderId) {
+        throw new Error("Google Drive is not connected. Please connect Google Drive in Settings first.");
+      }
+
       // Set folder_status back to 'creating' with timestamp
       const { error: updateError } = await supabase
         .from("clients")
@@ -385,16 +411,6 @@ const MigrationClients = () => {
         .eq("id", client.id);
 
       if (updateError) throw updateError;
-
-      // Fetch company's Google Drive connection to get root folder ID
-      let rootFolderId: string | null = null;
-      try {
-        const { data: driveConnection } = await supabase
-          .rpc("get_drive_connection_status", { p_company_id: currentCompany.id });
-        rootFolderId = driveConnection?.[0]?.root_folder_id ?? null;
-      } catch (e) {
-        console.warn("Could not fetch drive connection:", e);
-      }
 
       // Dispatch webhook for client.created event
       const { error: webhookError } = await supabase.functions.invoke("dispatch-webhook", {
