@@ -863,18 +863,6 @@ const MigrationClients = () => {
                                   <li>Click <strong>Connect Google Drive</strong></li>
                                   <li>Authorize access</li>
                                 </ol>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="mt-2 w-full text-xs h-7"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate("/app/migration/settings");
-                                  }}
-                                >
-                                  <Settings className="w-3 h-3 mr-1" />
-                                  Go to Settings
-                                </Button>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
