@@ -1,30 +1,58 @@
 
 
-## Skip Google Drive folder operations when Drive is not connected
+## Skip Drive folder status when Google Drive is not connected
 
 ### Problem
-When deleting a client whose Google Drive folder was never created (because Drive is not connected), the app still attempts to call the `google-drive-rename-folder` edge function unnecessarily. Additionally, folder creation webhooks are dispatched even when there's no Drive connection, leading to "Failed" folder statuses.
+When Google Drive is not connected, newly created clients still get `folder_status = 'pending'` (the database default), which shows a misleading "Pending" badge in the Drive Folder column. The user expects no folder-related status when Drive isn't even set up.
 
 ### Solution
-1. **Delete mutation**: Only attempt the Drive folder rename if the client actually has a folder (`client_folder_id` exists AND `folder_status` is not "failed"). The current check already gates on `client_folder_id`, but we should also show a more descriptive success message depending on whether a folder rename was attempted.
 
-2. **Create mutation**: Before dispatching the `client.created` webhook (which triggers folder creation), check if Drive is connected by verifying `rootFolderId` exists. If not, skip the webhook entirely -- no point triggering folder creation when there's no Drive connection.
+**1. Database: Allow `null` folder_status**
+- Alter the `folder_status` column on `clients` (and `matters`) to allow NULL and change the default to NULL
+- Update the CHECK constraint to also allow NULL
+- When Drive is not connected, clients will have `folder_status = NULL` (meaning "not applicable")
 
-3. **Retry folder button**: Before allowing retry, check if Drive is connected and show an appropriate error if not.
+**2. Create mutation: Set folder_status explicitly**
+- When Drive IS connected (`rootFolderId` exists): set `folder_status = 'pending'` on insert (or leave default behavior after migration sets default to NULL, then update to 'pending' before dispatching webhook)
+- When Drive is NOT connected: leave `folder_status` as NULL (no update needed)
 
-4. **Delete success message**: Customize the toast to indicate whether the Drive folder was renamed or not.
+**3. UI: Handle null folder_status**
+- When `folder_status` is null, show a dash or "N/A" instead of "Pending"
+- Only show "Pending" when folder_status is explicitly `'pending'` (Drive connected, folder not yet created)
 
 ### Technical Details
 
+**New SQL migration:**
+```sql
+ALTER TABLE public.clients 
+  ALTER COLUMN folder_status DROP NOT NULL,
+  ALTER COLUMN folder_status SET DEFAULT NULL,
+  DROP CONSTRAINT IF EXISTS clients_folder_status_check;
+
+ALTER TABLE public.clients
+  ADD CONSTRAINT clients_folder_status_check 
+  CHECK (folder_status IS NULL OR folder_status IN ('pending', 'creating', 'created', 'failed'));
+
+-- Same for matters table
+ALTER TABLE public.matters 
+  ALTER COLUMN folder_status DROP NOT NULL,
+  ALTER COLUMN folder_status SET DEFAULT NULL,
+  DROP CONSTRAINT IF EXISTS matters_folder_status_check;
+
+ALTER TABLE public.matters
+  ADD CONSTRAINT matters_folder_status_check 
+  CHECK (folder_status IS NULL OR folder_status IN ('pending', 'creating', 'created', 'failed'));
+
+-- Set existing clients without folders to NULL if they have 'pending' status
+UPDATE public.clients SET folder_status = NULL WHERE folder_status = 'pending' AND client_folder_id IS NULL;
+UPDATE public.matters SET folder_status = NULL WHERE folder_status = 'pending' AND application_folder_id IS NULL;
+```
+
 **File: `src/pages/migration/Clients.tsx`**
 
-Changes to the **create mutation** (around line 207):
-- Wrap the webhook dispatch in a condition: only call `dispatch-webhook` for `client.created` if `rootFolderId` is not null. This prevents folder creation attempts when Drive is not connected.
+- In the **create mutation**: After inserting the client, if Drive IS connected, update the client's `folder_status` to `'pending'` before dispatching the webhook. If not connected, leave it as NULL.
 
-Changes to the **delete mutation** (around line 245):
-- Add an additional condition: only call `google-drive-rename-folder` if `client.folder_status` is not `"failed"` (meaning the folder was actually created successfully).
-- Update the success toast to reflect whether the folder was renamed.
+- In the **UI (Drive Folder column)**: Add a case for `null` folder_status that shows a muted dash or "N/A" text instead of "Pending". The else/fallback "Pending" badge will only show for clients with explicit `folder_status = 'pending'`.
 
-Changes to the **retry folder mutation** (around line 374):
-- Before dispatching the webhook, check if `rootFolderId` exists. If not, throw an error with a clear message: "Google Drive is not connected. Please connect Google Drive in Settings first."
-
+**File: `src/pages/migration/Clients.tsx` (type update)**
+- Update the `Client` interface to allow `folder_status: string | null`
