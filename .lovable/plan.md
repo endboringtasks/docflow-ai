@@ -1,44 +1,39 @@
 
 
-## High-Risk Disconnect Google Drive Confirmation Modal
+## Add "Not Connected" Drive Status to Application Pages
 
 ### Overview
-Replace the simple AlertDialog confirmation for disconnecting Google Drive with a comprehensive, enterprise-grade confirmation modal that communicates compliance, audit, and data traceability consequences.
+Replicate the same Google Drive disconnection UI pattern from the Clients page to both the Applications list and Application Detail pages, ensuring consistent UX across the platform.
 
 ### Changes
 
-**File: `src/components/settings/GoogleDriveConnection.tsx`**
+**File: `src/pages/migration/Applications.tsx`** (Applications list)
 
-Replace the existing disconnect `AlertDialog` (lines 350-382) with a custom `Dialog` component that includes:
+1. Add the Drive connection status query (same as Clients page):
+   - Query `get_drive_connection_status` RPC with `currentCompany.id`
+   - Derive `isDriveConnected` boolean
 
-1. **Header** -- Red/destructive accent with `AlertTriangle` icon and title "Disconnect Google Drive Integration"
+2. Add `AlertTriangle` to lucide-react imports
 
-2. **Body** -- Formal, compliance-oriented content:
-   - Opening statement about the action
-   - Bulleted list of consequences (folder access loss, file upload inability, traceability loss, audit continuity interruption, compliance impact)
-   - Bold "irreversible" warning
-   - Note about reconnecting with a different account creating new folder structures
+3. Update the folder status rendering (around lines 1145-1198):
+   - If `folder_status === "created"` and folder ID exists: keep showing "Open Folder" (unchanged)
+   - If Drive is **not connected** and folder is not created: show "Not Connected" badge with tooltip (same style as Clients page -- red accent, AlertTriangle icon, step-by-step instructions)
+   - If Drive IS connected: keep existing creating/failed/pending logic
 
-3. **Two mandatory confirmation controls:**
-   - A required checkbox: "I understand that disconnecting Google Drive will permanently remove folder links and impact document traceability."
-   - A text input requiring the user to type exactly `DISCONNECT` (case-sensitive)
+**File: `src/pages/migration/ApplicationDetail.tsx`** (Application detail)
 
-4. **Footer buttons:**
-   - Cancel (neutral/outline)
-   - "Disconnect Integration" (destructive, disabled until both checkbox is checked AND input matches "DISCONNECT")
+1. Add the Drive connection status query (same pattern)
 
-5. **Post-disconnect behavior (already exists, enhance toast message):**
-   - Toast: "Google Drive integration has been disconnected."
-   - Connection state set to `null`
+2. Add `AlertTriangle` to lucide-react imports
 
-**State additions:**
-- `disconnectDialogOpen` (boolean)
-- `disconnectCheckbox` (boolean) 
-- `disconnectConfirmText` (string)
+3. Update the Drive Folder section (around lines 1868-1905):
+   - If `folder_status === "created"` and folder ID exists: keep "Open Folder" (unchanged)
+   - If Drive is **not connected** and folder is not created: show "Not Connected" badge with tooltip instructions
+   - If Drive IS connected: keep existing creating/failed/pending badges
 
-Reset checkbox and text input when dialog closes.
-
-**New imports:** `Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter` from ui/dialog, `AlertTriangle` from lucide-react, `Checkbox` from ui/checkbox, `Input` from ui/input.
-
-No database or edge function changes required.
+### What stays the same
+- No database or edge function changes
+- "Open Folder" links always work when a folder was previously created
+- Existing retry logic for failed folders (only shown when Drive is connected)
+- No auto-folder-creation on reconnection for applications (that logic already exists at the client level and application folders are created via webhooks triggered by application creation)
 
