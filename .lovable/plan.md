@@ -1,58 +1,68 @@
 
 
-## Skip Drive folder status when Google Drive is not connected
+## Show "Google Drive Disconnected" status and guide users to connect
 
 ### Problem
-When Google Drive is not connected, newly created clients still get `folder_status = 'pending'` (the database default), which shows a misleading "Pending" badge in the Drive Folder column. The user expects no folder-related status when Drive isn't even set up.
+When Google Drive is not connected, clients with no folder show a dash (---) which doesn't clearly communicate why there's no folder or what to do about it. The user wants:
+1. A clear "Google Drive Disconnected" message with guidance on how to connect
+2. When Drive is reconnected, pending folders should be created automatically
+3. Clients that already had folders should still show "Open Folder" links
 
 ### Solution
 
-**1. Database: Allow `null` folder_status**
-- Alter the `folder_status` column on `clients` (and `matters`) to allow NULL and change the default to NULL
-- Update the CHECK constraint to also allow NULL
-- When Drive is not connected, clients will have `folder_status = NULL` (meaning "not applicable")
+**1. Add a Drive connection status query at the component level**
+- Add a `useQuery` hook to fetch the Google Drive connection status for the current company using `get_drive_connection_status` RPC
+- This provides `isDriveConnected` as a reactive value accessible throughout the component
 
-**2. Create mutation: Set folder_status explicitly**
-- When Drive IS connected (`rootFolderId` exists): set `folder_status = 'pending'` on insert (or leave default behavior after migration sets default to NULL, then update to 'pending' before dispatching webhook)
-- When Drive is NOT connected: leave `folder_status` as NULL (no update needed)
+**2. Update the Drive Folder column UI**
+- When Drive is **disconnected** and `folder_status` is `null`: Show a warning badge "Drive Not Connected" with a tooltip containing step-by-step instructions on how to connect Google Drive (Settings > Google Drive > Connect)
+- When Drive is **disconnected** and `folder_status` is `"created"` with a `client_folder_id`: Still show the "Open Folder" link (the folder exists, it's just the connection that's down)
+- When Drive is **disconnected** and `folder_status` is `"pending"` or `"failed"`: Show "Drive Not Connected" instead of Pending/Failed badges
 
-**3. UI: Handle null folder_status**
-- When `folder_status` is null, show a dash or "N/A" instead of "Pending"
-- Only show "Pending" when folder_status is explicitly `'pending'` (Drive connected, folder not yet created)
+**3. Auto-create pending folders when Drive is reconnected**
+- Add an effect that watches the Drive connection status
+- When it transitions from disconnected to connected (rootFolderId becomes available), find all clients with `folder_status = null` and trigger folder creation for them by:
+  - Updating their `folder_status` to `"pending"`
+  - Dispatching the `client.created` webhook for each one
 
 ### Technical Details
 
-**New SQL migration:**
-```sql
-ALTER TABLE public.clients 
-  ALTER COLUMN folder_status DROP NOT NULL,
-  ALTER COLUMN folder_status SET DEFAULT NULL,
-  DROP CONSTRAINT IF EXISTS clients_folder_status_check;
-
-ALTER TABLE public.clients
-  ADD CONSTRAINT clients_folder_status_check 
-  CHECK (folder_status IS NULL OR folder_status IN ('pending', 'creating', 'created', 'failed'));
-
--- Same for matters table
-ALTER TABLE public.matters 
-  ALTER COLUMN folder_status DROP NOT NULL,
-  ALTER COLUMN folder_status SET DEFAULT NULL,
-  DROP CONSTRAINT IF EXISTS matters_folder_status_check;
-
-ALTER TABLE public.matters
-  ADD CONSTRAINT matters_folder_status_check 
-  CHECK (folder_status IS NULL OR folder_status IN ('pending', 'creating', 'created', 'failed'));
-
--- Set existing clients without folders to NULL if they have 'pending' status
-UPDATE public.clients SET folder_status = NULL WHERE folder_status = 'pending' AND client_folder_id IS NULL;
-UPDATE public.matters SET folder_status = NULL WHERE folder_status = 'pending' AND application_folder_id IS NULL;
-```
-
 **File: `src/pages/migration/Clients.tsx`**
 
-- In the **create mutation**: After inserting the client, if Drive IS connected, update the client's `folder_status` to `'pending'` before dispatching the webhook. If not connected, leave it as NULL.
+Add a new query (after the clients query, around line 153):
+```typescript
+const { data: driveStatus } = useQuery({
+  queryKey: ["drive-connection-status", currentCompany?.id],
+  queryFn: async () => {
+    if (!currentCompany?.id) return null;
+    const { data } = await supabase
+      .rpc("get_drive_connection_status", { p_company_id: currentCompany.id });
+    return data?.[0] ?? null;
+  },
+  enabled: !!currentCompany?.id,
+});
 
-- In the **UI (Drive Folder column)**: Add a case for `null` folder_status that shows a muted dash or "N/A" text instead of "Pending". The else/fallback "Pending" badge will only show for clients with explicit `folder_status = 'pending'`.
+const isDriveConnected = !!driveStatus?.root_folder_id;
+```
 
-**File: `src/pages/migration/Clients.tsx` (type update)**
-- Update the `Client` interface to allow `folder_status: string | null`
+Add new imports: `Settings`, `AlertTriangle` from lucide-react, and `useNavigate` (already imported).
+
+Update the Drive Folder column rendering (lines 761-812):
+- Add a top-level check: if `folder_status === "created"` and `client_folder_id` exists, always show "Open Folder" regardless of connection
+- If Drive is not connected and no folder exists (`folder_status` is null, pending, or failed): show a muted "Not Connected" badge with a tooltip that says:
+  - "Google Drive is not connected"
+  - Step 1: Go to Settings
+  - Step 2: Scroll to Google Drive Integration
+  - Step 3: Click Connect Google Drive
+  - Step 4: Authorize access
+  - Include a "Go to Settings" link button
+- If Drive IS connected, keep existing logic (pending, creating, failed badges)
+
+Add an effect to batch-create folders when Drive reconnects (new `useMutation` + `useEffect`):
+- Watch `isDriveConnected` and `clients` list
+- When `isDriveConnected` becomes true and there are clients with `folder_status === null`, update them to `"pending"` and dispatch webhooks for each
+- Show a toast: "Google Drive connected! Creating folders for X clients..."
+- Use a ref to track if we've already triggered this to avoid repeated dispatches
+
+**File: `src/pages/migration/Clients.tsx`** - Add a `useRef` to track previous drive connection state so the auto-creation only fires on transition from disconnected to connected.
+
