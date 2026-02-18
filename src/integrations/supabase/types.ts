@@ -490,7 +490,7 @@ export type Database = {
           documents_received_folder_id: string | null
           email: string | null
           first_name: string | null
-          folder_status: string
+          folder_status: string | null
           folder_status_updated_at: string | null
           id: string
           last_name: string | null
@@ -509,7 +509,7 @@ export type Database = {
           documents_received_folder_id?: string | null
           email?: string | null
           first_name?: string | null
-          folder_status?: string
+          folder_status?: string | null
           folder_status_updated_at?: string | null
           id?: string
           last_name?: string | null
@@ -528,7 +528,7 @@ export type Database = {
           documents_received_folder_id?: string | null
           email?: string | null
           first_name?: string | null
-          folder_status?: string
+          folder_status?: string | null
           folder_status_updated_at?: string | null
           id?: string
           last_name?: string | null
@@ -1471,7 +1471,7 @@ export type Database = {
           company_id: string
           country_id: string | null
           created_at: string
-          folder_status: string
+          folder_status: string | null
           folder_status_updated_at: string | null
           id: string
           status: Database["public"]["Enums"]["matter_status"]
@@ -1486,7 +1486,7 @@ export type Database = {
           company_id: string
           country_id?: string | null
           created_at?: string
-          folder_status?: string
+          folder_status?: string | null
           folder_status_updated_at?: string | null
           id?: string
           status?: Database["public"]["Enums"]["matter_status"]
@@ -1501,7 +1501,7 @@ export type Database = {
           company_id?: string
           country_id?: string | null
           created_at?: string
-          folder_status?: string
+          folder_status?: string | null
           folder_status_updated_at?: string | null
           id?: string
           status?: Database["public"]["Enums"]["matter_status"]
