@@ -237,6 +237,68 @@ const MigrationClients = () => {
       }
 
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany.id] });
+
+      // --- Application folder backfill ---
+      // Find applications without folders whose parent client already has a folder
+      const { data: appsWithoutFolders } = await supabase
+        .from("visa_applications")
+        .select("id, client_id, application_name, visa_subclass, google_drive_connection_id")
+        .eq("company_id", currentCompany.id)
+        .is("visa_application_folder_id", null);
+
+      if (appsWithoutFolders && appsWithoutFolders.length > 0) {
+        // Get client folder info for these applications' clients
+        const clientIds = [...new Set(appsWithoutFolders.map(a => a.client_id))];
+        const { data: clientsWithFolders } = await supabase
+          .from("clients")
+          .select("id, client_folder_id, google_drive_connection_id")
+          .in("id", clientIds)
+          .not("client_folder_id", "is", null);
+
+        const clientFolderMap = new Map(
+          (clientsWithFolders || []).map(c => [c.id, { client_folder_id: c.client_folder_id, google_drive_connection_id: c.google_drive_connection_id }])
+        );
+
+        // Filter: parent client must have a folder, and app must be unbound or matching current connection
+        const eligibleApps = appsWithoutFolders.filter(app => {
+          const parentClient = clientFolderMap.get(app.client_id);
+          if (!parentClient || !parentClient.client_folder_id) return false;
+          // Drive binding check: unbound or matching current connection
+          const appBinding = app.google_drive_connection_id;
+          return !appBinding || appBinding === driveStatus?.id;
+        });
+
+        if (eligibleApps.length > 0) {
+          toast.info(`Creating folders for ${eligibleApps.length} application(s)...`);
+
+          for (const app of eligibleApps) {
+            const parentClient = clientFolderMap.get(app.client_id)!;
+            try {
+              await supabase
+                .from("visa_applications")
+                .update({ folder_status: "pending" })
+                .eq("id", app.id);
+
+              await supabase.functions.invoke("dispatch-webhook", {
+                body: {
+                  event_type: "application.created" as const,
+                  data: {
+                    application_id: app.id,
+                    application_name: app.application_name,
+                    subclass: app.visa_subclass,
+                    company_id: currentCompany.id,
+                    client_id: app.client_id,
+                    client_folder_id: parentClient.client_folder_id,
+                    root_folder_id: driveStatus?.root_folder_id,
+                  },
+                },
+              });
+            } catch (err) {
+              console.warn(`Failed to create folder for application ${app.id}:`, err);
+            }
+          }
+        }
+      }
     };
 
     createPendingFolders();
