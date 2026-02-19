@@ -186,13 +186,31 @@ const MigrationClients = () => {
 
     if (!isDriveConnected || !wasDisconnected || !clients.length || !currentCompany?.id) return;
 
-    const clientsWithoutFolders = clients.filter(c => c.folder_status === null);
-    if (clientsWithoutFolders.length === 0) return;
-
+    // Only auto-create folders for clients without folders AND without a previous Drive binding
+    // (or whose binding matches the current connection)
     const createPendingFolders = async () => {
-      toast.info(`Google Drive connected! Creating folders for ${clientsWithoutFolders.length} client(s)...`);
+      // Fetch google_drive_connection_id for clients without folders
+      const clientsWithoutFolders = clients.filter(c => c.folder_status === null);
+      if (clientsWithoutFolders.length === 0) return;
 
-      for (const client of clientsWithoutFolders) {
+      const { data: clientBindings } = await supabase
+        .from("clients")
+        .select("id, google_drive_connection_id")
+        .in("id", clientsWithoutFolders.map(c => c.id));
+
+      const bindingMap = new Map((clientBindings || []).map(b => [b.id, b.google_drive_connection_id]));
+
+      // Filter: only unbound clients or those matching current connection
+      const eligibleClients = clientsWithoutFolders.filter(c => {
+        const binding = bindingMap.get(c.id);
+        return !binding || binding === driveStatus?.id;
+      });
+
+      if (eligibleClients.length === 0) return;
+
+      toast.info(`Google Drive connected! Creating folders for ${eligibleClients.length} client(s)...`);
+
+      for (const client of eligibleClients) {
         try {
           await supabase
             .from("clients")

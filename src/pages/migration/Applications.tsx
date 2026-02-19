@@ -389,7 +389,20 @@ const MigrationVisaApplications = () => {
       visa_type_id?: string;
     }) => {
       if (!currentCompany?.id) throw new Error("No company selected");
-      
+
+      // Validate Drive binding: if client is bound to a different connection, block creation
+      const { data: clientData } = await supabase
+        .from("clients")
+        .select("google_drive_connection_id")
+        .eq("id", applicationData.client_id)
+        .single();
+
+      if (clientData?.google_drive_connection_id && driveStatus?.id && clientData.google_drive_connection_id !== driveStatus.id) {
+        throw new Error("This client is linked to a previous Google Drive account that is no longer connected. Reconnect the original Drive account to continue.");
+      }
+      if (clientData?.google_drive_connection_id && !driveStatus?.id) {
+        throw new Error("This client is linked to a previous Google Drive account that is no longer connected. Reconnect the original Drive account to continue.");
+      }
       const { data, error } = await supabase
         .from("visa_applications")
         .insert({
