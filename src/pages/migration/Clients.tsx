@@ -172,6 +172,7 @@ const MigrationClients = () => {
       return data?.[0] ?? null;
     },
     enabled: !!currentCompany?.id,
+    refetchInterval: 30_000,
   });
 
   const isDriveConnected = !!driveStatus?.root_folder_id;
