@@ -1197,7 +1197,7 @@ const MigrationVisaApplications = () => {
                             {isDriveConnected ? (
                               <p>Opens in Google Drive</p>
                             ) : (
-                              <p>Google Drive disconnected{(() => { const clientObj = clients.find(c => c.id === application.client_id); const email = clientObj?.drive_connected_email || driveStatus?.connected_email; return email ? ` for ${email}` : ""; })()}. Folder may not be accessible.</p>
+                              <p>Google Drive disconnected{(() => { const clientObj = clients.find(c => c.id === application.client_id); const email = clientObj?.drive_connected_email; return email ? ` for ${email}` : ""; })()}. Folder may not be accessible.</p>
                             )}
                           </TooltipContent>
                         </Tooltip>
