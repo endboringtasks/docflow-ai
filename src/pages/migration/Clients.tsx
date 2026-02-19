@@ -75,6 +75,7 @@ interface Client {
   folder_status: string | null;
   created_at: string;
   visa_applications_count: number;
+  drive_connected_email: string | null;
 }
 
 const MigrationClients = () => {
@@ -801,7 +802,7 @@ const MigrationClients = () => {
                                 {isDriveConnected ? (
                                   <p>Opens in Google Drive</p>
                                 ) : (
-                                  <p>Google Drive disconnected{driveStatus?.connected_email ? ` for ${driveStatus.connected_email}` : ""}. Folder may not be accessible.</p>
+                                  <p>Google Drive disconnected{(client.drive_connected_email || driveStatus?.connected_email) ? ` for ${client.drive_connected_email || driveStatus?.connected_email}` : ""}. Folder may not be accessible.</p>
                                 )}
                               </TooltipContent>
                             </Tooltip>

@@ -83,6 +83,7 @@ interface Client {
   first_name: string | null;
   last_name: string | null;
   company_name: string | null;
+  drive_connected_email: string | null;
 }
 
 interface ApplicationCategory {
@@ -1196,7 +1197,7 @@ const MigrationVisaApplications = () => {
                             {isDriveConnected ? (
                               <p>Opens in Google Drive</p>
                             ) : (
-                              <p>Google Drive disconnected{driveStatus?.connected_email ? ` for ${driveStatus.connected_email}` : ""}. Folder may not be accessible.</p>
+                              <p>Google Drive disconnected{(() => { const clientObj = clients.find(c => c.id === application.client_id); const email = clientObj?.drive_connected_email || driveStatus?.connected_email; return email ? ` for ${email}` : ""; })()}. Folder may not be accessible.</p>
                             )}
                           </TooltipContent>
                         </Tooltip>

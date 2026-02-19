@@ -1746,6 +1746,7 @@ export type Database = {
           company_id: string
           company_name: string
           created_at: string
+          drive_connected_email: string
           email: string
           first_name: string
           folder_status: string
