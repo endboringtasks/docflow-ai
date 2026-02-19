@@ -1180,15 +1180,24 @@ const MigrationVisaApplications = () => {
                               href={`https://drive.google.com/drive/folders/${application.visa_application_folder_id}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 hover:underline transition-all group"
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium hover:underline transition-all group ${
+                                isDriveConnected
+                                  ? "bg-primary/10 text-primary hover:bg-primary/20"
+                                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+                              }`}
                             >
                               <FolderOpen className="w-3.5 h-3.5" />
                               Open Folder
+                              {!isDriveConnected && <AlertTriangle className="w-3 h-3" />}
                               <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
                             </a>
                           </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Opens in Google Drive</p>
+                          <TooltipContent side="bottom" className="max-w-xs">
+                            {isDriveConnected ? (
+                              <p>Opens in Google Drive</p>
+                            ) : (
+                              <p>Google Drive disconnected{driveStatus?.connected_email ? ` for ${driveStatus.connected_email}` : ""}. Folder may not be accessible.</p>
+                            )}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>

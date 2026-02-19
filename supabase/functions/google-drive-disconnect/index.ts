@@ -10,6 +10,27 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Revoke an OAuth token with Google
+async function revokeToken(token: string): Promise<boolean> {
+  console.log("Revoking OAuth token with Google...");
+  const response = await fetch(
+    `https://oauth2.googleapis.com/revoke?token=${token}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("Failed to revoke token:", error);
+    return false;
+  }
+
+  console.log("Successfully revoked OAuth token");
+  return true;
+}
+
 // Get all permissions for a folder
 async function getFolderPermissions(
   accessToken: string,
@@ -140,7 +161,7 @@ serve(async (req) => {
     // Fetch the connection details using service role (to get tokens)
     const { data: connection, error: fetchError } = await supabaseAdmin
       .from("google_drive_connections")
-      .select("id, access_token, refresh_token, root_folder_id, tokens_encrypted")
+      .select("id, access_token, refresh_token, root_folder_id, tokens_encrypted, connected_email")
       .eq("company_id", companyId)
       .maybeSingle();
 
@@ -156,22 +177,20 @@ serve(async (req) => {
       });
     }
 
+    // Decrypt tokens if needed
+    let refreshToken = connection.refresh_token;
+    if (connection.tokens_encrypted && isEncrypted(refreshToken)) {
+      refreshToken = await decryptToken(refreshToken);
+    }
+
     // Remove shared permissions from the root folder if it exists
     if (connection.root_folder_id) {
       console.log("Removing shared permissions from root folder:", connection.root_folder_id);
       
       try {
-        // Decrypt tokens if encrypted
         let accessToken = connection.access_token;
-        let refreshToken = connection.refresh_token;
-        
-        if (connection.tokens_encrypted) {
-          if (isEncrypted(accessToken)) {
-            accessToken = await decryptToken(accessToken);
-          }
-          if (isEncrypted(refreshToken)) {
-            refreshToken = await decryptToken(refreshToken);
-          }
+        if (connection.tokens_encrypted && isEncrypted(accessToken)) {
+          accessToken = await decryptToken(accessToken);
         }
 
         // Try to refresh the access token to ensure it's valid
@@ -188,40 +207,50 @@ serve(async (req) => {
         
         // Remove shared permissions (not the owner)
         for (const permission of permissions) {
-          // Skip the owner permission
           if (permission.role === "owner") {
             console.log("Skipping owner permission");
             continue;
           }
           
-          // If we have a specific email configured, only remove that one
           if (makeGoogleEmail && permission.emailAddress === makeGoogleEmail) {
             await removePermission(accessToken, connection.root_folder_id, permission.id);
           } else if (!makeGoogleEmail && permission.type === "user" && permission.role !== "owner") {
-            // If no specific email configured, remove all non-owner user permissions
             await removePermission(accessToken, connection.root_folder_id, permission.id);
           }
         }
         
         console.log("Finished removing shared permissions");
       } catch (permError) {
-        // Log the error but continue with deletion - the main goal is to remove the connection
         console.error("Error removing folder permissions (continuing with disconnect):", permError);
       }
     }
 
-    // Delete the connection
-    const { error: deleteError } = await supabaseAdmin
+    // Revoke the OAuth token with Google (best-effort)
+    try {
+      await revokeToken(refreshToken);
+    } catch (revokeError) {
+      console.error("Error revoking token (continuing with disconnect):", revokeError);
+    }
+
+    // Soft-delete: UPDATE instead of DELETE — preserve connected_email and folder IDs on clients/applications
+    const { error: updateError } = await supabaseAdmin
       .from("google_drive_connections")
-      .delete()
+      .update({
+        access_token: "",
+        refresh_token: "",
+        root_folder_id: null,
+        root_folder_name: null,
+        tokens_encrypted: false,
+        disconnected_at: new Date().toISOString(),
+      })
       .eq("company_id", companyId);
 
-    if (deleteError) {
-      console.error("Delete error:", deleteError);
+    if (updateError) {
+      console.error("Update error:", updateError);
       throw new Error("Failed to disconnect");
     }
 
-    console.log("Disconnected Google Drive for company:", companyId);
+    console.log("Disconnected Google Drive for company:", companyId, "(soft-delete, folder IDs preserved)");
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
