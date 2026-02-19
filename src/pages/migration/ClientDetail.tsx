@@ -653,7 +653,7 @@ const ClientDetail = () => {
                         {isDriveConnected ? (
                           <p>Open client folder in Google Drive</p>
                         ) : (
-                          <p>Google Drive disconnected{driveStatus?.connected_email ? ` for ${driveStatus.connected_email}` : ""}. Folder may not be accessible.</p>
+                          <p>Google Drive disconnected{(clientDriveBinding?.connected_email || driveStatus?.connected_email) ? ` for ${clientDriveBinding?.connected_email || driveStatus?.connected_email}` : ""}. Folder may not be accessible.</p>
                         )}
                       </TooltipContent>
                     </Tooltip>
@@ -810,7 +810,7 @@ const ClientDetail = () => {
                               {isDriveConnected ? (
                                 <p>Open folder in Google Drive</p>
                               ) : (
-                                <p>Google Drive disconnected{driveStatus?.connected_email ? ` for ${driveStatus.connected_email}` : ""}. Folder may not be accessible.</p>
+                                <p>Google Drive disconnected{(clientDriveBinding?.connected_email || driveStatus?.connected_email) ? ` for ${clientDriveBinding?.connected_email || driveStatus?.connected_email}` : ""}. Folder may not be accessible.</p>
                               )}
                             </TooltipContent>
                           </Tooltip>

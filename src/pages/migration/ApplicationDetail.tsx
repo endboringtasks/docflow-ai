@@ -96,6 +96,7 @@ interface VisaApplication {
   folder_status_updated_at: string | null;
   created_at: string;
   company_id: string;
+  google_drive_connection_id: string | null;
 }
 
 interface Client {
@@ -369,6 +370,21 @@ const VisaApplicationDetail = () => {
       return data as VisaApplication | null;
     },
     enabled: !!visaApplicationId,
+  });
+
+  // Fetch the Drive account email bound to this application's connection
+  const { data: appDriveBinding } = useQuery({
+    queryKey: ["app-drive-binding", visaApplication?.google_drive_connection_id],
+    queryFn: async () => {
+      if (!visaApplication?.google_drive_connection_id) return null;
+      const { data } = await supabase
+        .from("google_drive_connections")
+        .select("id, connected_email")
+        .eq("id", visaApplication.google_drive_connection_id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!visaApplication?.google_drive_connection_id,
   });
 
   // Fetch countries for the dropdown
@@ -1907,7 +1923,7 @@ const VisaApplicationDetail = () => {
                         {isDriveConnected ? (
                           <p>Opens in Google Drive</p>
                         ) : (
-                          <p>Google Drive disconnected{driveStatus?.connected_email ? ` for ${driveStatus.connected_email}` : ""}. Folder may not be accessible.</p>
+                          <p>Google Drive disconnected{(appDriveBinding?.connected_email || driveStatus?.connected_email) ? ` for ${appDriveBinding?.connected_email || driveStatus?.connected_email}` : ""}. Folder may not be accessible.</p>
                         )}
                       </TooltipContent>
                     </Tooltip>
