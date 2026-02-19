@@ -777,33 +777,49 @@ const MigrationClients = () => {
                       </td>
                       <td className="p-4 hidden lg:table-cell">
                         {/* Always show Open Folder if folder exists, regardless of connection */}
+                        {/* Drive folder status with per-client mismatch detection */}
                         {client.folder_status === "created" && client.client_folder_id ? (
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <a
-                                  href={`https://drive.google.com/drive/folders/${client.client_folder_id}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium hover:underline transition-all group ${
-                                    isDriveConnected
-                                      ? "bg-primary/10 text-primary hover:bg-primary/20"
-                                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
-                                  }`}
-                                >
-                                  <FolderOpen className="w-3.5 h-3.5" />
-                                  Open Folder
-                                  {!isDriveConnected && <AlertTriangle className="w-3 h-3" />}
-                                  <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
-                                </a>
+                                {(() => {
+                                  const clientDriveEmail = client.drive_connected_email;
+                                  const currentDriveEmail = driveStatus?.connected_email;
+                                  const isDriveMismatch = isDriveConnected && !!clientDriveEmail && !!currentDriveEmail && clientDriveEmail !== currentDriveEmail;
+                                  const isWarning = !isDriveConnected || isDriveMismatch;
+                                  return (
+                                    <a
+                                      href={`https://drive.google.com/drive/folders/${client.client_folder_id}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium hover:underline transition-all group ${
+                                        isWarning
+                                          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+                                          : "bg-primary/10 text-primary hover:bg-primary/20"
+                                      }`}
+                                    >
+                                      <FolderOpen className="w-3.5 h-3.5" />
+                                      Open Folder
+                                      {isWarning && <AlertTriangle className="w-3 h-3" />}
+                                      <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                                    </a>
+                                  );
+                                })()}
                               </TooltipTrigger>
                               <TooltipContent side="bottom" className="max-w-xs">
-                                {isDriveConnected ? (
-                                  <p>Opens in Google Drive</p>
-                                ) : (
-                                  <p>Google Drive disconnected{client.drive_connected_email ? ` for ${client.drive_connected_email}` : ""}. Folder may not be accessible.</p>
-                                )}
+                                {(() => {
+                                  const clientDriveEmail = client.drive_connected_email;
+                                  const currentDriveEmail = driveStatus?.connected_email;
+                                  const isDriveMismatch = isDriveConnected && !!clientDriveEmail && !!currentDriveEmail && clientDriveEmail !== currentDriveEmail;
+                                  if (!isDriveConnected) {
+                                    return <p>Google Drive disconnected{clientDriveEmail ? ` for ${clientDriveEmail}` : ""}. Folder may not be accessible.</p>;
+                                  }
+                                  if (isDriveMismatch) {
+                                    return <p>Folder created with {clientDriveEmail}, but Drive is now connected to {currentDriveEmail}. Folder may not be accessible.</p>;
+                                  }
+                                  return <p>Opens in Google Drive</p>;
+                                })()}
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
