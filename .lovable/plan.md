@@ -1,53 +1,68 @@
 
 
-## Fix: ApplicationDetail Drive Mismatch Detection
+## Block "Invite Client" Button on Drive Mismatch
 
-### Problem
+### What Changes
 
-The ApplicationDetail page fetches the drive email from the `google_drive_connections` table (`appDriveBinding?.connected_email`), which returns the **current** connection email (`anderri@gmail.com`). Since `driveStatus?.connected_email` is also `anderri@gmail.com`, they always match -- so it never shows a warning.
+The "Invite Client" button on the ApplicationDetail page will be **disabled** when a Google Drive account mismatch is detected. A tooltip will explain why, and suggest two options: reconnect the original Drive account, or create a new client/application on the current Drive account.
 
-The correct source is the client's `drive_created_email` column, which snapshots the email used when the folder was actually created (`anderson@endboringtasks.com`).
+### How It Works
 
-### Root Cause
+1. **Lift the mismatch computation** -- Currently `isDriveMismatch` is computed inline inside the folder status button's render function (around line 1906). Move it to the component body level so both the folder button and the Invite Client button can reference it.
 
-The `google_drive_connections` table has a unique constraint on `company_id`, so reconnecting with a different account **overwrites** the `connected_email` in the same record. The `appDriveBinding` query reads from this record, so it always reflects the current account, not the original one.
+2. **Disable the Invite Client button** -- When `isDriveMismatch` is true, the button becomes disabled with `opacity-50 cursor-not-allowed` styling.
 
-### Fix
+3. **Add a tooltip** -- Wrap the button in a Tooltip that explains the situation when disabled:
+   > "Cannot invite client: this application's folder was created with [bound email], but Drive is now connected to [current email]. Reconnect the original account or create a new client and application on the current Drive account."
 
-#### 1. `src/pages/migration/ApplicationDetail.tsx`
+### Technical Details
 
-Replace the `appDriveBinding` lookup (which reads from the connection record) with a query that fetches `drive_created_email` from the **client** record instead:
+**File: `src/pages/migration/ApplicationDetail.tsx`**
 
-```typescript
-// Instead of fetching from google_drive_connections,
-// fetch the client's snapshotted drive_created_email
-const { data: clientDriveEmail } = useQuery({
-  queryKey: ["client-drive-email", visaApplication?.client_id],
-  queryFn: async () => {
-    const { data } = await supabase
-      .from("clients")
-      .select("drive_created_email")
-      .eq("id", visaApplication.client_id)
-      .maybeSingle();
-    return data?.drive_created_email ?? null;
-  },
-  enabled: !!visaApplication?.client_id,
-});
-```
+- Move these lines from the inline render (around line 1906) to the component body (before the JSX return):
+  ```typescript
+  const boundEmail = clientDriveEmail;
+  const currentEmail = driveStatus?.connected_email;
+  const isDriveMismatch = isDriveConnected && !!boundEmail && !!currentEmail && boundEmail !== currentEmail;
+  ```
 
-Then update the mismatch comparison (~line 1907 and ~1932) to use `clientDriveEmail` instead of `appDriveBinding?.connected_email`:
+- Update the Invite Client button (line 1862) from:
+  ```tsx
+  <Button variant="outline" onClick={() => setIsInviteOpen(true)}>
+    <Mail className="w-4 h-4 mr-2" />
+    Invite Client
+  </Button>
+  ```
+  To a tooltip-wrapped, conditionally disabled button:
+  ```tsx
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span tabIndex={isDriveMismatch ? 0 : undefined}>
+          <Button
+            variant="outline"
+            onClick={() => setIsInviteOpen(true)}
+            disabled={isDriveMismatch}
+          >
+            <Mail className="w-4 h-4 mr-2" />
+            Invite Client
+          </Button>
+        </span>
+      </TooltipTrigger>
+      {isDriveMismatch && (
+        <TooltipContent side="bottom" className="max-w-xs">
+          Cannot invite client: folder was created with {boundEmail},
+          but Drive is now connected to {currentEmail}. Reconnect the
+          original account or create a new client and application on
+          the current Drive account.
+        </TooltipContent>
+      )}
+    </Tooltip>
+  </TooltipProvider>
+  ```
 
-```typescript
-const boundEmail = clientDriveEmail;  // was: appDriveBinding?.connected_email
-const currentEmail = driveStatus?.connected_email;
-const isDriveMismatch = isDriveConnected && !!boundEmail && !!currentEmail && boundEmail !== currentEmail;
-```
-
-Also update any disconnected tooltip references that use `appDriveBinding?.connected_email` to use `clientDriveEmail` instead.
-
-### Files Summary
+- The inline folder status render will reference the same component-level variables instead of re-declaring them.
 
 | File | Change |
 |---|---|
-| `src/pages/migration/ApplicationDetail.tsx` | Replace `appDriveBinding` connection lookup with client's `drive_created_email`; update mismatch comparisons |
-
+| `src/pages/migration/ApplicationDetail.tsx` | Lift `isDriveMismatch` to component body; disable Invite Client button with tooltip when mismatch detected |
