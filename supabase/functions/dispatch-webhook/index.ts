@@ -490,6 +490,25 @@ Deno.serve(async (req) => {
               const table = entityType === "client" ? "clients" : "visa_applications";
               console.log(`Updating ${table} ${entityId} with folder_id: ${folderId}`);
 
+              // Look up Drive connection to snapshot the email at folder-creation time
+              const folderCompanyId = (hydratedData as any).company_id ?? (payload.data as any).company_id;
+              let driveUpdateFields: Record<string, unknown> = {};
+              if (folderCompanyId) {
+                const { data: driveConn } = await supabase
+                  .from("google_drive_connections")
+                  .select("id, connected_email")
+                  .eq("company_id", folderCompanyId)
+                  .is("disconnected_at", null)
+                  .maybeSingle();
+                if (driveConn) {
+                  driveUpdateFields = {
+                    google_drive_connection_id: driveConn.id,
+                    ...(entityType === "client" ? { drive_created_email: driveConn.connected_email } : {}),
+                  };
+                  console.log(`Drive snapshot: connection=${driveConn.id}, email=${driveConn.connected_email}`);
+                }
+              }
+
               const folderColumn = entityType === "client" ? "client_folder_id" : "visa_application_folder_id";
               const { data: updateData, error: updateError } = await supabase
                 .from(table)
@@ -497,6 +516,7 @@ Deno.serve(async (req) => {
                   [folderColumn]: folderId,
                   folder_status: "created",
                   folder_status_updated_at: new Date().toISOString(),
+                  ...driveUpdateFields,
                 })
                 .eq("id", entityId)
                 .select();

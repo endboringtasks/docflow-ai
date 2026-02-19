@@ -802,7 +802,7 @@ const MigrationClients = () => {
                                 {isDriveConnected ? (
                                   <p>Opens in Google Drive</p>
                                 ) : (
-                                  <p>Google Drive disconnected{(client.drive_connected_email || driveStatus?.connected_email) ? ` for ${client.drive_connected_email || driveStatus?.connected_email}` : ""}. Folder may not be accessible.</p>
+                                  <p>Google Drive disconnected{client.drive_connected_email ? ` for ${client.drive_connected_email}` : ""}. Folder may not be accessible.</p>
                                 )}
                               </TooltipContent>
                             </Tooltip>
