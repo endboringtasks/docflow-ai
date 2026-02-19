@@ -372,19 +372,18 @@ const VisaApplicationDetail = () => {
     enabled: !!visaApplicationId,
   });
 
-  // Fetch the Drive account email bound to this application's connection
-  const { data: appDriveBinding } = useQuery({
-    queryKey: ["app-drive-binding", visaApplication?.google_drive_connection_id],
+  // Fetch the snapshotted drive email from the client record (not the connection record)
+  const { data: clientDriveEmail } = useQuery({
+    queryKey: ["client-drive-email", visaApplication?.client_id],
     queryFn: async () => {
-      if (!visaApplication?.google_drive_connection_id) return null;
       const { data } = await supabase
-        .from("google_drive_connections")
-        .select("id, connected_email")
-        .eq("id", visaApplication.google_drive_connection_id)
+        .from("clients")
+        .select("drive_created_email")
+        .eq("id", visaApplication!.client_id)
         .maybeSingle();
-      return data;
+      return data?.drive_created_email ?? null;
     },
-    enabled: !!visaApplication?.google_drive_connection_id,
+    enabled: !!visaApplication?.client_id,
   });
 
   // Fetch countries for the dropdown
@@ -1904,7 +1903,7 @@ const VisaApplicationDetail = () => {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         {(() => {
-                          const boundEmail = appDriveBinding?.connected_email;
+                          const boundEmail = clientDriveEmail;
                           const currentEmail = driveStatus?.connected_email;
                           const isDriveMismatch = isDriveConnected && !!boundEmail && !!currentEmail && boundEmail !== currentEmail;
                           const isWarning = !isDriveConnected || isDriveMismatch;
@@ -1929,7 +1928,7 @@ const VisaApplicationDetail = () => {
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className="max-w-xs">
                         {(() => {
-                          const boundEmail = appDriveBinding?.connected_email;
+                          const boundEmail = clientDriveEmail;
                           const currentEmail = driveStatus?.connected_email;
                           const isDriveMismatch = isDriveConnected && !!boundEmail && !!currentEmail && boundEmail !== currentEmail;
                           if (!isDriveConnected) {
