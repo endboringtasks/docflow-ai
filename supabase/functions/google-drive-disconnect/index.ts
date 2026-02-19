@@ -238,8 +238,6 @@ serve(async (req) => {
       .update({
         access_token: "",
         refresh_token: "",
-        root_folder_id: null,
-        root_folder_name: null,
         tokens_encrypted: false,
         disconnected_at: new Date().toISOString(),
       })
