@@ -214,6 +214,7 @@ serve(async (req) => {
         root_folder_id: rootFolderId,
         root_folder_name: rootFolderName,
         tokens_encrypted: true,
+        disconnected_at: null,
       }, { onConflict: "company_id" });
 
     if (upsertError) {

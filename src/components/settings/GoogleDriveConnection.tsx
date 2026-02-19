@@ -202,8 +202,11 @@ export function GoogleDriveConnection() {
       if (error) throw error;
 
       toast.success("Google Drive integration has been disconnected.");
-      setConnection(null);
+      // Refetch to show disconnected state (connection row is preserved with connected_email)
+      await fetchConnection();
       setDisconnectDialogOpen(false);
+      setDisconnectCheckbox(false);
+      setDisconnectConfirmText("");
     } catch (error) {
       console.error("Error disconnecting:", error);
       toast.error("Failed to disconnect Google Drive");
@@ -286,7 +289,7 @@ export function GoogleDriveConnection() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {connection ? (
+        {connection && connection.root_folder_id ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
               <div className="flex items-center gap-3">
@@ -401,27 +404,22 @@ export function GoogleDriveConnection() {
                       <div className="space-y-4 text-sm text-muted-foreground">
                         <p>
                           You are about to disconnect your organization's Google Drive integration. 
-                          This action will permanently remove all stored Drive folder references from the platform.
+                          Existing folder links will be preserved but may not be accessible until you reconnect.
                         </p>
 
                         <div>
-                          <p className="font-medium text-foreground mb-2">Consequences include:</p>
+                          <p className="font-medium text-foreground mb-2">What will happen:</p>
                           <ul className="list-disc list-inside space-y-1.5">
-                            <li>Loss of access to all linked client folders</li>
-                            <li>Inability to receive new client file uploads</li>
-                            <li>Loss of document traceability within the system</li>
-                            <li>Interruption of file audit continuity</li>
-                            <li>Potential impact on regulatory compliance and document retention obligations</li>
+                            <li>OAuth access will be revoked from your Google account</li>
+                            <li>New folder creation will be disabled</li>
+                            <li>Existing folder links will show a warning but remain clickable</li>
+                            <li>Client file uploads via portal will be interrupted</li>
                           </ul>
                         </div>
 
-                        <p className="font-semibold text-destructive">
-                          This action is irreversible.
-                        </p>
-
                         <p>
-                          If you reconnect using a different Google account, a new folder structure will be created. 
-                          Previous folder links cannot be restored automatically.
+                          You can reconnect at any time. If you reconnect with the same Google account, 
+                          existing folders will continue to work.
                         </p>
 
                         <div className="border-t pt-4 space-y-4">
@@ -432,13 +430,13 @@ export function GoogleDriveConnection() {
                               onCheckedChange={(checked) => setDisconnectCheckbox(checked === true)}
                             />
                             <label htmlFor="disconnect-confirm-check" className="text-sm leading-snug cursor-pointer">
-                              I understand that disconnecting Google Drive will permanently remove folder links and impact document traceability.
+                              I understand that disconnecting Google Drive will revoke access and disable folder creation.
                             </label>
                           </div>
 
                           <div className="space-y-2">
                             <label htmlFor="disconnect-confirm-text" className="text-sm font-medium text-foreground">
-                              Type <span className="font-mono font-bold text-destructive">DISCONNECT</span> to confirm this irreversible action.
+                              Type <span className="font-mono font-bold text-destructive">DISCONNECT</span> to confirm.
                             </label>
                             <Input
                               id="disconnect-confirm-text"
@@ -503,6 +501,49 @@ export function GoogleDriveConnection() {
               </div>
             )}
 
+          </div>
+        ) : connection && connection.connected_email ? (
+          /* Disconnected state - show email and reconnect option */
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">Disconnected</p>
+                  </div>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <Mail className="w-3 h-3" />
+                    Previously connected: {connection.connected_email}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Existing folder links are preserved but may not be accessible.
+                  </p>
+                </div>
+              </div>
+              
+              {canManage && (
+                <Button 
+                  onClick={handleReconnect} 
+                  disabled={isReconnecting}
+                  size="sm"
+                >
+                  {isReconnecting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Reconnecting...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4" />
+                      Reconnect
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="space-y-4">

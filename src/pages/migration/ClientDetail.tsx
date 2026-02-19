@@ -640,14 +640,21 @@ const ClientDetail = () => {
                           href={`https://drive.google.com/drive/folders/${client.client_folder_id}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="font-medium text-primary hover:underline flex items-center gap-1"
+                          className={`font-medium hover:underline flex items-center gap-1 ${
+                            isDriveConnected ? "text-primary" : "text-amber-600 dark:text-amber-400"
+                          }`}
                         >
                           Open Folder
+                          {!isDriveConnected && <AlertTriangle className="w-3 h-3" />}
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Open client folder in Google Drive</p>
+                      <TooltipContent side="bottom" className="max-w-xs">
+                        {isDriveConnected ? (
+                          <p>Open client folder in Google Drive</p>
+                        ) : (
+                          <p>Google Drive disconnected{driveStatus?.connected_email ? ` for ${driveStatus.connected_email}` : ""}. Folder may not be accessible.</p>
+                        )}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -795,11 +802,16 @@ const ClientDetail = () => {
                                 rel="noopener noreferrer"
                                 className="p-2 hover:bg-muted rounded-lg transition-colors"
                               >
-                                <FolderOpen className="w-4 h-4 text-muted-foreground" />
+                                <FolderOpen className={`w-4 h-4 ${isDriveConnected ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`} />
+                                {!isDriveConnected && <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 absolute -top-0.5 -right-0.5" />}
                               </a>
                             </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Open folder in Google Drive</p>
+                            <TooltipContent side="bottom" className="max-w-xs">
+                              {isDriveConnected ? (
+                                <p>Open folder in Google Drive</p>
+                              ) : (
+                                <p>Google Drive disconnected{driveStatus?.connected_email ? ` for ${driveStatus.connected_email}` : ""}. Folder may not be accessible.</p>
+                              )}
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>

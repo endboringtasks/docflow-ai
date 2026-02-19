@@ -1071,6 +1071,7 @@ export type Database = {
           connected_by: string
           connected_email: string | null
           created_at: string
+          disconnected_at: string | null
           id: string
           refresh_token: string
           root_folder_id: string | null
@@ -1085,6 +1086,7 @@ export type Database = {
           connected_by: string
           connected_email?: string | null
           created_at?: string
+          disconnected_at?: string | null
           id?: string
           refresh_token: string
           root_folder_id?: string | null
@@ -1099,6 +1101,7 @@ export type Database = {
           connected_by?: string
           connected_email?: string | null
           created_at?: string
+          disconnected_at?: string | null
           id?: string
           refresh_token?: string
           root_folder_id?: string | null
@@ -1769,6 +1772,7 @@ export type Database = {
           connected_by: string
           connected_email: string
           created_at: string
+          disconnected_at: string
           id: string
           root_folder_id: string
           root_folder_name: string
