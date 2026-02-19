@@ -488,6 +488,7 @@ export type Database = {
           created_at: string
           date_of_birth: string | null
           documents_received_folder_id: string | null
+          drive_created_email: string | null
           email: string | null
           first_name: string | null
           folder_status: string | null
@@ -508,6 +509,7 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           documents_received_folder_id?: string | null
+          drive_created_email?: string | null
           email?: string | null
           first_name?: string | null
           folder_status?: string | null
@@ -528,6 +530,7 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           documents_received_folder_id?: string | null
+          drive_created_email?: string | null
           email?: string | null
           first_name?: string | null
           folder_status?: string | null
