@@ -17,6 +17,7 @@ import { CompanySwitcher } from "@/components/CompanySwitcher";
 import { useAuth } from "@/hooks/useAuth";
 import { useCompany } from "@/hooks/useCompany";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useDriveBackfill } from "@/hooks/useDriveBackfill";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -61,6 +62,7 @@ const AppLayout = ({ children, niche }: AppLayoutProps) => {
   const { currentCompany, currentRole } = useCompany();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const config = nicheConfig[niche];
+  useDriveBackfill();
 
   const handleLogout = async () => {
     await signOut();
