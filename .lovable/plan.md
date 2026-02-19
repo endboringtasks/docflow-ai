@@ -1,99 +1,59 @@
 
 
-## Definitive Fix: Set Drive Email in the Correct Edge Function
+## Per-Client Drive Account Mismatch Detection
 
-### Root Cause (Found This Time)
+### Problem
 
-The previous fixes targeted `webhook-client-folder`, but that function is **never called** in the actual flow. The real flow is:
+Currently, `isDriveConnected` is a single global boolean (`!!driveStatus?.root_folder_id`) -- it only checks whether the company has any active Drive connection. It does not compare the client's `drive_created_email` against the current connection's `connected_email`.
 
-1. Frontend calls `dispatch-webhook` with `client.created` event
-2. `dispatch-webhook` sends data to Make.com
-3. Make.com creates the folder and responds with `client_folder_id`
-4. **`dispatch-webhook` itself updates the `clients` table** (lines 494-502) -- but only sets `client_folder_id`, `folder_status`, and `folder_status_updated_at`
-5. It **never sets** `drive_created_email` or `google_drive_connection_id`
+Result: The "gmail" client (folder created with `anderri@gmail.com`) shows a green "Open Folder" button even though the current connection is `anderson@endboringtasks.com`. The folder lives in a different Google account and may not be accessible.
 
-So every new client ends up with `drive_created_email = NULL`, the RPC returns NULL for `drive_connected_email`, and the frontend falls back to the current company-level email.
+### Expected Behavior
+
+Three possible states for each client's folder button:
+
+| State | Condition | Appearance |
+|---|---|---|
+| Connected (green) | Drive connected AND `drive_created_email` matches current `connected_email` (or no snapshot email) | Green "Open Folder" |
+| Mismatched (amber) | Drive connected BUT `drive_created_email` differs from current `connected_email` | Amber "Open Folder" with warning icon and tooltip explaining mismatch |
+| Disconnected (red) | No active Drive connection at all | Red "Not Connected" with warning |
 
 ### Changes
 
-#### 1. Fix `dispatch-webhook/index.ts` -- set drive email when updating client folder
+#### 1. `src/pages/migration/Clients.tsx` -- Add per-client mismatch detection
 
-After successfully extracting the folder ID and before updating the client record (~line 494), look up the active Google Drive connection for the company and include `drive_created_email` and `google_drive_connection_id` in the update:
+In the folder status rendering section (around line 780), replace the simple `isDriveConnected` check with a per-client check:
 
 ```typescript
-// Around line 489, when folderId is found and entityType === "client":
-// Look up Drive connection to snapshot the email
-const companyId = (hydratedData as any).company_id ?? (payload.data as any).company_id;
-let driveUpdateFields: Record<string, unknown> = {};
-if (companyId) {
-  const { data: driveConn } = await supabase
-    .from("google_drive_connections")
-    .select("id, connected_email")
-    .eq("company_id", companyId)
-    .maybeSingle();
-  if (driveConn) {
-    driveUpdateFields = {
-      google_drive_connection_id: driveConn.id,
-      drive_created_email: driveConn.connected_email,
-    };
-  }
-}
-
-// Then include driveUpdateFields in the update call:
-.update({
-  [folderColumn]: folderId,
-  folder_status: "created",
-  folder_status_updated_at: new Date().toISOString(),
-  ...driveUpdateFields,  // <-- adds drive_created_email + connection_id
-})
+// For each client row, compute:
+const clientDriveEmail = client.drive_connected_email;
+const currentDriveEmail = driveStatus?.connected_email;
+const isDriveMismatch = isDriveConnected && clientDriveEmail && currentDriveEmail 
+  && clientDriveEmail !== currentDriveEmail;
 ```
 
-#### 2. Fix frontend fallback in `Clients.tsx` (line 805)
+Then use `isDriveMismatch` to show amber styling and a tooltip like:
+- "Folder created with anderri@gmail.com, but Drive is now connected to anderson@endboringtasks.com. Folder may not be accessible."
 
-Remove the fallback to `driveStatus?.connected_email`. Only show the email from the RPC (which is the snapshot email):
+When `isDriveMismatch` is true, show amber styling (same as disconnected warning) with the mismatch tooltip.
+When `isDriveConnected && !isDriveMismatch`, show green styling with "Opens in Google Drive".
+When `!isDriveConnected`, keep existing disconnected behavior.
 
-```
-Before: client.drive_connected_email || driveStatus?.connected_email
-After:  client.drive_connected_email
-```
+#### 2. `src/pages/migration/Applications.tsx` -- Same mismatch detection
 
-#### 3. Fix frontend fallback in `Applications.tsx` (line 1200)
+Apply the same logic for application folder buttons (around line 1175), looking up the client's `drive_connected_email` via the `clients` array.
 
-Same fix -- remove fallback to `driveStatus?.connected_email`:
+### Technical Details
 
-```
-Before: clientObj?.drive_connected_email || driveStatus?.connected_email
-After:  clientObj?.drive_connected_email
-```
-
-#### 4. Backfill the two newly created clients
-
-Run a data update to set the correct values for the two clients created today (anderson and anderri), since they went through the broken flow:
-
-```sql
-UPDATE clients c
-SET 
-  google_drive_connection_id = 'a4b835e8-254b-449d-9dfc-3b7c5635c81f',
-  drive_created_email = 'anderson@endboringtasks.com'
-WHERE id IN (
-  '54479a7d-6346-4c17-a71f-ba422f678ef1',
-  'cec07f6f-5bb8-4c25-bca3-4d95fed409eb'
-)
-AND drive_created_email IS NULL;
-```
-
-### Why This Is Definitive
-
-- Targets the **actual code path** that runs when folders are created (dispatch-webhook, not webhook-client-folder)
-- Removes the frontend fallback that was masking the issue by always showing the current email
-- Backfills the two records that went through the broken flow
+- No database or edge function changes needed -- all data is already available
+- `client.drive_connected_email` comes from the `get_clients_secure` RPC
+- `driveStatus?.connected_email` comes from the existing Drive status query
+- The comparison is a simple string equality check
 
 ### Files Summary
 
 | File | Change |
 |---|---|
-| `supabase/functions/dispatch-webhook/index.ts` | Set `drive_created_email` and `google_drive_connection_id` when updating client with folder ID |
-| `src/pages/migration/Clients.tsx` | Remove fallback to `driveStatus?.connected_email` |
-| `src/pages/migration/Applications.tsx` | Remove fallback to `driveStatus?.connected_email` |
-| Database (data fix) | Backfill 2 new clients with correct email |
+| `src/pages/migration/Clients.tsx` | Add per-client `isDriveMismatch` check; show amber warning with mismatch tooltip |
+| `src/pages/migration/Applications.tsx` | Same mismatch detection for application folder buttons |
 
