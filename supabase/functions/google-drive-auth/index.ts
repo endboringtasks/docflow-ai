@@ -88,6 +88,7 @@ serve(async (req) => {
     authUrl.searchParams.set("access_type", "offline");
     authUrl.searchParams.set("prompt", "consent");
     authUrl.searchParams.set("state", state);
+    authUrl.searchParams.set("enable_granular_consent", "false");
 
     console.log("Generated auth URL for user:", user.id, "company:", companyId);
 
