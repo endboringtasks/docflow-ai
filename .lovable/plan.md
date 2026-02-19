@@ -1,109 +1,72 @@
 
 
-## Revoke OAuth Token on Disconnect + Keep Folder IDs + Show Disconnected Warning
+## Fix: Show Correct Google Account Email Per Client/Application
 
-### Overview
-When a user disconnects Google Drive, the system will revoke the OAuth token with Google, preserve all folder IDs, and show a warning banner on folder links indicating Drive is disconnected for the specific email.
+### Problem
+When multiple clients were created under different Google Drive accounts, the "disconnected" warning tooltip shows the same email for all of them. This happens because the tooltip uses `driveStatus?.connected_email` (the company-level connection), not the email from each client's individually bound `google_drive_connection_id`.
+
+### Solution
+Include the bound Drive email in the data returned for each client and application, so the tooltip shows the correct account.
 
 ### Changes
 
-#### 1. Edge Function: `supabase/functions/google-drive-disconnect/index.ts`
+#### 1. Database Migration: Update `get_clients_secure` RPC
 
-**Current behavior:** Removes shared permissions from root folder, then deletes the `google_drive_connections` row entirely.
+Add a LEFT JOIN to `google_drive_connections` to return the `connected_email` for each client's bound Drive connection:
 
-**New behavior:**
-- **Revoke the OAuth token** by calling Google's revoke endpoint (`https://oauth2.googleapis.com/revoke?token={refreshToken}`) to fully remove app access from the user's Google Account
-- **Keep the connection row** but clear tokens and mark it as disconnected:
-  - Set `access_token` and `refresh_token` to empty strings
-  - Set `root_folder_id` to `NULL` (this is what the UI uses to determine "connected" status)
-  - **Preserve** `connected_email` so the UI can show which account was disconnected
-  - Add a soft-delete approach: instead of `DELETE`, do an `UPDATE`
-
-This way the `connected_email` is still available for the warning message, and `root_folder_id = NULL` means `isDriveConnected = false` in all UI queries.
-
-#### 2. Database: Add `disconnected_at` column to `google_drive_connections`
-
-Add a nullable `timestamptz` column `disconnected_at` to track when the connection was disconnected. When this is non-null and `root_folder_id` is null, the connection is in "disconnected" state.
-
-#### 3. Update `get_drive_connection_status` RPC function
-
-Currently this function returns the connection row. It will continue to do so -- but now the row will persist after disconnect with `root_folder_id = NULL` and `disconnected_at` set. The existing `isDriveConnected = !!driveStatus?.root_folder_id` check in the UI already handles this correctly.
-
-#### 4. Frontend: Update `useDriveBackfill.ts`
-
-Expose `driveStatus` (including `connected_email` and `disconnected_at`) so UI components can show the warning.
-
-#### 5. Frontend: Update folder link rendering in 4 pages
-
-When Drive is disconnected but a folder ID exists, show the "Open Folder" link with a warning indicator (amber/yellow styling) and a tooltip saying "Google Drive disconnected for xyz@gmail.com. Folder may not be accessible."
-
-**Files affected:**
-- `src/pages/migration/Clients.tsx` -- client folder column
-- `src/pages/migration/ClientDetail.tsx` -- client detail folder link
-- `src/pages/migration/Applications.tsx` -- application folder column
-- `src/pages/migration/ApplicationDetail.tsx` -- application detail folder link
-
-The logic change: instead of the current `folder_status === "created" && client_folder_id` showing "Open Folder" vs `!isDriveConnected` showing "Not Connected", the new logic is:
-
-```text
-if folder_status === "created" && folder_id exists:
-  if isDriveConnected:
-    show "Open Folder" (green, normal)
-  else:
-    show "Open Folder" (amber, with warning tooltip: "Drive disconnected for email")
-else if !isDriveConnected:
-  show "Not Connected" badge
-else:
-  show creating/failed/pending states
-```
-
-#### 6. Frontend: Update disconnect dialog text
-
-Update `GoogleDriveConnection.tsx` disconnect dialog to reflect that folder links will be preserved (not "permanently removed"). After disconnect, show a disconnected state with the email and a "Reconnect" button instead of clearing the connection entirely.
-
-#### 7. Frontend: Update `GoogleDriveConnection.tsx` post-disconnect state
-
-After disconnect, instead of setting `connection` to `null`, keep the connection object with the disconnected state so the UI shows "Disconnected" with the email and a reconnect option.
-
-### Technical Details
-
-**Token Revocation (Edge Function):**
-```typescript
-// Revoke the refresh token with Google
-async function revokeToken(token: string): Promise<boolean> {
-  const response = await fetch(
-    `https://oauth2.googleapis.com/revoke?token=${token}`,
-    { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-  );
-  return response.ok;
-}
-```
-
-**Database Migration:**
 ```sql
-ALTER TABLE google_drive_connections 
-ADD COLUMN disconnected_at timestamptz DEFAULT NULL;
+DROP FUNCTION IF EXISTS public.get_clients_secure(uuid);
+
+CREATE OR REPLACE FUNCTION public.get_clients_secure(p_company_id uuid)
+RETURNS TABLE(
+  id uuid, company_id uuid, client_type text, first_name text, 
+  last_name text, company_name text, email text, phone text, 
+  client_folder_id text, folder_status text, created_at timestamptz,
+  drive_connected_email text
+)
+...
+  SELECT 
+    c.id, c.company_id, c.client_type::text, ...
+    gdc.connected_email as drive_connected_email
+  FROM public.clients c
+  LEFT JOIN public.google_drive_connections gdc 
+    ON gdc.id = c.google_drive_connection_id
+  WHERE c.company_id = p_company_id
+  ORDER BY c.created_at DESC;
 ```
 
-**Edge Function UPDATE instead of DELETE:**
-```sql
-UPDATE google_drive_connections 
-SET access_token = '', refresh_token = '', root_folder_id = NULL, 
-    root_folder_name = NULL, disconnected_at = NOW(), tokens_encrypted = false
-WHERE company_id = companyId;
+#### 2. Update TypeScript Types
+
+Add `drive_connected_email` to the `get_clients_secure` return type in `src/integrations/supabase/types.ts`.
+
+#### 3. Update `src/pages/migration/Clients.tsx`
+
+Change the tooltip from:
+```
+driveStatus?.connected_email
+```
+to:
+```
+client.drive_connected_email || driveStatus?.connected_email
 ```
 
-**Reconnect flow:** The existing `handleReconnect` in `GoogleDriveConnection.tsx` already calls disconnect then starts a new OAuth flow. The `google-drive-callback` function will update the existing row (since it's `company_id` unique) with new tokens, clearing `disconnected_at`.
+This way each client shows the email of the Google account that actually created its folder.
+
+#### 4. Update `src/pages/migration/Applications.tsx`
+
+Applications inherit their Drive binding from their parent client. Fetch the client's `drive_connected_email` alongside application data so each application tooltip shows the correct email. This can be done by looking up the client's bound email from the already-fetched clients data (which now includes `drive_connected_email`).
+
+#### 5. Update `src/pages/migration/ClientDetail.tsx` and `src/pages/migration/ApplicationDetail.tsx`
+
+Same change: use the per-record bound email in the tooltip instead of the global `driveStatus?.connected_email`.
 
 ### Files Summary
 
 | File | Change |
 |---|---|
-| `supabase/functions/google-drive-disconnect/index.ts` | Add token revocation, UPDATE instead of DELETE |
-| Database migration | Add `disconnected_at` column |
-| `src/pages/migration/Clients.tsx` | Show folder link with warning when disconnected |
-| `src/pages/migration/ClientDetail.tsx` | Show folder link with warning when disconnected |
-| `src/pages/migration/Applications.tsx` | Show folder link with warning when disconnected |
-| `src/pages/migration/ApplicationDetail.tsx` | Show folder link with warning when disconnected |
-| `src/components/settings/GoogleDriveConnection.tsx` | Update disconnect dialog text, show disconnected state |
-| `src/hooks/useDriveBackfill.ts` | Expose `connected_email` from driveStatus |
+| Database migration | Update `get_clients_secure` to JOIN and return `drive_connected_email` |
+| `src/integrations/supabase/types.ts` | Add `drive_connected_email` to return type |
+| `src/pages/migration/Clients.tsx` | Use `client.drive_connected_email` in tooltip |
+| `src/pages/migration/Applications.tsx` | Use per-client bound email in tooltip |
+| `src/pages/migration/ClientDetail.tsx` | Use bound email in tooltip |
+| `src/pages/migration/ApplicationDetail.tsx` | Use bound email in tooltip |
