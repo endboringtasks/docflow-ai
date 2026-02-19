@@ -1,72 +1,35 @@
 
 
-## Fix: Show Correct Google Account Email Per Client/Application
+## Fix: Backfill `google_drive_connection_id` on Existing Clients
 
 ### Problem
-When multiple clients were created under different Google Drive accounts, the "disconnected" warning tooltip shows the same email for all of them. This happens because the tooltip uses `driveStatus?.connected_email` (the company-level connection), not the email from each client's individually bound `google_drive_connection_id`.
+All existing clients have `google_drive_connection_id = NULL` because the binding logic in `webhook-client-folder` was added after those clients were already created. The LEFT JOIN in `get_clients_secure` returns no email, so the tooltip falls back to `driveStatus?.connected_email` -- which is the **current** company-level connection (e.g., `anderson@endboringtasks.com`), not the account that originally created each folder.
 
 ### Solution
-Include the bound Drive email in the data returned for each client and application, so the tooltip shows the correct account.
+
+Run a one-time migration to backfill `google_drive_connection_id` for all existing clients that have a `client_folder_id` but no binding. Since each company only has one Drive connection, we can match by `company_id`.
 
 ### Changes
 
-#### 1. Database Migration: Update `get_clients_secure` RPC
-
-Add a LEFT JOIN to `google_drive_connections` to return the `connected_email` for each client's bound Drive connection:
+#### 1. Database Migration: Backfill existing clients
 
 ```sql
-DROP FUNCTION IF EXISTS public.get_clients_secure(uuid);
-
-CREATE OR REPLACE FUNCTION public.get_clients_secure(p_company_id uuid)
-RETURNS TABLE(
-  id uuid, company_id uuid, client_type text, first_name text, 
-  last_name text, company_name text, email text, phone text, 
-  client_folder_id text, folder_status text, created_at timestamptz,
-  drive_connected_email text
-)
-...
-  SELECT 
-    c.id, c.company_id, c.client_type::text, ...
-    gdc.connected_email as drive_connected_email
-  FROM public.clients c
-  LEFT JOIN public.google_drive_connections gdc 
-    ON gdc.id = c.google_drive_connection_id
-  WHERE c.company_id = p_company_id
-  ORDER BY c.created_at DESC;
+UPDATE clients c
+SET google_drive_connection_id = gdc.id
+FROM google_drive_connections gdc
+WHERE c.company_id = gdc.company_id
+  AND c.client_folder_id IS NOT NULL
+  AND c.google_drive_connection_id IS NULL;
 ```
 
-#### 2. Update TypeScript Types
+This sets the correct Drive connection for every existing client that has a folder but was never bound.
 
-Add `drive_connected_email` to the `get_clients_secure` return type in `src/integrations/supabase/types.ts`.
+#### 2. No frontend changes needed
 
-#### 3. Update `src/pages/migration/Clients.tsx`
-
-Change the tooltip from:
-```
-driveStatus?.connected_email
-```
-to:
-```
-client.drive_connected_email || driveStatus?.connected_email
-```
-
-This way each client shows the email of the Google account that actually created its folder.
-
-#### 4. Update `src/pages/migration/Applications.tsx`
-
-Applications inherit their Drive binding from their parent client. Fetch the client's `drive_connected_email` alongside application data so each application tooltip shows the correct email. This can be done by looking up the client's bound email from the already-fetched clients data (which now includes `drive_connected_email`).
-
-#### 5. Update `src/pages/migration/ClientDetail.tsx` and `src/pages/migration/ApplicationDetail.tsx`
-
-Same change: use the per-record bound email in the tooltip instead of the global `driveStatus?.connected_email`.
+The `get_clients_secure` RPC already JOINs on `google_drive_connection_id` and returns `drive_connected_email`. Once the backfill populates the FK, the correct email will appear automatically in all tooltips.
 
 ### Files Summary
 
 | File | Change |
 |---|---|
-| Database migration | Update `get_clients_secure` to JOIN and return `drive_connected_email` |
-| `src/integrations/supabase/types.ts` | Add `drive_connected_email` to return type |
-| `src/pages/migration/Clients.tsx` | Use `client.drive_connected_email` in tooltip |
-| `src/pages/migration/Applications.tsx` | Use per-client bound email in tooltip |
-| `src/pages/migration/ClientDetail.tsx` | Use bound email in tooltip |
-| `src/pages/migration/ApplicationDetail.tsx` | Use bound email in tooltip |
+| Database migration | Backfill `google_drive_connection_id` on existing clients |
