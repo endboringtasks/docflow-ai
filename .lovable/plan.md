@@ -1,48 +1,56 @@
 
 
-## Fix: Backfill Missing Drive Email Data and Prevent Fallback
+## Fix: Manually Set Correct Drive Emails for Existing Clients
 
 ### Problem
 
-Two issues are causing the wrong email to display:
-
-1. **Backfill didn't apply**: Your company's clients ("nnn" and "mmmm") still have `drive_created_email = NULL` and `google_drive_connection_id = NULL`. The migration file was created but the UPDATE didn't take effect on the actual data.
-
-2. **Frontend fallback**: When `drive_connected_email` from the RPC is NULL, the UI falls back to `driveStatus?.connected_email` (the current company-level connection), which always shows the latest connected account -- not the one that created the folder.
-
-### Root Cause
-
-The `get_clients_secure` RPC uses `COALESCE(c.drive_created_email, gdc.connected_email)`, but since `google_drive_connection_id` is also NULL, the LEFT JOIN returns nothing, so the entire `drive_connected_email` result is NULL. The frontend then falls back to the company-level email.
+The previous migration files were created but the UPDATE statements never executed against the actual data. Both "zzz" and "aaa" still have `drive_created_email = NULL` and `google_drive_connection_id = NULL`.
 
 ### Solution
 
-#### 1. Run the Backfill Manually (Data Fix)
+Since you know the original emails used:
+- **aaa** was created with `anderri@gmail.com`
+- **zzz** was created with `anderson@endboringtasks.com`
 
-Execute the backfill UPDATE to populate both `google_drive_connection_id` and `drive_created_email` for clients that have folders but are missing these fields:
+We will set these values directly on each client record using individual UPDATE statements.
+
+### Changes
+
+#### 1. Data fix: Set correct emails on existing clients
+
+Run two targeted UPDATEs to set the correct `drive_created_email` for each client:
 
 ```sql
-UPDATE clients c
-SET 
-  google_drive_connection_id = gdc.id,
-  drive_created_email = gdc.connected_email
-FROM google_drive_connections gdc
-WHERE gdc.company_id = c.company_id
-  AND c.client_folder_id IS NOT NULL
-  AND c.drive_created_email IS NULL;
+-- aaa client: folder created with anderri@gmail.com
+UPDATE clients 
+SET drive_created_email = 'anderri@gmail.com'
+WHERE id = '2b271c60-e486-4ed1-9eaf-50fa5d71ba87';
+
+-- zzz client: folder created with anderson@endboringtasks.com
+UPDATE clients 
+SET drive_created_email = 'anderson@endboringtasks.com'
+WHERE id = '7659d3cd-ea26-4cc8-a688-0b9dbfb6cf69';
 ```
 
-This will set both clients ("nnn" and "mmmm") to `anderson@endboringtasks.com` -- this is the best we can do since the original emails were overwritten.
+Also set `google_drive_connection_id` to the current connection so the LEFT JOIN in `get_clients_secure` works as a fallback:
 
-### Important Limitation
+```sql
+UPDATE clients 
+SET google_drive_connection_id = 'a4b835e8-254b-449d-9dfc-3b7c5635c81f'
+WHERE id IN (
+  '2b271c60-e486-4ed1-9eaf-50fa5d71ba87',
+  '7659d3cd-ea26-4cc8-a688-0b9dbfb6cf69'
+);
+```
 
-For your existing clients, the original Google account emails that created each folder **cannot be recovered** because they were overwritten when you reconnected with different accounts. The backfill will set them all to the current email (`anderson@endboringtasks.com`). Going forward, new client folders will correctly capture the specific email used at creation time.
+#### 2. No code changes needed
 
-### Technical Details
-
-| Area | Change |
-|---|---|
-| Data (clients table) | Backfill `google_drive_connection_id` and `drive_created_email` for 2 clients with NULL values |
+The `get_clients_secure` RPC already returns `COALESCE(c.drive_created_email, gdc.connected_email)`, so once the data is populated, the correct email will display automatically in the UI tooltips.
 
 ### Files Summary
 
-No code file changes needed -- only a data UPDATE to populate the missing fields.
+| Area | Change |
+|---|---|
+| Data (clients table) | Set `drive_created_email` to correct original emails for "aaa" and "zzz" |
+| Data (clients table) | Set `google_drive_connection_id` for both clients |
+
