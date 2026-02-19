@@ -1,17 +1,40 @@
 
 
-## Fix Slow Drive Status Detection — Add Polling Interval
+## Move Drive Backfill to Global Scope (Always Active)
 
 ### Problem
-The Drive status query on the Clients page has no `refetchInterval`, so React Query only refetches on window refocus or navigation. This causes a 3-5 minute detection delay after connecting Drive in Settings.
+The Drive reconnection backfill logic currently lives inside `src/pages/migration/Clients.tsx`. This component only mounts when the user navigates to the Clients page. So the backfill only starts after clicking through to that page -- the 30s polling is useless if the user is on Dashboard, Settings, or any other page.
 
 ### Solution
-Add `refetchInterval: 30000` (30 seconds) to the Drive connection status query on the Clients page. This ensures the backfill triggers within 30 seconds of reconnecting Drive, without requiring page navigation or manual refresh.
+Extract the Drive status polling and backfill trigger into a custom hook and mount it in `AppLayout` so it runs globally, regardless of which page the user is on.
 
 ### Changes
 
-**File: `src/pages/migration/Clients.tsx`**
-- Add `refetchInterval: 30_000` to the `drive-connection-status` `useQuery` options (around line 174).
+**New file: `src/hooks/useDriveBackfill.ts`**
+- Extract the Drive connection status query (with `refetchInterval: 30_000`) from `Clients.tsx`
+- Extract the `prevDriveConnectedRef` tracking and reconnection detection logic
+- Extract the entire `createPendingFolders` function (client + application backfill)
+- The hook takes `currentCompany` as context and returns `driveStatus` and `isDriveConnected` for any component that needs it
+- Uses `useQueryClient` to invalidate queries after backfill
 
-This is a single-line change. No other files need modification — the other pages (Applications, ApplicationDetail, ClientDetail) don't trigger backfill logic, so polling there is unnecessary.
+**File: `src/components/layout/AppLayout.tsx`**
+- Import and call `useDriveBackfill()` so the polling and backfill run on every page
+
+**File: `src/pages/migration/Clients.tsx`**
+- Remove the Drive status query, `prevDriveConnectedRef`, the `useEffect` reconnection handler, and the `createPendingFolders` function
+- Instead, import `useDriveBackfill` (or just query `drive-connection-status` without the backfill logic, since it now runs globally)
+- Keep using `driveStatus` and `isDriveConnected` for UI rendering (badges, etc.) -- these can come from the same shared query key
+
+### Result
+- Drive reconnection is detected within 30 seconds regardless of which page the user is on
+- Backfill triggers automatically from any page (Dashboard, Settings, Applications, etc.)
+- No duplicate logic -- single source of truth for backfill behavior
+
+### Files Summary
+
+| File | Change |
+|---|---|
+| `src/hooks/useDriveBackfill.ts` | New hook: polling + reconnection detection + backfill dispatch |
+| `src/components/layout/AppLayout.tsx` | Call `useDriveBackfill()` to activate globally |
+| `src/pages/migration/Clients.tsx` | Remove backfill logic, keep UI-only Drive status usage |
 
