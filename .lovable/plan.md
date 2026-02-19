@@ -1,35 +1,73 @@
 
 
-## Fix: Backfill `google_drive_connection_id` on Existing Clients
+## Fix: Store Drive Email Directly on Client Records
 
-### Problem
-All existing clients have `google_drive_connection_id = NULL` because the binding logic in `webhook-client-folder` was added after those clients were already created. The LEFT JOIN in `get_clients_secure` returns no email, so the tooltip falls back to `driveStatus?.connected_email` -- which is the **current** company-level connection (e.g., `anderson@endboringtasks.com`), not the account that originally created each folder.
+### Root Cause
+
+The `google_drive_connections` table has a **unique constraint on `company_id`** -- only ONE record exists per company. When you reconnect with a different Google account, line 218 of `google-drive-callback` does an `upsert` with `onConflict: "company_id"`, **overwriting** the previous `connected_email`. So the JOIN in `get_clients_secure` always returns the latest email, not the one used when each client's folder was created.
+
+The previous backfill approach (binding `google_drive_connection_id`) cannot work because there is only one connection record per company and its email keeps changing.
 
 ### Solution
 
-Run a one-time migration to backfill `google_drive_connection_id` for all existing clients that have a `client_folder_id` but no binding. Since each company only has one Drive connection, we can match by `company_id`.
+Store the Google account email directly on each client record at the time its folder is created. This snapshot is immutable and independent of future reconnections.
 
 ### Changes
 
-#### 1. Database Migration: Backfill existing clients
+#### 1. Database Migration
+
+- Add a `drive_created_email` column (text, nullable) to the `clients` table
+- Update `get_clients_secure` RPC to return `drive_created_email` instead of joining to get the email (keep the JOIN as fallback)
 
 ```sql
-UPDATE clients c
-SET google_drive_connection_id = gdc.id
-FROM google_drive_connections gdc
-WHERE c.company_id = gdc.company_id
-  AND c.client_folder_id IS NOT NULL
-  AND c.google_drive_connection_id IS NULL;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS drive_created_email text;
+
+-- Update get_clients_secure to prefer the snapshot email
+-- Returns: COALESCE(c.drive_created_email, gdc.connected_email) as drive_connected_email
 ```
 
-This sets the correct Drive connection for every existing client that has a folder but was never bound.
+#### 2. Update `webhook-client-folder` Edge Function
 
-#### 2. No frontend changes needed
+When binding the `google_drive_connection_id`, also look up and store the `connected_email` on the client:
 
-The `get_clients_secure` RPC already JOINs on `google_drive_connection_id` and returns `drive_connected_email`. Once the backfill populates the FK, the correct email will appear automatically in all tooltips.
+```typescript
+if (driveConn?.id) {
+  updateData.google_drive_connection_id = driveConn.id;
+  updateData.drive_created_email = driveConn.connected_email;
+}
+```
+
+#### 3. Update `get_clients_secure` RPC
+
+Change the return to prefer the snapshot:
+```sql
+COALESCE(c.drive_created_email, gdc.connected_email) as drive_connected_email
+```
+
+#### 4. No Frontend Changes Needed
+
+The UI already uses `client.drive_connected_email` -- once the RPC returns the correct value, tooltips will show the right email automatically.
+
+#### 5. Backfill Existing Data
+
+For existing clients, set `drive_created_email` from the current connection email (best effort -- the original emails are lost since they were overwritten):
+```sql
+UPDATE clients c
+SET drive_created_email = gdc.connected_email
+FROM google_drive_connections gdc
+WHERE gdc.company_id = c.company_id
+  AND c.client_folder_id IS NOT NULL
+  AND c.drive_created_email IS NULL;
+```
+
+### Important Note
+
+For your three existing clients (zzzz, aaaa, nnnn), the original Google account emails that created each folder **cannot be recovered** because they were overwritten in the `google_drive_connections` record. The backfill will set them all to the current email (`anderri@gmail.com`). Going forward, new clients will correctly capture the email used at folder creation time.
 
 ### Files Summary
 
 | File | Change |
 |---|---|
-| Database migration | Backfill `google_drive_connection_id` on existing clients |
+| Database migration | Add `drive_created_email` column, update RPC, backfill |
+| `supabase/functions/webhook-client-folder/index.ts` | Store `connected_email` on client at folder creation |
+
