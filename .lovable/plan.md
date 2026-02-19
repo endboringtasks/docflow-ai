@@ -1,59 +1,53 @@
 
 
-## Per-Client Drive Account Mismatch Detection
+## Fix: ApplicationDetail Drive Mismatch Detection
 
 ### Problem
 
-Currently, `isDriveConnected` is a single global boolean (`!!driveStatus?.root_folder_id`) -- it only checks whether the company has any active Drive connection. It does not compare the client's `drive_created_email` against the current connection's `connected_email`.
+The ApplicationDetail page fetches the drive email from the `google_drive_connections` table (`appDriveBinding?.connected_email`), which returns the **current** connection email (`anderri@gmail.com`). Since `driveStatus?.connected_email` is also `anderri@gmail.com`, they always match -- so it never shows a warning.
 
-Result: The "gmail" client (folder created with `anderri@gmail.com`) shows a green "Open Folder" button even though the current connection is `anderson@endboringtasks.com`. The folder lives in a different Google account and may not be accessible.
+The correct source is the client's `drive_created_email` column, which snapshots the email used when the folder was actually created (`anderson@endboringtasks.com`).
 
-### Expected Behavior
+### Root Cause
 
-Three possible states for each client's folder button:
+The `google_drive_connections` table has a unique constraint on `company_id`, so reconnecting with a different account **overwrites** the `connected_email` in the same record. The `appDriveBinding` query reads from this record, so it always reflects the current account, not the original one.
 
-| State | Condition | Appearance |
-|---|---|---|
-| Connected (green) | Drive connected AND `drive_created_email` matches current `connected_email` (or no snapshot email) | Green "Open Folder" |
-| Mismatched (amber) | Drive connected BUT `drive_created_email` differs from current `connected_email` | Amber "Open Folder" with warning icon and tooltip explaining mismatch |
-| Disconnected (red) | No active Drive connection at all | Red "Not Connected" with warning |
+### Fix
 
-### Changes
+#### 1. `src/pages/migration/ApplicationDetail.tsx`
 
-#### 1. `src/pages/migration/Clients.tsx` -- Add per-client mismatch detection
-
-In the folder status rendering section (around line 780), replace the simple `isDriveConnected` check with a per-client check:
+Replace the `appDriveBinding` lookup (which reads from the connection record) with a query that fetches `drive_created_email` from the **client** record instead:
 
 ```typescript
-// For each client row, compute:
-const clientDriveEmail = client.drive_connected_email;
-const currentDriveEmail = driveStatus?.connected_email;
-const isDriveMismatch = isDriveConnected && clientDriveEmail && currentDriveEmail 
-  && clientDriveEmail !== currentDriveEmail;
+// Instead of fetching from google_drive_connections,
+// fetch the client's snapshotted drive_created_email
+const { data: clientDriveEmail } = useQuery({
+  queryKey: ["client-drive-email", visaApplication?.client_id],
+  queryFn: async () => {
+    const { data } = await supabase
+      .from("clients")
+      .select("drive_created_email")
+      .eq("id", visaApplication.client_id)
+      .maybeSingle();
+    return data?.drive_created_email ?? null;
+  },
+  enabled: !!visaApplication?.client_id,
+});
 ```
 
-Then use `isDriveMismatch` to show amber styling and a tooltip like:
-- "Folder created with anderri@gmail.com, but Drive is now connected to anderson@endboringtasks.com. Folder may not be accessible."
+Then update the mismatch comparison (~line 1907 and ~1932) to use `clientDriveEmail` instead of `appDriveBinding?.connected_email`:
 
-When `isDriveMismatch` is true, show amber styling (same as disconnected warning) with the mismatch tooltip.
-When `isDriveConnected && !isDriveMismatch`, show green styling with "Opens in Google Drive".
-When `!isDriveConnected`, keep existing disconnected behavior.
+```typescript
+const boundEmail = clientDriveEmail;  // was: appDriveBinding?.connected_email
+const currentEmail = driveStatus?.connected_email;
+const isDriveMismatch = isDriveConnected && !!boundEmail && !!currentEmail && boundEmail !== currentEmail;
+```
 
-#### 2. `src/pages/migration/Applications.tsx` -- Same mismatch detection
-
-Apply the same logic for application folder buttons (around line 1175), looking up the client's `drive_connected_email` via the `clients` array.
-
-### Technical Details
-
-- No database or edge function changes needed -- all data is already available
-- `client.drive_connected_email` comes from the `get_clients_secure` RPC
-- `driveStatus?.connected_email` comes from the existing Drive status query
-- The comparison is a simple string equality check
+Also update any disconnected tooltip references that use `appDriveBinding?.connected_email` to use `clientDriveEmail` instead.
 
 ### Files Summary
 
 | File | Change |
 |---|---|
-| `src/pages/migration/Clients.tsx` | Add per-client `isDriveMismatch` check; show amber warning with mismatch tooltip |
-| `src/pages/migration/Applications.tsx` | Same mismatch detection for application folder buttons |
+| `src/pages/migration/ApplicationDetail.tsx` | Replace `appDriveBinding` connection lookup with client's `drive_created_email`; update mismatch comparisons |
 
