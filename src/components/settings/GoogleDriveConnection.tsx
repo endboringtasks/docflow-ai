@@ -145,16 +145,16 @@ export function GoogleDriveConnection() {
     setIsConnecting(true);
 
     try {
-      // Refresh session to ensure we have a valid token
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      // Force refresh session to ensure we have a valid token
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
       
-      if (sessionError || !sessionData.session) {
+      if (refreshError || !refreshData.session) {
         toast.error("Your session has expired. Please log in again.");
         setIsConnecting(false);
         return;
       }
 
-      const accessToken = sessionData.session.access_token;
+      const accessToken = refreshData.session.access_token;
 
       const { data, error } = await supabase.functions.invoke("google-drive-auth", {
         body: { companyId: currentCompany.id, origin: window.location.origin },
@@ -221,16 +221,16 @@ export function GoogleDriveConnection() {
     setIsReconnecting(true);
 
     try {
-      // Refresh session to ensure we have a valid token
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      // Force refresh session to ensure we have a valid token
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
       
-      if (sessionError || !sessionData.session) {
+      if (refreshError || !refreshData.session) {
         toast.error("Your session has expired. Please log in again.");
         setIsReconnecting(false);
         return;
       }
 
-      const accessToken = sessionData.session.access_token;
+      const accessToken = refreshData.session.access_token;
 
       // First disconnect
       await supabase.functions.invoke("google-drive-disconnect", {
