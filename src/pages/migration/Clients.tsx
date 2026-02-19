@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -162,7 +162,7 @@ const MigrationClients = () => {
     ["clients", currentCompany?.id || ""]
   );
 
-  // Drive connection status query
+  // Drive connection status — polling & backfill handled globally by useDriveBackfill in AppLayout
   const { data: driveStatus } = useQuery({
     queryKey: ["drive-connection-status", currentCompany?.id],
     queryFn: async () => {
@@ -172,138 +172,9 @@ const MigrationClients = () => {
       return data?.[0] ?? null;
     },
     enabled: !!currentCompany?.id,
-    refetchInterval: 30_000,
   });
 
   const isDriveConnected = !!driveStatus?.root_folder_id;
-
-  // Track previous drive connection state to detect reconnection
-  const prevDriveConnectedRef = useRef<boolean | null>(null);
-
-  // Auto-create pending folders when Drive is reconnected
-  useEffect(() => {
-    const wasDisconnected = prevDriveConnectedRef.current === false;
-    prevDriveConnectedRef.current = isDriveConnected;
-
-    if (!isDriveConnected || !wasDisconnected || !clients.length || !currentCompany?.id) return;
-
-    // Only auto-create folders for clients without folders AND without a previous Drive binding
-    // (or whose binding matches the current connection)
-    const createPendingFolders = async () => {
-      // Fetch google_drive_connection_id for clients without folders
-      const clientsWithoutFolders = clients.filter(c => c.folder_status === null);
-      if (clientsWithoutFolders.length === 0) return;
-
-      const { data: clientBindings } = await supabase
-        .from("clients")
-        .select("id, google_drive_connection_id")
-        .in("id", clientsWithoutFolders.map(c => c.id));
-
-      const bindingMap = new Map((clientBindings || []).map(b => [b.id, b.google_drive_connection_id]));
-
-      // Filter: only unbound clients or those matching current connection
-      const eligibleClients = clientsWithoutFolders.filter(c => {
-        const binding = bindingMap.get(c.id);
-        return !binding || binding === driveStatus?.id;
-      });
-
-      if (eligibleClients.length === 0) return;
-
-      toast.info(`Google Drive connected! Creating folders for ${eligibleClients.length} client(s)...`);
-
-      for (const client of eligibleClients) {
-        try {
-          await supabase
-            .from("clients")
-            .update({ folder_status: "pending" })
-            .eq("id", client.id);
-
-          await supabase.functions.invoke("dispatch-webhook", {
-            body: {
-              event_type: "client.created",
-              data: {
-                client_id: client.id,
-                company_id: currentCompany.id,
-                client_type: client.client_type,
-                first_name: client.first_name,
-                last_name: client.last_name,
-                company_name: client.company_name,
-                root_folder_id: driveStatus?.root_folder_id,
-              },
-            },
-          });
-        } catch (err) {
-          console.warn(`Failed to create folder for client ${client.id}:`, err);
-        }
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["clients", currentCompany.id] });
-
-      // --- Application folder backfill ---
-      // Find applications without folders whose parent client already has a folder
-      const { data: appsWithoutFolders } = await supabase
-        .from("visa_applications")
-        .select("id, client_id, application_name, visa_subclass, google_drive_connection_id")
-        .eq("company_id", currentCompany.id)
-        .is("visa_application_folder_id", null);
-
-      if (appsWithoutFolders && appsWithoutFolders.length > 0) {
-        // Get client folder info for these applications' clients
-        const clientIds = [...new Set(appsWithoutFolders.map(a => a.client_id))];
-        const { data: clientsWithFolders } = await supabase
-          .from("clients")
-          .select("id, client_folder_id, google_drive_connection_id")
-          .in("id", clientIds)
-          .not("client_folder_id", "is", null);
-
-        const clientFolderMap = new Map(
-          (clientsWithFolders || []).map(c => [c.id, { client_folder_id: c.client_folder_id, google_drive_connection_id: c.google_drive_connection_id }])
-        );
-
-        // Filter: parent client must have a folder, and app must be unbound or matching current connection
-        const eligibleApps = appsWithoutFolders.filter(app => {
-          const parentClient = clientFolderMap.get(app.client_id);
-          if (!parentClient || !parentClient.client_folder_id) return false;
-          // Drive binding check: unbound or matching current connection
-          const appBinding = app.google_drive_connection_id;
-          return !appBinding || appBinding === driveStatus?.id;
-        });
-
-        if (eligibleApps.length > 0) {
-          toast.info(`Creating folders for ${eligibleApps.length} application(s)...`);
-
-          for (const app of eligibleApps) {
-            const parentClient = clientFolderMap.get(app.client_id)!;
-            try {
-              await supabase
-                .from("visa_applications")
-                .update({ folder_status: "pending" })
-                .eq("id", app.id);
-
-              await supabase.functions.invoke("dispatch-webhook", {
-                body: {
-                  event_type: "application.created" as const,
-                  data: {
-                    application_id: app.id,
-                    application_name: app.application_name,
-                    subclass: app.visa_subclass,
-                    company_id: currentCompany.id,
-                    client_id: app.client_id,
-                    client_folder_id: parentClient.client_folder_id,
-                    root_folder_id: driveStatus?.root_folder_id,
-                  },
-                },
-              });
-            } catch (err) {
-              console.warn(`Failed to create folder for application ${app.id}:`, err);
-            }
-          }
-        }
-      }
-    };
-
-    createPendingFolders();
-  }, [isDriveConnected]);
 
   // Create client mutation
   const createClientMutation = useMutation({
