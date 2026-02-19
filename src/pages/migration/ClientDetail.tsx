@@ -16,7 +16,8 @@ import {
   FileText,
   Pencil,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  AlertTriangle
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -69,6 +70,7 @@ interface Client {
   created_at: string;
   company_id: string;
   related_applicants: RelatedApplicant[];
+  google_drive_connection_id: string | null;
 }
 
 interface VisaApplication {
@@ -223,6 +225,46 @@ const ClientDetail = () => {
       )
     : [];
 
+  // Drive connection status query
+  const { data: driveStatus } = useQuery({
+    queryKey: ["drive-connection-status", currentCompany?.id],
+    queryFn: async () => {
+      if (!currentCompany?.id) return null;
+      const { data } = await supabase
+        .rpc("get_drive_connection_status", { p_company_id: currentCompany.id });
+      return data?.[0] ?? null;
+    },
+    enabled: !!currentCompany?.id,
+  });
+
+  const isDriveConnected = !!driveStatus?.root_folder_id;
+
+  // Fetch the Drive account email linked to this client's binding
+  const { data: clientDriveBinding } = useQuery({
+    queryKey: ["client-drive-binding", client?.google_drive_connection_id],
+    queryFn: async () => {
+      if (!client?.google_drive_connection_id) return null;
+      const { data } = await supabase
+        .from("google_drive_connections")
+        .select("id, connected_email")
+        .eq("id", client.google_drive_connection_id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!client?.google_drive_connection_id,
+  });
+
+  // Drive mismatch: client is bound to a different (or now-deleted) connection
+  const isDriveMismatch = !!(
+    client?.google_drive_connection_id &&
+    driveStatus?.id &&
+    client.google_drive_connection_id !== driveStatus.id
+  );
+  const isDriveBindingDisconnected = !!(
+    client?.google_drive_connection_id && !clientDriveBinding
+  );
+  const shouldBlockAppCreation = isDriveMismatch || isDriveBindingDisconnected;
+
   // Fetch visa applications for this client
   const { data: visaApplications = [], isLoading: isLoadingApplications } = useQuery({
     queryKey: ["client-visa-applications", clientId],
@@ -252,6 +294,11 @@ const ClientDetail = () => {
     }) => {
       if (!currentCompany?.id || !clientId) throw new Error("Missing required data");
       
+      // Validate Drive binding before creating application
+      if (shouldBlockAppCreation) {
+        throw new Error("This client is linked to a previous Google Drive account that is no longer connected. Reconnect the original Drive account to continue.");
+      }
+
       const { data, error } = await supabase
         .from("visa_applications")
         .insert({
@@ -616,6 +663,35 @@ const ClientDetail = () => {
                 )}
               </div>
             </div>
+            {/* Drive Account Binding (read-only) */}
+            {client.google_drive_connection_id && (
+              <div className="flex items-center gap-3">
+                <Mail className="w-5 h-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Drive Account</p>
+                  {clientDriveBinding ? (
+                    <p className="font-medium text-sm">{clientDriveBinding.connected_email}</p>
+                  ) : (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="destructive" className="gap-1 cursor-help">
+                            <AlertTriangle className="w-3 h-3" />
+                            Disconnected
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-xs p-3">
+                          <p className="font-semibold mb-1">Linked to a disconnected Drive account</p>
+                          <p className="text-xs text-muted-foreground">
+                            This client was bound to a Google Drive account that is no longer connected. Reconnect the original Drive account to continue.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -628,8 +704,40 @@ const ClientDetail = () => {
 
         {/* Applications Section */}
         <div className="space-y-4">
+          {/* Drive mismatch warning banner */}
+          {shouldBlockAppCreation && (
+            <div className="flex items-center gap-3 p-4 rounded-lg border border-destructive/30 bg-destructive/5">
+              <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
+              <p className="text-sm text-destructive">
+                This client is linked to a previous Google Drive account that is no longer connected. Reconnect the original Drive account to create new applications.
+              </p>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Applications</h2>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      onClick={() => setIsCreateApplicationOpen(true)}
+                      disabled={shouldBlockAppCreation}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      New Application
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {shouldBlockAppCreation && (
+                  <TooltipContent side="bottom" className="max-w-xs p-3">
+                    <p className="text-xs">
+                      This client is linked to a previous Google Drive account that is no longer connected. Reconnect the original Drive account to continue.
+                    </p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           </div>
 
           {visaApplications.length === 0 ? (

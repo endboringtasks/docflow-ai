@@ -75,11 +75,24 @@ Deno.serve(async (req) => {
     }
 
     // Build update object with optional documents_received_folder_id
-    const updateData: { client_folder_id: string; documents_received_folder_id?: string } = {
+    const updateData: { client_folder_id: string; documents_received_folder_id?: string; google_drive_connection_id?: string } = {
       client_folder_id: payload.client_folder_id,
     };
     if (payload.documents_received_folder_id) {
       updateData.documents_received_folder_id = payload.documents_received_folder_id;
+    }
+
+    // Look up the active google_drive_connection for the company to bind the client
+    const companyId = payload.organization_id || payload.company_id;
+    if (companyId) {
+      const { data: driveConn } = await supabase
+        .from("google_drive_connections")
+        .select("id")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (driveConn?.id) {
+        updateData.google_drive_connection_id = driveConn.id;
+      }
     }
 
     const { data: client, error: updateError } = await supabase

@@ -492,6 +492,7 @@ export type Database = {
           first_name: string | null
           folder_status: string | null
           folder_status_updated_at: string | null
+          google_drive_connection_id: string | null
           id: string
           last_name: string | null
           nationality: string | null
@@ -511,6 +512,7 @@ export type Database = {
           first_name?: string | null
           folder_status?: string | null
           folder_status_updated_at?: string | null
+          google_drive_connection_id?: string | null
           id?: string
           last_name?: string | null
           nationality?: string | null
@@ -530,6 +532,7 @@ export type Database = {
           first_name?: string | null
           folder_status?: string | null
           folder_status_updated_at?: string | null
+          google_drive_connection_id?: string | null
           id?: string
           last_name?: string | null
           nationality?: string | null
@@ -543,6 +546,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clients_google_drive_connection_id_fkey"
+            columns: ["google_drive_connection_id"]
+            isOneToOne: false
+            referencedRelation: "google_drive_connections"
             referencedColumns: ["id"]
           },
         ]
@@ -1473,6 +1483,7 @@ export type Database = {
           created_at: string
           folder_status: string | null
           folder_status_updated_at: string | null
+          google_drive_connection_id: string | null
           id: string
           status: Database["public"]["Enums"]["matter_status"]
           subcategory_id: string | null
@@ -1488,6 +1499,7 @@ export type Database = {
           created_at?: string
           folder_status?: string | null
           folder_status_updated_at?: string | null
+          google_drive_connection_id?: string | null
           id?: string
           status?: Database["public"]["Enums"]["matter_status"]
           subcategory_id?: string | null
@@ -1503,6 +1515,7 @@ export type Database = {
           created_at?: string
           folder_status?: string | null
           folder_status_updated_at?: string | null
+          google_drive_connection_id?: string | null
           id?: string
           status?: Database["public"]["Enums"]["matter_status"]
           subcategory_id?: string | null
@@ -1536,6 +1549,13 @@ export type Database = {
             columns: ["country_id"]
             isOneToOne: false
             referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visa_applications_google_drive_connection_id_fkey"
+            columns: ["google_drive_connection_id"]
+            isOneToOne: false
+            referencedRelation: "google_drive_connections"
             referencedColumns: ["id"]
           },
           {
