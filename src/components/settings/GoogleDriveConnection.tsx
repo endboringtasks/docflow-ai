@@ -42,6 +42,7 @@ interface DriveConnection {
   root_folder_id: string | null;
   root_folder_name: string | null;
   created_at: string;
+  disconnected_at: string | null;
 }
 
 export function GoogleDriveConnection() {
@@ -289,7 +290,7 @@ export function GoogleDriveConnection() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {connection && connection.root_folder_id ? (
+        {connection && connection.root_folder_id && !connection.disconnected_at ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
               <div className="flex items-center gap-3">
