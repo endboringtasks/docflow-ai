@@ -354,6 +354,8 @@ const VisaApplicationDetail = () => {
 
   const isDriveConnected = !!driveStatus?.root_folder_id;
 
+  
+
   // Fetch visa application details
   const { data: visaApplication, isLoading: isLoadingApplication } = useQuery({
     queryKey: ["visa-application", visaApplicationId],
@@ -385,6 +387,11 @@ const VisaApplicationDetail = () => {
     },
     enabled: !!visaApplication?.client_id,
   });
+
+  // Drive mismatch detection (component-level so multiple UI elements can reference it)
+  const boundEmail = clientDriveEmail;
+  const currentEmail = driveStatus?.connected_email;
+  const isDriveMismatch = isDriveConnected && !!boundEmail && !!currentEmail && boundEmail !== currentEmail;
 
   // Fetch countries for the dropdown
   const { data: countries = [] } = useQuery({
@@ -1859,10 +1866,30 @@ const VisaApplicationDetail = () => {
             </div>
             
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setIsInviteOpen(true)}>
-                <Mail className="w-4 h-4 mr-2" />
-                Invite Client
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={isDriveMismatch ? 0 : undefined}>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsInviteOpen(true)}
+                        disabled={isDriveMismatch}
+                      >
+                        <Mail className="w-4 h-4 mr-2" />
+                        Invite Client
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {isDriveMismatch && (
+                    <TooltipContent side="bottom" className="max-w-xs">
+                      Cannot invite client: folder was created with {boundEmail},
+                      but Drive is now connected to {currentEmail}. Reconnect the
+                      original account or create a new client and application on
+                      the current Drive account.
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
               <Button variant="outline" onClick={handleEditApplication}>
                 <Pencil className="w-4 h-4 mr-2" />
                 Edit
@@ -1903,9 +1930,6 @@ const VisaApplicationDetail = () => {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         {(() => {
-                          const boundEmail = clientDriveEmail;
-                          const currentEmail = driveStatus?.connected_email;
-                          const isDriveMismatch = isDriveConnected && !!boundEmail && !!currentEmail && boundEmail !== currentEmail;
                           const isWarning = !isDriveConnected || isDriveMismatch;
                           return (
                             <a 
@@ -1928,9 +1952,6 @@ const VisaApplicationDetail = () => {
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className="max-w-xs">
                         {(() => {
-                          const boundEmail = clientDriveEmail;
-                          const currentEmail = driveStatus?.connected_email;
-                          const isDriveMismatch = isDriveConnected && !!boundEmail && !!currentEmail && boundEmail !== currentEmail;
                           if (!isDriveConnected) {
                             return <p>Google Drive disconnected{boundEmail ? ` for ${boundEmail}` : ""}. Folder may not be accessible.</p>;
                           }
