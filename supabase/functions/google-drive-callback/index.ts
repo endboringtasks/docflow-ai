@@ -77,6 +77,21 @@ async function shareFolder(
   return true;
 }
 
+// Check if an existing folder is still accessible in Drive
+async function isFolderAccessible(accessToken: string, folderId: string): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${folderId}?fields=id,trashed`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!response.ok) return false;
+    const file = await response.json();
+    return !file.trashed;
+  } catch {
+    return false;
+  }
+}
+
 // Create the default folder structure: DocFlow AI > Migration Services > Clients
 async function ensureDefaultFolderStructure(accessToken: string): Promise<{ id: string; name: string }> {
   console.log("Creating default folder structure...");
@@ -181,26 +196,44 @@ serve(async (req) => {
     // Calculate token expiry
     const tokenExpiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
 
-    // Create the default folder structure and get the Clients folder
+    // Create Supabase client early - needed for both lookup and upsert
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Check for existing root folder before creating new ones
+    const { data: existingConnection } = await supabase
+      .from("google_drive_connections")
+      .select("root_folder_id, root_folder_name")
+      .eq("company_id", companyId)
+      .maybeSingle();
+
     let rootFolderId: string | null = null;
     let rootFolderName: string | null = null;
 
-    try {
-      const clientsFolder = await ensureDefaultFolderStructure(access_token);
-      rootFolderId = clientsFolder.id;
-      rootFolderName = "DocFlow AI / Migration Services / Clients";
-    } catch (folderError) {
-      console.error("Failed to create folder structure:", folderError);
-      // Continue without setting root folder - user can set it manually later
+    if (existingConnection?.root_folder_id) {
+      const accessible = await isFolderAccessible(access_token, existingConnection.root_folder_id);
+      if (accessible) {
+        rootFolderId = existingConnection.root_folder_id;
+        rootFolderName = existingConnection.root_folder_name;
+        console.log("Reusing existing root folder:", rootFolderName, rootFolderId);
+      } else {
+        console.log("Existing root folder not accessible, will create new one");
+      }
+    }
+
+    if (!rootFolderId) {
+      try {
+        const clientsFolder = await ensureDefaultFolderStructure(access_token);
+        rootFolderId = clientsFolder.id;
+        rootFolderName = "DocFlow AI / Migration Services / Clients";
+      } catch (folderError) {
+        console.error("Failed to create folder structure:", folderError);
+      }
     }
 
     // Encrypt tokens before storage
     console.log("Encrypting tokens for secure storage...");
     const encryptedAccessToken = await encryptToken(access_token);
     const encryptedRefreshToken = await encryptToken(refresh_token);
-
-    // Save to database using service role (bypasses RLS)
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const { error: upsertError } = await supabase
       .from("google_drive_connections")
