@@ -376,7 +376,7 @@ const MigrationVisaApplications = () => {
     enabled: !!currentCompany?.id,
   });
 
-  const isDriveConnected = !!driveStatus?.root_folder_id;
+  const isDriveConnected = !!driveStatus?.root_folder_id && !driveStatus?.disconnected_at;
 
   // Create visa application mutation
   const createApplicationMutation = useMutation({
