@@ -237,7 +237,7 @@ const ClientDetail = () => {
     enabled: !!currentCompany?.id,
   });
 
-  const isDriveConnected = !!driveStatus?.root_folder_id;
+  const isDriveConnected = !!driveStatus?.root_folder_id && !driveStatus?.disconnected_at;
 
   // Fetch the Drive account email linked to this client's binding
   const { data: clientDriveBinding } = useQuery({

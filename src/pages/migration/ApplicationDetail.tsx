@@ -352,7 +352,7 @@ const VisaApplicationDetail = () => {
     enabled: !!currentCompany?.id,
   });
 
-  const isDriveConnected = !!driveStatus?.root_folder_id;
+  const isDriveConnected = !!driveStatus?.root_folder_id && !driveStatus?.disconnected_at;
 
   
 

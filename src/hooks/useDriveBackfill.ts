@@ -27,7 +27,7 @@ export function useDriveBackfill() {
     refetchInterval: 30_000,
   });
 
-  const isDriveConnected = !!driveStatus?.root_folder_id;
+  const isDriveConnected = !!driveStatus?.root_folder_id && !driveStatus?.disconnected_at;
 
   // Track previous state to detect reconnection
   const prevDriveConnectedRef = useRef<boolean | null>(null);
