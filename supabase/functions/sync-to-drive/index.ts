@@ -8,7 +8,8 @@ const corsHeaders = {
 
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')!
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')!
-const BATCH_SIZE = 10
+const DEFAULT_BATCH_SIZE = 10
+const DEFAULT_MAX_ATTEMPTS = 5
 
 // Backoff windows in minutes for each attempt
 const BACKOFF_MINUTES = [0, 2, 5, 15, 60]
@@ -214,6 +215,23 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+    // Load configurable settings
+    let batchSize = DEFAULT_BATCH_SIZE
+    let maxAttempts = DEFAULT_MAX_ATTEMPTS
+    {
+      const { data: settingsRows } = await supabase
+        .from('platform_settings')
+        .select('key, value')
+        .in('key', ['sync_batch_size', 'sync_max_attempts'])
+      for (const row of settingsRows || []) {
+        const val = Number((row.value as any)?.value)
+        if (!isNaN(val) && val > 0) {
+          if (row.key === 'sync_batch_size') batchSize = val
+          if (row.key === 'sync_max_attempts') maxAttempts = val
+        }
+      }
+    }
+
     // Query pending/failed attachments that are within retry limits and past backoff window
     const { data: pendingAttachments, error: queryError } = await supabase
       .from('document_attachments')
@@ -223,10 +241,10 @@ Deno.serve(async (req) => {
         document_checklist_id
       `)
       .in('sync_status', ['pending', 'failed'])
-      .lt('sync_attempts', 5)
+      .lt('sync_attempts', maxAttempts)
       .not('storage_object_path', 'is', null)
       .order('created_at', { ascending: true })
-      .limit(BATCH_SIZE)
+      .limit(batchSize)
 
     if (queryError) {
       console.error('Error querying pending attachments:', queryError)
