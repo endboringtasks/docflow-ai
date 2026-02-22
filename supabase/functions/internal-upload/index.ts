@@ -576,27 +576,13 @@ Deno.serve(async (req) => {
       console.log('No Google Drive folders configured, using Supabase storage')
     }
 
-    // Fallback to Supabase storage if Google Drive upload failed or not available
+    // Google Drive is required — no Supabase Storage fallback
     if (!filePath) {
-      const fileExt = file.name.split('.').pop()
-      filePath = `${docId}/${Date.now()}.${fileExt}`
-
-      const { error: uploadError } = await supabase.storage
-        .from('document-attachments')
-        .upload(filePath, arrayBuffer, {
-          contentType: file.type,
-          upsert: false,
-        })
-
-      if (uploadError) {
-        console.error('Supabase storage upload error:', uploadError)
-        return new Response(
-          JSON.stringify({ error: 'Failed to upload file' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      console.log('File uploaded to Supabase storage:', filePath)
+      console.error('Google Drive upload failed and no fallback available')
+      return new Response(
+        JSON.stringify({ error: 'Google Drive upload failed. Please ensure Google Drive is connected and folders are configured.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     // Update the document checklist
@@ -611,10 +597,6 @@ Deno.serve(async (req) => {
 
     if (updateError) {
       console.error('Update error:', updateError)
-      // Clean up if we used Supabase storage
-      if (!driveFileId) {
-        await supabase.storage.from('document-attachments').remove([filePath])
-      }
       return new Response(
         JSON.stringify({ error: 'Failed to update document status' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -625,7 +607,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         file_path: filePath,
-        uploaded_to: driveFileId ? 'google_drive' : 'supabase_storage',
+        uploaded_to: 'google_drive',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
