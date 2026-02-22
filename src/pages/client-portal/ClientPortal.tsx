@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { getFileTypeBadge } from "@/lib/fileUtils";
 import { DocumentThumbnail } from "@/components/documents/DocumentThumbnail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -178,6 +179,7 @@ export default function ClientPortal() {
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [removingAttachmentId, setRemovingAttachmentId] = useState<string | null>(null);
   const [dragOverDocId, setDragOverDocId] = useState<string | null>(null);
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
@@ -188,6 +190,7 @@ export default function ClientPortal() {
     fileName: string;
   } | null>(null);
   const [documentHistory, setDocumentHistory] = useState<Record<string, DocumentHistoryEntry[]>>({});
+  const uploadXhrRef = useRef<XMLHttpRequest | null>(null);
 
   // File validation constants
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -425,26 +428,88 @@ export default function ClientPortal() {
     }
 
     setUploadingDocId(docId);
+    setUploadProgress(0);
     
     try {
-      // Use edge function for unauthenticated upload
-      const formData = new FormData();
-      formData.append('token', token);
-      formData.append('doc_id', docId);
-      formData.append('file', file);
-
-      const response = await fetch(
-        `${config.supabaseUrl}/functions/v1/client-portal-upload`,
+      // Step 1: Request signed upload URL
+      const urlResponse = await fetch(
+        `${config.supabaseUrl}/functions/v1/portal-request-upload-url`,
         {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            document_checklist_id: docId,
+            file_name: file.name,
+            file_type: file.type,
+            file_size: file.size,
+          }),
         }
       );
 
-      const result = await response.json();
+      const urlResult = await urlResponse.json();
+      if (!urlResponse.ok) {
+        throw new Error(urlResult.error || 'Failed to get upload URL');
+      }
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Upload failed');
+      // Step 2: Upload directly to Storage via signed URL with progress tracking
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        uploadXhrRef.current = xhr;
+
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(percent);
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          uploadXhrRef.current = null;
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          uploadXhrRef.current = null;
+          reject(new Error('Upload failed'));
+        });
+
+        xhr.addEventListener('abort', () => {
+          uploadXhrRef.current = null;
+          reject(new Error('Upload cancelled'));
+        });
+
+        // Use the signed URL with the token as query param
+        const uploadUrl = `${urlResult.upload_url}&token=${urlResult.upload_token}`;
+        xhr.open('PUT', uploadUrl);
+        xhr.setRequestHeader('Content-Type', file.type);
+        xhr.send(file);
+      });
+
+      // Step 3: Finalize upload (create attachment record)
+      const finalizeResponse = await fetch(
+        `${config.supabaseUrl}/functions/v1/portal-finalize-upload`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            document_checklist_id: docId,
+            storage_path: urlResult.storage_path,
+            file_name: file.name,
+            file_type: file.type,
+            file_size: file.size,
+          }),
+        }
+      );
+
+      const finalizeResult = await finalizeResponse.json();
+      if (!finalizeResponse.ok) {
+        throw new Error(finalizeResult.error || 'Failed to finalize upload');
       }
 
       // Refresh documents with attachments
@@ -455,6 +520,7 @@ export default function ClientPortal() {
       toast.error(err instanceof Error ? err.message : "Failed to upload document");
     } finally {
       setUploadingDocId(null);
+      setUploadProgress(0);
     }
   };
 
@@ -1234,7 +1300,7 @@ export default function ClientPortal() {
                                                         )}
                                                       </div>
                                                       <div className="flex-shrink-0 flex items-center gap-2">
-                                                        {canUploadMore && (
+                                                         {canUploadMore && (
                                                           <label className="cursor-pointer">
                                                             <input
                                                               type="file"
@@ -1256,7 +1322,10 @@ export default function ClientPortal() {
                                                             >
                                                               <span>
                                                                 {uploadingDocId === doc.id ? (
-                                                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                                                  <>
+                                                                    <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                                                                    {uploadProgress > 0 ? `${uploadProgress}%` : '...'}
+                                                                  </>
                                                                 ) : (
                                                                   <>
                                                                     <Upload className="w-4 h-4 mr-1" />
@@ -1269,6 +1338,11 @@ export default function ClientPortal() {
                                                         )}
                                                       </div>
                                                     </div>
+                                                    {uploadingDocId === doc.id && uploadProgress > 0 && (
+                                                      <div className="px-3 pb-2">
+                                                        <Progress value={uploadProgress} className="h-1.5" />
+                                                      </div>
+                                                    )}
 
                                                     {/* Attachments List */}
                                                     {doc.attachments && doc.attachments.length > 0 && (

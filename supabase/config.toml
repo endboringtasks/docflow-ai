@@ -41,3 +41,18 @@ verify_jwt = false
 
 [functions.client-portal-submit]
 verify_jwt = false
+
+[functions.portal-request-upload-url]
+verify_jwt = false
+
+[functions.portal-finalize-upload]
+verify_jwt = false
+
+[functions.get-drive-file-url]
+verify_jwt = false
+
+[functions.sync-to-drive]
+verify_jwt = false
+
+[functions.cleanup-synced-storage]
+verify_jwt = false

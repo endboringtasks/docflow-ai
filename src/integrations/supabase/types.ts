@@ -677,6 +677,8 @@ export type Database = {
           archived_at: string
           archived_reason: string
           document_checklist_id: string
+          drive_app_folder_file_id: string | null
+          drive_file_id: string | null
           file_name: string
           file_path: string
           file_size: number | null
@@ -685,6 +687,12 @@ export type Database = {
           review_comment_at_archive: string | null
           review_status_at_archive: string | null
           reviewed_by_at_archive: string | null
+          source: string | null
+          storage_object_path: string | null
+          sync_attempts: number | null
+          sync_error: string | null
+          sync_status: string | null
+          synced_at: string | null
           uploaded_at: string
           uploaded_by: string | null
           uploaded_by_client: string | null
@@ -693,6 +701,8 @@ export type Database = {
           archived_at?: string
           archived_reason: string
           document_checklist_id: string
+          drive_app_folder_file_id?: string | null
+          drive_file_id?: string | null
           file_name: string
           file_path: string
           file_size?: number | null
@@ -701,6 +711,12 @@ export type Database = {
           review_comment_at_archive?: string | null
           review_status_at_archive?: string | null
           reviewed_by_at_archive?: string | null
+          source?: string | null
+          storage_object_path?: string | null
+          sync_attempts?: number | null
+          sync_error?: string | null
+          sync_status?: string | null
+          synced_at?: string | null
           uploaded_at: string
           uploaded_by?: string | null
           uploaded_by_client?: string | null
@@ -709,6 +725,8 @@ export type Database = {
           archived_at?: string
           archived_reason?: string
           document_checklist_id?: string
+          drive_app_folder_file_id?: string | null
+          drive_file_id?: string | null
           file_name?: string
           file_path?: string
           file_size?: number | null
@@ -717,6 +735,12 @@ export type Database = {
           review_comment_at_archive?: string | null
           review_status_at_archive?: string | null
           reviewed_by_at_archive?: string | null
+          source?: string | null
+          storage_object_path?: string | null
+          sync_attempts?: number | null
+          sync_error?: string | null
+          sync_status?: string | null
+          synced_at?: string | null
           uploaded_at?: string
           uploaded_by?: string | null
           uploaded_by_client?: string | null
@@ -742,11 +766,20 @@ export type Database = {
         Row: {
           created_at: string
           document_checklist_id: string
+          drive_app_folder_file_id: string | null
+          drive_file_id: string | null
           file_name: string
           file_path: string
           file_size: number | null
           file_type: string | null
           id: string
+          last_sync_attempt_at: string | null
+          source: string
+          storage_object_path: string | null
+          sync_attempts: number
+          sync_error: string | null
+          sync_status: string
+          synced_at: string | null
           uploaded_at: string
           uploaded_by: string | null
           uploaded_by_client: string | null
@@ -754,11 +787,20 @@ export type Database = {
         Insert: {
           created_at?: string
           document_checklist_id: string
+          drive_app_folder_file_id?: string | null
+          drive_file_id?: string | null
           file_name: string
           file_path: string
           file_size?: number | null
           file_type?: string | null
           id?: string
+          last_sync_attempt_at?: string | null
+          source?: string
+          storage_object_path?: string | null
+          sync_attempts?: number
+          sync_error?: string | null
+          sync_status?: string
+          synced_at?: string | null
           uploaded_at?: string
           uploaded_by?: string | null
           uploaded_by_client?: string | null
@@ -766,11 +808,20 @@ export type Database = {
         Update: {
           created_at?: string
           document_checklist_id?: string
+          drive_app_folder_file_id?: string | null
+          drive_file_id?: string | null
           file_name?: string
           file_path?: string
           file_size?: number | null
           file_type?: string | null
           id?: string
+          last_sync_attempt_at?: string | null
+          source?: string
+          storage_object_path?: string | null
+          sync_attempts?: number
+          sync_error?: string | null
+          sync_status?: string
+          synced_at?: string | null
           uploaded_at?: string
           uploaded_by?: string | null
           uploaded_by_client?: string | null
