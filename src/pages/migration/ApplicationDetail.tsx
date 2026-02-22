@@ -323,12 +323,6 @@ const VisaApplicationDetail = () => {
   const documentsInitializedRef = useRef(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
   const [reviewFilter, setReviewFilter] = useState<"all" | ReviewStatus>("all");
-  const [attachmentToDelete, setAttachmentToDelete] = useState<{
-    id: string;
-    docId: string;
-    filePath: string;
-    fileName: string;
-  } | null>(null);
   const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
   const [historyPreview, setHistoryPreview] = useState<{ url: string; name: string } | null>(null);
   const [historyZoom, setHistoryZoom] = useState(1);
@@ -1327,48 +1321,7 @@ const VisaApplicationDetail = () => {
     },
   });
 
-  // Remove individual attachment
-  const removeAttachmentMutation = useMutation({
-    mutationFn: async ({ attachmentId, docId, filePath }: { attachmentId: string; docId: string; filePath: string }) => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-      
-      if (!accessToken) {
-        throw new Error("Not authenticated");
-      }
-      
-      // Call edge function to handle removal (including Google Drive files)
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/internal-remove-attachment`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            attachment_id: attachmentId,
-            doc_id: docId,
-            file_path: filePath,
-          }),
-        }
-      );
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to remove attachment");
-      }
-      
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
-      toast.success("File removed");
-    },
-    onError: (error) => {
-      toast.error("Failed to remove file", { description: error.message });
-    },
-  });
+
 
   // Update document review status
   const updateReviewMutation = useMutation({
@@ -2908,47 +2861,7 @@ const VisaApplicationDetail = () => {
           documentHistory={previewDoc ? (documentHistoryByDoc?.[previewDoc.id] as DocumentHistoryEntry[] || []) : []}
         />
 
-        {/* Delete Attachment Confirmation */}
-        <AlertDialog 
-          open={!!attachmentToDelete} 
-          onOpenChange={(open) => !open && setAttachmentToDelete(null)}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete File</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete "{attachmentToDelete?.fileName}"? 
-                This file will be permanently deleted and cannot be recovered.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  if (attachmentToDelete) {
-                    removeAttachmentMutation.mutate({
-                      attachmentId: attachmentToDelete.id,
-                      docId: attachmentToDelete.docId,
-                      filePath: attachmentToDelete.filePath
-                    });
-                    setAttachmentToDelete(null);
-                  }
-                }}
-                disabled={removeAttachmentMutation.isPending}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                {removeAttachmentMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Deleting...
-                  </>
-                ) : (
-                  "Delete"
-                )}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+
 
         {/* History Document Preview Dialog */}
         <Dialog open={!!historyPreview} onOpenChange={(open) => {
