@@ -53,11 +53,11 @@ Deno.serve(async (req) => {
       )
     }
 
-    const { file_id, company_id } = await req.json()
+    const { file_id, company_id, attachment_id } = await req.json()
 
-    if (!file_id || !company_id) {
+    if (!company_id || (!file_id && !attachment_id)) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: file_id or company_id' }),
+        JSON.stringify({ error: 'Missing required fields: company_id and (file_id or attachment_id)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -91,6 +91,45 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Access denied' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // If attachment_id is provided, check for storage_object_path first
+    if (attachment_id) {
+      const { data: attachment } = await supabase
+        .from('document_attachments')
+        .select('storage_object_path, file_name, file_type')
+        .eq('id', attachment_id)
+        .single()
+
+      if (attachment?.storage_object_path) {
+        const { data: signedUrlData, error: urlError } = await supabase.storage
+          .from('document-attachments')
+          .createSignedUrl(attachment.storage_object_path, 3600)
+
+        if (!urlError && signedUrlData?.signedUrl) {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              file: {
+                id: attachment_id,
+                name: attachment.file_name,
+                mimeType: attachment.file_type,
+                storageUrl: signedUrlData.signedUrl,
+                previewUrl: signedUrlData.signedUrl,
+              }
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      }
+    }
+
+    // If no file_id provided (and no storage path found), return error
+    if (!file_id) {
+      return new Response(
+        JSON.stringify({ error: 'No file_id provided and no storage path available' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
