@@ -45,6 +45,7 @@ Deno.serve(async (req) => {
         .from('document_attachments')
         .select(`
           file_path,
+          storage_object_path,
           document_checklist!inner (
             visa_application_id
           )
@@ -66,6 +67,20 @@ Deno.serve(async (req) => {
           JSON.stringify({ error: 'Attachment does not belong to this application' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
+      }
+
+      // If storage_object_path exists, return signed URL directly (no Drive needed)
+      if (attachmentData.storage_object_path) {
+        const { data: signedUrlData, error: urlError } = await supabase.storage
+          .from('document-attachments')
+          .createSignedUrl(attachmentData.storage_object_path, 3600)
+
+        if (!urlError && signedUrlData?.signedUrl) {
+          return new Response(
+            JSON.stringify({ url: signedUrlData.signedUrl }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
       }
 
       actualFilePath = attachmentData.file_path
