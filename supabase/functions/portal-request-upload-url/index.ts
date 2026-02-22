@@ -6,8 +6,31 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
-const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB
-const SIGNED_URL_EXPIRY_SECONDS = 600 // 10 minutes
+// Defaults (overridden by platform_settings at runtime)
+const DEFAULT_MAX_FILE_SIZE_MB = 25
+const DEFAULT_SIGNED_URL_EXPIRY_SECONDS = 600
+const DEFAULT_RATE_LIMIT_IP = 50
+const DEFAULT_RATE_LIMIT_TOKEN = 10
+
+async function getUploadSettings(supabase: any) {
+  const keys = ['upload_max_file_size_mb', 'upload_signed_url_expiry_seconds', 'upload_rate_limit_ip', 'upload_rate_limit_token']
+  const { data } = await supabase
+    .from('platform_settings')
+    .select('key, value')
+    .in('key', keys)
+  const settings: Record<string, number> = {}
+  for (const row of data || []) {
+    const val = (row.value as any)?.value
+    if (val !== undefined) settings[row.key] = Number(val)
+  }
+  return {
+    maxFileSize: (settings['upload_max_file_size_mb'] || DEFAULT_MAX_FILE_SIZE_MB) * 1024 * 1024,
+    maxFileSizeMb: settings['upload_max_file_size_mb'] || DEFAULT_MAX_FILE_SIZE_MB,
+    signedUrlExpiry: settings['upload_signed_url_expiry_seconds'] || DEFAULT_SIGNED_URL_EXPIRY_SECONDS,
+    rateLimitIp: settings['upload_rate_limit_ip'] || DEFAULT_RATE_LIMIT_IP,
+    rateLimitToken: settings['upload_rate_limit_token'] || DEFAULT_RATE_LIMIT_TOKEN,
+  }
+}
 
 const ALLOWED_MIME_TYPES = [
   'application/pdf',
@@ -45,10 +68,17 @@ Deno.serve(async (req) => {
       )
     }
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Load configurable settings
+    const uploadSettings = await getUploadSettings(supabase)
+
     // Validate file size
-    if (file_size > MAX_FILE_SIZE) {
+    if (file_size > uploadSettings.maxFileSize) {
       return new Response(
-        JSON.stringify({ error: `File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit` }),
+        JSON.stringify({ error: `File size exceeds ${uploadSettings.maxFileSizeMb}MB limit` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -61,28 +91,24 @@ Deno.serve(async (req) => {
       )
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
     // Rate limit by IP
     const clientIp = getClientIdentifier(req)
     const ipRateLimit = await checkRateLimit(supabase, clientIp, 'portal-request-upload-url', {
-      maxRequests: 50,
+      maxRequests: uploadSettings.rateLimitIp,
       windowSeconds: 300,
     })
     if (!ipRateLimit.allowed) {
-      return createRateLimitResponse(ipRateLimit, 50, corsHeaders)
+      return createRateLimitResponse(ipRateLimit, uploadSettings.rateLimitIp, corsHeaders)
     }
 
     // Rate limit by token (hash to avoid logging token)
     const tokenHash = `token_${token.substring(0, 8)}`
     const tokenRateLimit = await checkRateLimit(supabase, tokenHash, 'portal-request-upload-url', {
-      maxRequests: 10,
+      maxRequests: uploadSettings.rateLimitToken,
       windowSeconds: 300,
     })
     if (!tokenRateLimit.allowed) {
-      return createRateLimitResponse(tokenRateLimit, 10, corsHeaders)
+      return createRateLimitResponse(tokenRateLimit, uploadSettings.rateLimitToken, corsHeaders)
     }
 
     // Validate portal access token
@@ -159,8 +185,8 @@ Deno.serve(async (req) => {
         upload_url: signedUrlData.signedUrl,
         upload_token: signedUrlData.token,
         storage_path: storagePath,
-        expires_in: SIGNED_URL_EXPIRY_SECONDS,
-        max_file_size: MAX_FILE_SIZE,
+        expires_in: uploadSettings.signedUrlExpiry,
+        max_file_size: uploadSettings.maxFileSize,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

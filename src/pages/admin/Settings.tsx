@@ -26,6 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Settings, Key, Plus, Trash2, Shield, UserPlus } from "lucide-react";
+import { UploadSyncConfigCard } from "@/components/admin/UploadSyncConfigCard";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -246,6 +247,9 @@ export default function AdminSettings() {
             )}
           </CardContent>
         </Card>
+
+        {/* Upload & Sync Config */}
+        <UploadSyncConfigCard />
 
         {/* API Keys & Settings */}
         <Card>
