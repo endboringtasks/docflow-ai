@@ -483,9 +483,8 @@ export default function ClientPortal() {
           reject(new Error('Upload cancelled'));
         });
 
-        // Use the signed URL with the token as query param
-        const uploadUrl = `${urlResult.upload_url}&token=${urlResult.upload_token}`;
-        xhr.open('PUT', uploadUrl);
+        // Use the signed URL directly (token is already included)
+        xhr.open('PUT', urlResult.upload_url);
         xhr.setRequestHeader('Content-Type', file.type);
         xhr.send(file);
       });
