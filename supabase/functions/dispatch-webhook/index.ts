@@ -484,6 +484,17 @@ Deno.serve(async (req) => {
                 responseData.folderId;
             }
 
+            // For client entities, also look for documents_received_folder_id
+            let documentsReceivedFolderId: string | undefined;
+            if (entityType === "client") {
+              documentsReceivedFolderId =
+                (dataObj as any).documents_received_folder_id ||
+                (responseData as any).documents_received_folder_id;
+              if (documentsReceivedFolderId) {
+                console.log(`Extracted documents_received_folder_id: ${documentsReceivedFolderId}`);
+              }
+            }
+
             console.log(`Extracted folderId: ${folderId}`);
 
             if (folderId) {
@@ -517,6 +528,9 @@ Deno.serve(async (req) => {
                   folder_status: "created",
                   folder_status_updated_at: new Date().toISOString(),
                   ...driveUpdateFields,
+                  ...(documentsReceivedFolderId && entityType === "client"
+                    ? { documents_received_folder_id: documentsReceivedFolderId }
+                    : {}),
                 })
                 .eq("id", entityId)
                 .select();
