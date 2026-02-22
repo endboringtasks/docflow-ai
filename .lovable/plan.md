@@ -1,28 +1,51 @@
 
-## Fix: Update Drive Connection Status Check Across All Pages
+
+## Fix: Save `documents_received_folder_id` from Make.com Response
 
 ### Problem
-Since we now preserve `root_folder_id` on disconnect (to prevent duplicate folders), the `isDriveConnected` check across all pages still evaluates to `true` because it only checks for `root_folder_id`. This makes the client list, client detail, and application pages show "connected" status even when Drive is disconnected.
+When Make.com creates a client's folder structure, it creates both the client folder and a "Documents Received" subfolder. It returns both IDs in the webhook response. However, `dispatch-webhook` only extracts and saves `client_folder_id` -- it ignores `documents_received_folder_id`.
+
+This means the DB has `documents_received_folder_id = null`. When a client uploads a document, the upload function tries to find or create a "Documents Received" folder. Because the Make.com-created folder belongs to a different Google account, the search may not find it, resulting in a duplicate.
 
 ### Solution
-Update the `isDriveConnected` variable in all 5 files to also check that `disconnected_at` is null, matching the rule established in the settings page:
+Update `dispatch-webhook` to also extract and persist `documents_received_folder_id` from the Make.com response when handling `client.created` events.
+
+### Technical Changes
+
+**File: `supabase/functions/dispatch-webhook/index.ts`**
+
+1. After extracting `folderId` for client entities (around line 473), also extract `documents_received_folder_id` from the response data:
 
 ```typescript
-// Before:
-const isDriveConnected = !!driveStatus?.root_folder_id;
-
-// After:
-const isDriveConnected = !!driveStatus?.root_folder_id && !driveStatus?.disconnected_at;
+// For client entities, also look for documents_received_folder_id
+let documentsReceivedFolderId: string | undefined;
+if (entityType === "client") {
+  documentsReceivedFolderId =
+    (dataObj as any).documents_received_folder_id ||
+    (responseData as any).documents_received_folder_id;
+}
 ```
 
-### Files to Update
+2. When updating the client record (around line 515), include `documents_received_folder_id` if present:
 
-| File | Line | Change |
-|---|---|---|
-| `src/pages/migration/Clients.tsx` | 178 | Add `&& !driveStatus?.disconnected_at` |
-| `src/pages/migration/ClientDetail.tsx` | 240 | Add `&& !driveStatus?.disconnected_at` |
-| `src/pages/migration/Applications.tsx` | 379 | Add `&& !driveStatus?.disconnected_at` |
-| `src/pages/migration/ApplicationDetail.tsx` | 355 | Add `&& !driveStatus?.disconnected_at` |
-| `src/hooks/useDriveBackfill.ts` | 30 | Add `&& !driveStatus?.disconnected_at` |
+```typescript
+.update({
+  [folderColumn]: folderId,
+  folder_status: "created",
+  folder_status_updated_at: new Date().toISOString(),
+  ...driveUpdateFields,
+  ...(documentsReceivedFolderId && entityType === "client"
+    ? { documents_received_folder_id: documentsReceivedFolderId }
+    : {}),
+})
+```
 
-This is a one-line change in each file. After this fix, when Drive is disconnected, all pages will correctly show the "Not Connected" or "Disconnected" warnings, and folder creation will be properly blocked.
+### What This Fixes
+- Make.com creates client folder + Documents Received subfolder
+- `dispatch-webhook` now saves BOTH folder IDs to the DB
+- When the client uploads, the upload function finds `documents_received_folder_id` already set and uses it directly -- no search, no duplicate creation
+
+| File | Change |
+|---|---|
+| `supabase/functions/dispatch-webhook/index.ts` | Extract and save `documents_received_folder_id` from Make.com response for client entities |
+
