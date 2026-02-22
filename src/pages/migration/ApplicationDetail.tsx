@@ -118,6 +118,7 @@ interface DocumentAttachment {
   uploaded_at: string;
   uploaded_by: string | null;
   uploaded_by_client: string | null;
+  storage_object_path: string | null;
 }
 
 interface DocumentItem {
@@ -472,7 +473,7 @@ const VisaApplicationDetail = () => {
       const docIds = (docs || []).map(d => d.id);
       const { data: attachments } = await supabase
         .from("document_attachments")
-        .select("id, document_checklist_id, file_path, file_name, file_type, file_size, uploaded_at, uploaded_by, uploaded_by_client")
+        .select("id, document_checklist_id, file_path, file_name, file_type, file_size, uploaded_at, uploaded_by, uploaded_by_client, storage_object_path")
         .in("document_checklist_id", docIds)
         .order("uploaded_at", { ascending: true });
       
@@ -491,6 +492,7 @@ const VisaApplicationDetail = () => {
           uploaded_at: a.uploaded_at,
           uploaded_by: a.uploaded_by,
           uploaded_by_client: a.uploaded_by_client,
+          storage_object_path: a.storage_object_path,
         });
       });
       
@@ -1572,10 +1574,21 @@ const VisaApplicationDetail = () => {
   };
 
   // Fetch thumbnail URL for a document
-  const fetchThumbnailUrl = async (filePath: string): Promise<string | null> => {
-    if (thumbnailUrls[filePath]) return thumbnailUrls[filePath];
+  const fetchThumbnailUrl = async (filePath: string, storageObjectPath?: string | null): Promise<string | null> => {
+    const cacheKey = storageObjectPath || filePath;
+    if (thumbnailUrls[cacheKey]) return thumbnailUrls[cacheKey];
     
     try {
+      // If we have a storage_object_path, use it directly (no edge function needed)
+      if (storageObjectPath) {
+        const { data, error } = await supabase.storage
+          .from("document-attachments")
+          .createSignedUrl(storageObjectPath, 3600);
+        if (error) return null;
+        setThumbnailUrls(prev => ({ ...prev, [cacheKey]: data.signedUrl }));
+        return data.signedUrl;
+      }
+
       if (isDriveFile(filePath)) {
         if (!currentCompany?.id) return null;
         const fileId = getDriveFileId(filePath);
@@ -1585,7 +1598,7 @@ const VisaApplicationDetail = () => {
         if (error || !data?.success) return null;
         const url = data.file.previewUrl || data.file.thumbnailLink;
         if (url) {
-          setThumbnailUrls(prev => ({ ...prev, [filePath]: url }));
+          setThumbnailUrls(prev => ({ ...prev, [cacheKey]: url }));
           return url;
         }
       } else {
@@ -1593,7 +1606,7 @@ const VisaApplicationDetail = () => {
           .from("document-attachments")
           .createSignedUrl(filePath, 3600);
         if (error) return null;
-        setThumbnailUrls(prev => ({ ...prev, [filePath]: data.signedUrl }));
+        setThumbnailUrls(prev => ({ ...prev, [cacheKey]: data.signedUrl }));
         return data.signedUrl;
       }
     } catch (err) {
@@ -1613,11 +1626,12 @@ const VisaApplicationDetail = () => {
         if (doc.filePath && isPreviewableFile(doc.filePath) && !thumbnailUrls[doc.filePath]) {
           await fetchThumbnailUrl(doc.filePath);
         }
-        // Load thumbnails for all attachments
+        // Load thumbnails for all attachments (prefer storage_object_path)
         if (doc.attachments) {
           for (const attachment of doc.attachments) {
-            if (isPreviewableFile(attachment.file_path) && !thumbnailUrls[attachment.file_path]) {
-              await fetchThumbnailUrl(attachment.file_path);
+            const cacheKey = attachment.storage_object_path || attachment.file_path;
+            if (isPreviewableFile(attachment.file_name || attachment.file_path) && !thumbnailUrls[cacheKey]) {
+              await fetchThumbnailUrl(attachment.file_path, attachment.storage_object_path);
             }
           }
         }
@@ -2446,7 +2460,7 @@ const VisaApplicationDetail = () => {
                                     <div className="flex items-center gap-3 min-w-0 flex-1">
                                       <DocumentThumbnail
                                         filePath={attachment.file_path}
-                                        fileUrl={thumbnailUrls[attachment.file_path] || null}
+                                        fileUrl={thumbnailUrls[attachment.storage_object_path || attachment.file_path] || null}
                                         onPreview={() => setPreviewDoc(doc)}
                                         size={24}
                                       />
@@ -2854,7 +2868,10 @@ const VisaApplicationDetail = () => {
         <DocumentPreviewDialog
           open={!!previewDoc}
           onOpenChange={(open) => !open && setPreviewDoc(null)}
-          document={previewDoc}
+          document={previewDoc ? {
+            ...previewDoc,
+            storageObjectPath: previewDoc.attachments?.[0]?.storage_object_path || null,
+          } : null}
           onReviewUpdate={handleReviewUpdate}
           onRequestNewDocument={handleRequestNewDocument}
           companyId={visaApplication?.company_id}

@@ -43,6 +43,7 @@ interface DocumentPreviewDialogProps {
     filePath: string | null;
     reviewStatus: ReviewStatus;
     reviewComment: string | null;
+    storageObjectPath?: string | null;
   } | null;
   onReviewUpdate: (docId: string, status: ReviewStatus, comment: string) => Promise<void>;
   onRequestNewDocument: (docId: string, comment: string) => Promise<void>;
@@ -123,6 +124,20 @@ export function DocumentPreviewDialog({
 
     setLoading(true);
     try {
+      // Priority: use storage_object_path for direct signed URL (no edge function)
+      if (document.storageObjectPath) {
+        const { data, error } = await supabase.storage
+          .from("document-attachments")
+          .createSignedUrl(document.storageObjectPath, 3600);
+
+        if (!error && data?.signedUrl) {
+          setPreviewUrl(data.signedUrl);
+          setLoading(false);
+          return;
+        }
+        // Fall through to Drive logic if storage URL fails
+      }
+
       // Check if this is a Google Drive file
       if (isDriveFile(document.filePath)) {
         if (!companyId) {
@@ -146,11 +161,10 @@ export function DocumentPreviewDialog({
         if (data.file.previewUrl) {
           setPreviewUrl(data.file.previewUrl);
         } else if (data.file.webViewLink) {
-          // For non-previewable files, we'll show a link
           setPreviewUrl(null);
         }
       } else {
-        // Supabase storage file
+        // Supabase storage file (legacy path without storage_object_path)
         const { data, error } = await supabase.storage
           .from("document-attachments")
           .createSignedUrl(document.filePath, 3600);
