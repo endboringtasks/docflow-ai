@@ -202,21 +202,7 @@ export function DocumentHistorySection({
           transition={{ delay: index * 0.05 }}
           className="relative"
         >
-          {/* Timeline connector */}
-          {index < history.length - 1 && (
-            <div className="absolute left-[7px] top-8 bottom-0 w-0.5 bg-border" />
-          )}
-          
-          <div className="flex gap-3">
-            {/* Timeline dot */}
-            <div className={`flex-shrink-0 w-4 h-4 rounded-full mt-1 ${
-              entry.archived_reason === 'client_deleted'
-                ? 'bg-muted border-2 border-muted-foreground/40'
-                : 'bg-destructive/20 border-2 border-destructive'
-            }`} />
-            
-            {/* Content */}
-            <div className={`flex-1 rounded-lg p-3 space-y-2 ${
+          <div className={`rounded-lg p-3 space-y-2 ${
               entry.archived_reason === 'client_deleted'
                 ? 'bg-muted/30 border border-border'
                 : 'bg-destructive/5 border border-destructive/20'
@@ -301,7 +287,6 @@ export function DocumentHistorySection({
                 </div>
               )}
 
-            </div>
           </div>
         </motion.div>
       ))}
