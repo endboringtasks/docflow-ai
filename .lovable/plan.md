@@ -1,17 +1,24 @@
 
 
-## Documents List + Document Checklist Split (Completed)
+## Remove Company Filter from Admin Documents List
 
-### What Changed
+Since document definitions are unique/universal (not company-specific), the company dropdown filter and company column are unnecessary in the admin view.
 
-**New `document_definitions` table** — master catalog of documents per company with category, name, and description. Unique constraint on (company_id, category, document_name).
+### Changes to `src/components/admin/AdminDocumentsListTab.tsx`
 
-**New `document_definition_id` FK** on `document_checklist_templates` — links templates to definitions for single-source-of-truth descriptions.
+1. **Remove the company filter dropdown** from the toolbar
+2. **Remove the "Company" column** from the table
+3. **Remove the company selector** from the "Add Document" dialog (will need a default company or make `company_id` assignment automatic)
+4. **Remove the `filterCompany` state** and related filtering logic
+5. **Remove the companies query** and `companyMap` lookup since they're no longer needed in the table display
 
-**Migration backfill** — existing templates were deduplicated into definitions and linked back.
+However, the `document_definitions` table has a required `company_id` column. For the "Add Document" dialog, we still need to assign a company. Two options:
 
-**New `sync_definition_description_to_all` DB function** — when a definition's description changes, it propagates to all linked templates AND all matching application checklists.
+- **Keep the company selector only in the Add dialog** (since the DB requires it), but remove it from the filter/table view
+- **Or** pick a default company automatically
 
-**New "Documents List" tab** in Document Checklist page — CRUD for document definitions with search/filter by category.
+I'll keep the company selector in the Add dialog only (since the DB constraint requires it), but remove it from filtering and table display. The admin sees a flat, deduplicated list of all documents across the platform.
 
-**Updated "Document Checklist" tab** — add/edit dialogs now show "Your Documents" from definitions first, then "Common Documents" as fallback, with custom entry still allowed. Selecting a definition auto-fills description.
+### Files to modify
+- `src/components/admin/AdminDocumentsListTab.tsx` -- remove company filter, company table column, keep company selector only in Add dialog
+
