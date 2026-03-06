@@ -252,7 +252,7 @@ const DocumentTemplates = () => {
   const { currentCompany, currentRole } = useCompany();
   const isAdmin = currentRole === "owner" || currentRole === "admin";
   
-  const [activeTab, setActiveTab] = useState("checklist");
+  const [activeTab, setActiveTab] = useState("documents-list");
   
   // Filter states
   const [selectedCountry, setSelectedCountry] = useState<string>("");
