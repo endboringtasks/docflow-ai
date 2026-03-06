@@ -1324,30 +1324,67 @@ const DocumentTemplates = () => {
                           </Button>
                         </div>
                       </CommandEmpty>
-                      {newDoc.category && commonDocuments[newDoc.category]?.length > 0 && (
-                        <CommandGroup heading={`${newDoc.category} Documents`}>
-                          {commonDocuments[newDoc.category].map((doc) => (
-                            <CommandItem
-                              key={doc}
-                              value={doc}
-                              onSelect={() => {
-                                setNewDoc({ ...newDoc, documentName: doc });
-                                setDocNameOpen(false);
-                                setCustomDocName("");
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  newDoc.documentName === doc ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {doc}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      )}
-                      {customDocName && !commonDocuments[newDoc.category]?.some(d => 
+                      {(() => {
+                        const defsForCategory = documentDefinitions.filter(d => d.category === newDoc.category);
+                        const fallbackDocs = commonDocuments[newDoc.category] || [];
+                        // Merge: definitions first, then any hardcoded ones not already in definitions
+                        const defNames = new Set(defsForCategory.map(d => d.document_name));
+                        const extraDocs = fallbackDocs.filter(d => !defNames.has(d));
+                        
+                        return (
+                          <>
+                            {defsForCategory.length > 0 && (
+                              <CommandGroup heading="Your Documents">
+                                {defsForCategory.map((def) => (
+                                  <CommandItem
+                                    key={def.id}
+                                    value={def.document_name}
+                                    onSelect={() => {
+                                      setNewDoc({ ...newDoc, documentName: def.document_name, description: def.description || "" });
+                                      setDocNameOpen(false);
+                                      setCustomDocName("");
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        newDoc.documentName === def.document_name ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {def.document_name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                            {extraDocs.length > 0 && (
+                              <CommandGroup heading="Common Documents">
+                                {extraDocs.map((doc) => (
+                                  <CommandItem
+                                    key={doc}
+                                    value={doc}
+                                    onSelect={() => {
+                                      setNewDoc({ ...newDoc, documentName: doc });
+                                      setDocNameOpen(false);
+                                      setCustomDocName("");
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        newDoc.documentName === doc ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {doc}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                          </>
+                        );
+                      })()}
+                      {customDocName && !documentDefinitions.some(d => 
+                        d.document_name.toLowerCase().includes(customDocName.toLowerCase())
+                      ) && !commonDocuments[newDoc.category]?.some(d =>
                         d.toLowerCase().includes(customDocName.toLowerCase())
                       ) && (
                         <>
