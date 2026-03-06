@@ -1258,6 +1258,7 @@ const DocumentTemplates = () => {
 
           </TabsContent>
         </Tabs>
+      </div>
 
       {/* Add Document Dialog */}
       <Dialog open={isAddDocOpen} onOpenChange={setIsAddDocOpen}>
