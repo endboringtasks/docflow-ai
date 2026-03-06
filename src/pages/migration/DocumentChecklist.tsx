@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -12,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import DocumentsListTab from "@/components/documents/DocumentsListTab";
 import { 
   Plus, 
   FileCheck,
@@ -80,6 +82,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { cn } from "@/lib/utils";
 
+interface DocumentDefinition {
+  id: string;
+  company_id: string;
+  category: string;
+  document_name: string;
+  description: string | null;
+}
+
 interface DocumentTemplate {
   id: string;
   visa_type_id: string | null;
@@ -94,6 +104,7 @@ interface DocumentTemplate {
   description: string | null;
   requires_translation: boolean;
   applicant_type?: ApplicantType | null;
+  document_definition_id?: string | null;
 }
 
 interface ApplicantType {
@@ -241,6 +252,8 @@ const DocumentTemplates = () => {
   const { currentCompany, currentRole } = useCompany();
   const isAdmin = currentRole === "owner" || currentRole === "admin";
   
+  const [activeTab, setActiveTab] = useState("checklist");
+  
   // Filter states
   const [selectedCountry, setSelectedCountry] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
@@ -364,6 +377,24 @@ const DocumentTemplates = () => {
       return data as VisaType[];
     },
     enabled: !!selectedCountry && !!selectedCategory,
+  });
+
+  // Fetch document definitions for the company
+  const { data: documentDefinitions = [] } = useQuery({
+    queryKey: ["document-definitions", currentCompany?.id],
+    queryFn: async () => {
+      if (!currentCompany?.id) return [];
+      const { data, error } = await supabase
+        .from("document_definitions")
+        .select("id, company_id, category, document_name, description")
+        .eq("company_id", currentCompany.id)
+        .eq("is_active", true)
+        .order("category")
+        .order("document_name");
+      if (error) throw error;
+      return data as DocumentDefinition[];
+    },
+    enabled: !!currentCompany?.id,
   });
 
   // Fetch applicant types
@@ -762,18 +793,32 @@ const DocumentTemplates = () => {
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Document Checklist</h1>
             <p className="text-muted-foreground mt-1">
-              Configure required documents for each application type
+              Manage your document catalog and configure checklists per application type
             </p>
           </div>
-          <Button 
-            variant="gradient" 
-            onClick={() => setIsAddDocOpen(true)}
-            disabled={!selectedApplicationType}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Document
-          </Button>
         </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="documents-list">Documents List</TabsTrigger>
+            <TabsTrigger value="checklist">Document Checklist</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="documents-list" className="mt-6">
+            <DocumentsListTab />
+          </TabsContent>
+
+          <TabsContent value="checklist" className="mt-6 space-y-6">
+            <div className="flex justify-end">
+              <Button 
+                variant="gradient" 
+                onClick={() => setIsAddDocOpen(true)}
+                disabled={!selectedApplicationType}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Document
+              </Button>
+            </div>
 
         {/* Filter Bar */}
         <div className="card-gradient rounded-xl border border-border/50 p-4">
@@ -1210,6 +1255,9 @@ const DocumentTemplates = () => {
             )}
           </div>
         )}
+
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Add Document Dialog */}
@@ -1276,30 +1324,67 @@ const DocumentTemplates = () => {
                           </Button>
                         </div>
                       </CommandEmpty>
-                      {newDoc.category && commonDocuments[newDoc.category]?.length > 0 && (
-                        <CommandGroup heading={`${newDoc.category} Documents`}>
-                          {commonDocuments[newDoc.category].map((doc) => (
-                            <CommandItem
-                              key={doc}
-                              value={doc}
-                              onSelect={() => {
-                                setNewDoc({ ...newDoc, documentName: doc });
-                                setDocNameOpen(false);
-                                setCustomDocName("");
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  newDoc.documentName === doc ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {doc}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      )}
-                      {customDocName && !commonDocuments[newDoc.category]?.some(d => 
+                      {(() => {
+                        const defsForCategory = documentDefinitions.filter(d => d.category === newDoc.category);
+                        const fallbackDocs = commonDocuments[newDoc.category] || [];
+                        // Merge: definitions first, then any hardcoded ones not already in definitions
+                        const defNames = new Set(defsForCategory.map(d => d.document_name));
+                        const extraDocs = fallbackDocs.filter(d => !defNames.has(d));
+                        
+                        return (
+                          <>
+                            {defsForCategory.length > 0 && (
+                              <CommandGroup heading="Your Documents">
+                                {defsForCategory.map((def) => (
+                                  <CommandItem
+                                    key={def.id}
+                                    value={def.document_name}
+                                    onSelect={() => {
+                                      setNewDoc({ ...newDoc, documentName: def.document_name, description: def.description || "" });
+                                      setDocNameOpen(false);
+                                      setCustomDocName("");
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        newDoc.documentName === def.document_name ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {def.document_name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                            {extraDocs.length > 0 && (
+                              <CommandGroup heading="Common Documents">
+                                {extraDocs.map((doc) => (
+                                  <CommandItem
+                                    key={doc}
+                                    value={doc}
+                                    onSelect={() => {
+                                      setNewDoc({ ...newDoc, documentName: doc });
+                                      setDocNameOpen(false);
+                                      setCustomDocName("");
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        newDoc.documentName === doc ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {doc}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                          </>
+                        );
+                      })()}
+                      {customDocName && !documentDefinitions.some(d => 
+                        d.document_name.toLowerCase().includes(customDocName.toLowerCase())
+                      ) && !commonDocuments[newDoc.category]?.some(d =>
                         d.toLowerCase().includes(customDocName.toLowerCase())
                       ) && (
                         <>
@@ -1462,30 +1547,66 @@ const DocumentTemplates = () => {
                             </Button>
                           </div>
                         </CommandEmpty>
-                        {editingDoc.category && commonDocuments[editingDoc.category]?.length > 0 && (
-                          <CommandGroup heading={`${editingDoc.category} Documents`}>
-                            {commonDocuments[editingDoc.category].map((doc) => (
-                              <CommandItem
-                                key={doc}
-                                value={doc}
-                                onSelect={() => {
-                                  setEditingDoc({ ...editingDoc, document_name: doc });
-                                  setEditDocNameOpen(false);
-                                  setCustomDocName("");
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    editingDoc.document_name === doc ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                {doc}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        )}
-                        {customDocName && !commonDocuments[editingDoc.category]?.some(d => 
+                        {(() => {
+                          const defsForCategory = documentDefinitions.filter(d => d.category === editingDoc.category);
+                          const fallbackDocs = commonDocuments[editingDoc.category] || [];
+                          const defNames = new Set(defsForCategory.map(d => d.document_name));
+                          const extraDocs = fallbackDocs.filter(d => !defNames.has(d));
+                          
+                          return (
+                            <>
+                              {defsForCategory.length > 0 && (
+                                <CommandGroup heading="Your Documents">
+                                  {defsForCategory.map((def) => (
+                                    <CommandItem
+                                      key={def.id}
+                                      value={def.document_name}
+                                      onSelect={() => {
+                                        setEditingDoc({ ...editingDoc, document_name: def.document_name, description: def.description });
+                                        setEditDocNameOpen(false);
+                                        setCustomDocName("");
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          editingDoc.document_name === def.document_name ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      {def.document_name}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              )}
+                              {extraDocs.length > 0 && (
+                                <CommandGroup heading="Common Documents">
+                                  {extraDocs.map((doc) => (
+                                    <CommandItem
+                                      key={doc}
+                                      value={doc}
+                                      onSelect={() => {
+                                        setEditingDoc({ ...editingDoc, document_name: doc });
+                                        setEditDocNameOpen(false);
+                                        setCustomDocName("");
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          editingDoc.document_name === doc ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      {doc}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              )}
+                            </>
+                          );
+                        })()}
+                        {customDocName && !documentDefinitions.some(d => 
+                          d.document_name.toLowerCase().includes(customDocName.toLowerCase())
+                        ) && !commonDocuments[editingDoc.category]?.some(d =>
                           d.toLowerCase().includes(customDocName.toLowerCase())
                         ) && (
                           <>
