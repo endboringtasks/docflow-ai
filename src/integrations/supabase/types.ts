@@ -1918,6 +1918,15 @@ export type Database = {
         Returns: boolean
       }
       submit_portal_access: { Args: { p_token: string }; Returns: boolean }
+      sync_template_description_to_checklists: {
+        Args: {
+          p_category: string
+          p_company_id: string
+          p_document_name: string
+          p_new_description: string
+        }
+        Returns: number
+      }
       update_portal_access_timestamp: {
         Args: { p_token: string }
         Returns: boolean

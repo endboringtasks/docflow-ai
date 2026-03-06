@@ -265,6 +265,7 @@ const DocumentTemplates = () => {
   // Dialog states
   const [isAddDocOpen, setIsAddDocOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState<DocumentTemplate | null>(null);
+  const [editingDocOriginalDescription, setEditingDocOriginalDescription] = useState<string | null>(null);
   const [docToDelete, setDocToDelete] = useState<DocumentTemplate | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(defaultCategories));
   const [expandedApplicantTypes, setExpandedApplicantTypes] = useState<Set<string>>(new Set(["Primary Applicant", "Partner", "Dependant", "Sponsor", "Witness", "General"]));
@@ -607,7 +608,7 @@ const DocumentTemplates = () => {
 
   // Update document mutation
   const updateDocMutation = useMutation({
-    mutationFn: async (doc: { id: string; document_name: string; is_required: boolean; category: string; applicant_type_id: string | null; age_condition: string | null; description: string | null; requires_translation: boolean }) => {
+    mutationFn: async (doc: { id: string; document_name: string; is_required: boolean; category: string; applicant_type_id: string | null; age_condition: string | null; description: string | null; requires_translation: boolean; oldDescription: string | null }) => {
       const { data, error } = await supabase
         .from("document_checklist_templates")
         .update({
@@ -624,12 +625,31 @@ const DocumentTemplates = () => {
         .single();
       
       if (error) throw error;
-      return data;
+
+      // Sync description to existing application checklists if it changed
+      const descriptionChanged = (doc.oldDescription ?? null) !== (doc.description ?? null);
+      let syncedCount = 0;
+      if (descriptionChanged && currentCompany?.id) {
+        const { data: syncResult } = await supabase.rpc('sync_template_description_to_checklists', {
+          p_company_id: currentCompany.id,
+          p_document_name: doc.document_name,
+          p_category: doc.category,
+          p_new_description: doc.description || '',
+        });
+        syncedCount = syncResult ?? 0;
+      }
+
+      return { data, syncedCount, descriptionChanged };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["document-templates", currentCompany?.id, selectedApplicationType] });
       setEditingDoc(null);
-      toast.success("Document updated");
+      setEditingDocOriginalDescription(null);
+      if (result.descriptionChanged && result.syncedCount > 0) {
+        toast.success("Document updated", { description: `Description synced to ${result.syncedCount} application checklist(s)` });
+      } else {
+        toast.success("Document updated");
+      }
     },
     onError: (error) => {
       toast.error("Failed to update document", { description: error.message });
@@ -680,6 +700,7 @@ const DocumentTemplates = () => {
       age_condition: editingDoc.age_condition || null,
       description: editingDoc.description || null,
       requires_translation: editingDoc.requires_translation ?? false,
+      oldDescription: editingDocOriginalDescription,
     });
   };
 
@@ -1159,7 +1180,7 @@ const DocumentTemplates = () => {
                                               <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                onClick={() => setEditingDoc(doc)}
+                                                onClick={() => { setEditingDoc(doc); setEditingDocOriginalDescription(doc.description ?? null); }}
                                               >
                                                 <Pencil className="w-4 h-4" />
                                               </Button>
