@@ -76,7 +76,7 @@ export default function AdminDocumentsListTab() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
-  const [filterCompany, setFilterCompany] = useState<string>("all");
+  
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editing, setEditing] = useState<DocumentDefinition | null>(null);
   const [toDelete, setToDelete] = useState<DocumentDefinition | null>(null);
@@ -116,13 +116,6 @@ export default function AdminDocumentsListTab() {
     },
   });
 
-  // Build company name lookup
-  const companyMap = useMemo(() => {
-    const map = new Map<string, string>();
-    companies.forEach((c) => map.set(c.id, c.name));
-    return map;
-  }, [companies]);
-
   // Get unique categories
   const categories = useMemo(() => {
     const cats = new Set(definitions.map((d) => d.category));
@@ -140,9 +133,6 @@ export default function AdminDocumentsListTab() {
   // Filtered list
   const filtered = useMemo(() => {
     let list = definitions;
-    if (filterCompany && filterCompany !== "all") {
-      list = list.filter((d) => d.company_id === filterCompany);
-    }
     if (filterCategory && filterCategory !== "all") {
       list = list.filter((d) => d.category === filterCategory);
     }
@@ -155,7 +145,7 @@ export default function AdminDocumentsListTab() {
       );
     }
     return list;
-  }, [definitions, filterCompany, filterCategory, search]);
+  }, [definitions, filterCategory, search]);
 
   // Add mutation
   const addMutation = useMutation({
@@ -269,17 +259,6 @@ export default function AdminDocumentsListTab() {
               </Button>
             )}
           </div>
-          <Select value={filterCompany} onValueChange={setFilterCompany}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="All companies" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Companies</SelectItem>
-              {companies.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Select value={filterCategory} onValueChange={setFilterCategory}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="All categories" />
@@ -307,13 +286,13 @@ export default function AdminDocumentsListTab() {
         <div className="p-12 text-center">
           <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">
-            {search || filterCategory !== "all" || filterCompany !== "all"
+            {search || filterCategory !== "all"
               ? "No documents match your filter"
               : "No document definitions found"}
           </h3>
           <p className="text-muted-foreground">
-            {search || filterCategory !== "all" || filterCompany !== "all"
-              ? "Try a different search, category, or company."
+            {search || filterCategory !== "all"
+              ? "Try a different search or category."
               : "Companies haven't created any document definitions yet."}
           </p>
         </div>
@@ -322,7 +301,6 @@ export default function AdminDocumentsListTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Company</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Document Name</TableHead>
                 <TableHead className="hidden md:table-cell">Description</TableHead>
@@ -332,9 +310,6 @@ export default function AdminDocumentsListTab() {
             <TableBody>
               {filtered.map((def) => (
                 <TableRow key={def.id}>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {companyMap.get(def.company_id) || "Unknown"}
-                  </TableCell>
                   <TableCell>
                     <Badge variant="outline">{def.category}</Badge>
                   </TableCell>
@@ -453,10 +428,6 @@ export default function AdminDocumentsListTab() {
           </DialogHeader>
           {editing && (
             <div className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label>Company</Label>
-                <Input value={companyMap.get(editing.company_id) || "Unknown"} disabled />
-              </div>
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select value={editing.category} onValueChange={(v) => setEditing({ ...editing, category: v })}>
