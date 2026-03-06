@@ -988,6 +988,7 @@ export type Database = {
           country_id: string | null
           created_at: string | null
           description: string | null
+          document_definition_id: string | null
           document_name: string
           id: string
           is_required: boolean | null
@@ -1012,6 +1013,7 @@ export type Database = {
           country_id?: string | null
           created_at?: string | null
           description?: string | null
+          document_definition_id?: string | null
           document_name: string
           id?: string
           is_required?: boolean | null
@@ -1036,6 +1038,7 @@ export type Database = {
           country_id?: string | null
           created_at?: string | null
           description?: string | null
+          document_definition_id?: string | null
           document_name?: string
           id?: string
           is_required?: boolean | null
@@ -1074,10 +1077,61 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "document_checklist_templates_document_definition_id_fkey"
+            columns: ["document_definition_id"]
+            isOneToOne: false
+            referencedRelation: "document_definitions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "document_checklist_templates_translation_certification_typ_fkey"
             columns: ["translation_certification_type_id"]
             isOneToOne: false
             referencedRelation: "translation_certification_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_definitions: {
+        Row: {
+          category: string
+          company_id: string
+          created_at: string
+          description: string | null
+          document_name: string
+          id: string
+          is_active: boolean
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          company_id: string
+          created_at?: string
+          description?: string | null
+          document_name: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          document_name?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_definitions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -1918,6 +1972,10 @@ export type Database = {
         Returns: boolean
       }
       submit_portal_access: { Args: { p_token: string }; Returns: boolean }
+      sync_definition_description_to_all: {
+        Args: { p_definition_id: string; p_new_description: string }
+        Returns: number
+      }
       sync_template_description_to_checklists: {
         Args: {
           p_category: string
