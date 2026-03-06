@@ -1160,7 +1160,7 @@ const DocumentTemplates = () => {
                                               <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                onClick={() => setEditingDoc(doc)}
+                                                onClick={() => { setEditingDoc(doc); setEditingDocOriginalDescription(doc.description ?? null); }}
                                               >
                                                 <Pencil className="w-4 h-4" />
                                               </Button>
