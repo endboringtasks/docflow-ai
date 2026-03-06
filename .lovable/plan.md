@@ -1,17 +1,17 @@
 
 
-## Remove Timeline Dot from Document History
+## Documents List + Document Checklist Split (Completed)
 
-The small circle (timeline dot) shown to the left of archived/deleted file entries in the document history will be removed, along with the vertical connector line between entries.
+### What Changed
 
-### Changes
+**New `document_definitions` table** — master catalog of documents per company with category, name, and description. Unique constraint on (company_id, category, document_name).
 
-**File: `src/components/visa-application/DocumentHistorySection.tsx`**
+**New `document_definition_id` FK** on `document_checklist_templates` — links templates to definitions for single-source-of-truth descriptions.
 
-- Remove the timeline connector line (vertical bar between entries, lines ~206-208)
-- Remove the timeline dot element (the circle, lines ~212-216)
-- Remove the outer flex container that creates the dot + content layout, so the content card renders directly without the left-side timeline decoration
-- Keep all other content (file info, dates, buttons, rejection reasons) unchanged
+**Migration backfill** — existing templates were deduplicated into definitions and linked back.
 
-This simplifies the history entries to just show the content cards without the timeline visual treatment.
+**New `sync_definition_description_to_all` DB function** — when a definition's description changes, it propagates to all linked templates AND all matching application checklists.
 
+**New "Documents List" tab** in Document Checklist page — CRUD for document definitions with search/filter by category.
+
+**Updated "Document Checklist" tab** — add/edit dialogs now show "Your Documents" from definitions first, then "Common Documents" as fallback, with custom entry still allowed. Selecting a definition auto-fills description.
