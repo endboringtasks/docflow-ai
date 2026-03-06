@@ -793,18 +793,32 @@ const DocumentTemplates = () => {
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Document Checklist</h1>
             <p className="text-muted-foreground mt-1">
-              Configure required documents for each application type
+              Manage your document catalog and configure checklists per application type
             </p>
           </div>
-          <Button 
-            variant="gradient" 
-            onClick={() => setIsAddDocOpen(true)}
-            disabled={!selectedApplicationType}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Document
-          </Button>
         </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="documents-list">Documents List</TabsTrigger>
+            <TabsTrigger value="checklist">Document Checklist</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="documents-list" className="mt-6">
+            <DocumentsListTab />
+          </TabsContent>
+
+          <TabsContent value="checklist" className="mt-6 space-y-6">
+            <div className="flex justify-end">
+              <Button 
+                variant="gradient" 
+                onClick={() => setIsAddDocOpen(true)}
+                disabled={!selectedApplicationType}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Document
+              </Button>
+            </div>
 
         {/* Filter Bar */}
         <div className="card-gradient rounded-xl border border-border/50 p-4">
