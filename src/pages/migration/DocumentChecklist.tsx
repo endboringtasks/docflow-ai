@@ -1255,7 +1255,6 @@ const DocumentTemplates = () => {
             )}
           </div>
         )}
-      </div>
 
           </TabsContent>
         </Tabs>
