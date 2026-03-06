@@ -700,6 +700,7 @@ const DocumentTemplates = () => {
       age_condition: editingDoc.age_condition || null,
       description: editingDoc.description || null,
       requires_translation: editingDoc.requires_translation ?? false,
+      oldDescription: editingDocOriginalDescription,
     });
   };
 
