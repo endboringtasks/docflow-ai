@@ -82,6 +82,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { cn } from "@/lib/utils";
 
+interface DocumentDefinition {
+  id: string;
+  company_id: string;
+  category: string;
+  document_name: string;
+  description: string | null;
+}
+
 interface DocumentTemplate {
   id: string;
   visa_type_id: string | null;
@@ -96,6 +104,7 @@ interface DocumentTemplate {
   description: string | null;
   requires_translation: boolean;
   applicant_type?: ApplicantType | null;
+  document_definition_id?: string | null;
 }
 
 interface ApplicantType {
