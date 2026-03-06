@@ -1,17 +1,22 @@
 
 
-## Documents List + Document Checklist Split (Completed)
+## Problem
 
-### What Changed
+The admin `AdminDocumentsListTab` component is **read-only** -- it only displays a table with filters. There are no "Add Document", "Edit", or "Delete" buttons. The company-level `DocumentsListTab` has full CRUD, but the admin version was built as a view-only overview.
 
-**New `document_definitions` table** — master catalog of documents per company with category, name, and description. Unique constraint on (company_id, category, document_name).
+## Solution
 
-**New `document_definition_id` FK** on `document_checklist_templates` — links templates to definitions for single-source-of-truth descriptions.
+Add full CRUD capabilities to `AdminDocumentsListTab`, matching the company-level component's functionality but adapted for the admin context (cross-company).
 
-**Migration backfill** — existing templates were deduplicated into definitions and linked back.
+### Changes to `src/components/admin/AdminDocumentsListTab.tsx`
 
-**New `sync_definition_description_to_all` DB function** — when a definition's description changes, it propagates to all linked templates AND all matching application checklists.
+1. **Add "Add Document" button** with a dialog that includes a company selector (required), category, name, and description fields
+2. **Add Edit and Delete action buttons** on each row (pencil + trash icons), same as the company-level component
+3. **Edit dialog** with category, document name, description fields -- plus description sync via `sync_definition_description_to_all` RPC
+4. **Delete confirmation** dialog (soft-delete by setting `is_active = false`)
+5. Import mutations from `@tanstack/react-query` (`useMutation`, `useQueryClient`) and necessary UI components (`Dialog`, `AlertDialog`, `Textarea`, `Label`, action icons)
 
-**New "Documents List" tab** in Document Checklist page — CRUD for document definitions with search/filter by category.
+### No database changes needed
 
-**Updated "Document Checklist" tab** — add/edit dialogs now show "Your Documents" from definitions first, then "Common Documents" as fallback, with custom entry still allowed. Selecting a definition auto-fills description.
+RLS already has a policy: "Platform admins can manage document definitions" with `FOR ALL` using `is_platform_admin(auth.uid())`. INSERT, UPDATE, DELETE are all covered.
+
