@@ -1,17 +1,16 @@
 
 
-## Documents List + Document Checklist Split (Completed)
+## Issue: "Documents List" Tab Not Visible
 
-### What Changed
+After investigating the code, the tabs structure is correctly implemented in `DocumentChecklist.tsx` (lines 801-809). The `DocumentsListTab` component exists and is properly imported.
 
-**New `document_definitions` table** — master catalog of documents per company with category, name, and description. Unique constraint on (company_id, category, document_name).
+The most likely cause: **the default active tab is set to `"checklist"`** (line 255), so "Documents List" is there but requires clicking the tab. However, if the user is saying they literally cannot see the tab trigger itself, it could be a styling issue with the `TabsList` not being wide enough.
 
-**New `document_definition_id` FK** on `document_checklist_templates` — links templates to definitions for single-source-of-truth descriptions.
+### Changes
 
-**Migration backfill** — existing templates were deduplicated into definitions and linked back.
+1. **Set "Documents List" as the default tab** -- change `useState("checklist")` to `useState("documents-list")` on line 255 so users land on the Documents List tab first (it's the foundational step before configuring checklists).
 
-**New `sync_definition_description_to_all` DB function** — when a definition's description changes, it propagates to all linked templates AND all matching application checklists.
+2. **Verify tab visibility** -- no structural issues found; the `TabsList`, `TabsTrigger`, and `TabsContent` are all correctly nested inside `Tabs`.
 
-**New "Documents List" tab** in Document Checklist page — CRUD for document definitions with search/filter by category.
+This is a one-line change: update the default tab value from `"checklist"` to `"documents-list"`.
 
-**Updated "Document Checklist" tab** — add/edit dialogs now show "Your Documents" from definitions first, then "Common Documents" as fallback, with custom entry still allowed. Selecting a definition auto-fills description.
