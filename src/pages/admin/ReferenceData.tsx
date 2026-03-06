@@ -62,6 +62,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { CategoryApplicantRulesTab } from "@/components/admin/CategoryApplicantRulesTab";
+import AdminDocumentsListTab from "@/components/admin/AdminDocumentsListTab";
 import { toast } from "sonner";
 import { getCountryFlag } from "@/lib/countryFlags";
 import {
@@ -3443,8 +3444,12 @@ export default function AdminReferenceData() {
               <Languages className="w-4 h-4" />
               Translation Certifications
             </TabsTrigger>
-            <TabsTrigger value="documents" className="gap-2">
+            <TabsTrigger value="documents-list" className="gap-2">
               <FileText className="w-4 h-4" />
+              Documents List
+            </TabsTrigger>
+            <TabsTrigger value="documents" className="gap-2">
+              <CheckSquare className="w-4 h-4" />
               Document Checklist
             </TabsTrigger>
           </TabsList>
@@ -3477,6 +3482,10 @@ export default function AdminReferenceData() {
 
               <TabsContent value="translation-certs" className="mt-0">
                 <TranslationCertificationsTab />
+              </TabsContent>
+
+              <TabsContent value="documents-list" className="mt-0">
+                <AdminDocumentsListTab />
               </TabsContent>
 
               <TabsContent value="documents" className="mt-0">

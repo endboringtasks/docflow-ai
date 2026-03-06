@@ -1,28 +1,17 @@
 
 
-## Add "Documents List" Tab to Admin Reference Data Page
+## Documents List + Document Checklist Split (Completed)
 
-The "Documents List" tab currently exists only on the company-level Document Checklist page (`src/pages/migration/DocumentChecklist.tsx`). The admin Reference Data page at `/admin/reference-data` has a "Document Checklist" tab but no "Documents List" tab. Based on your screenshot, you want to see it in the admin section.
+### What Changed
 
-### Changes
+**New `document_definitions` table** — master catalog of documents per company with category, name, and description. Unique constraint on (company_id, category, document_name).
 
-**`src/pages/admin/ReferenceData.tsx`**
+**New `document_definition_id` FK** on `document_checklist_templates` — links templates to definitions for single-source-of-truth descriptions.
 
-1. Import `DocumentsListTab` from `@/components/documents/DocumentsListTab`
-2. Add a new `TabsTrigger` for "Documents List" (value `"documents-list"`) before the existing "Document Checklist" tab trigger
-3. Add a corresponding `TabsContent` rendering `<DocumentsListTab />`
+**Migration backfill** — existing templates were deduplicated into definitions and linked back.
 
-**Note:** The existing `DocumentsListTab` component uses `useCompany()` to scope definitions to the current company. In the admin context, there is no "current company" selected -- the admin manages all companies. Two options:
+**New `sync_definition_description_to_all` DB function** — when a definition's description changes, it propagates to all linked templates AND all matching application checklists.
 
-- **Option A**: Reuse the component as-is. It will show definitions for whatever company the admin is currently impersonating/viewing (if `useCompany` returns a value in admin context).
-- **Option B**: Create an admin-specific version that shows all definitions across all companies, or adds a company filter dropdown.
+**New "Documents List" tab** in Document Checklist page — CRUD for document definitions with search/filter by category.
 
-Since the admin Reference Data page appears to be global (not company-scoped), **Option B** is more appropriate -- I'll add a company selector dropdown to the Documents List when rendered in admin context, or show all companies' definitions with a company column.
-
-### Technical Detail
-
-- Add a `isAdmin` prop to `DocumentsListTab` (or create a thin wrapper) that, when true, fetches all definitions without filtering by `company_id` and displays the company name as an extra column
-- Alternatively, the simpler approach: just add the tab and let it work with the admin's impersonated company context, same as the existing "Document Checklist" tab likely does
-
-I'll check what the existing `DocumentsTab` does for company scoping and match that pattern.
-
+**Updated "Document Checklist" tab** — add/edit dialogs now show "Your Documents" from definitions first, then "Common Documents" as fallback, with custom entry still allowed. Selecting a definition auto-fills description.
