@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -10,7 +12,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, FileText, Loader2, X } from "lucide-react";
+import {
+  Search,
+  FileText,
+  Loader2,
+  X,
+  Plus,
+  Pencil,
+  Trash2,
+  Save,
+} from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -18,8 +29,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface DocumentDefinition {
   id: string;
@@ -37,10 +66,26 @@ interface Company {
   name: string;
 }
 
+const defaultCategories = [
+  "Identity", "Character", "Health", "Employment", "Skills",
+  "English", "Education", "Financial", "Relationship", "Sponsor",
+  "Insurance", "Nomination", "Other",
+];
+
 export default function AdminDocumentsListTab() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterCompany, setFilterCompany] = useState<string>("all");
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editing, setEditing] = useState<DocumentDefinition | null>(null);
+  const [toDelete, setToDelete] = useState<DocumentDefinition | null>(null);
+  const [newDef, setNewDef] = useState({
+    company_id: "",
+    category: "",
+    document_name: "",
+    description: "",
+  });
 
   // Fetch all companies for the filter
   const { data: companies = [] } = useQuery({
@@ -81,7 +126,15 @@ export default function AdminDocumentsListTab() {
   // Get unique categories
   const categories = useMemo(() => {
     const cats = new Set(definitions.map((d) => d.category));
-    return Array.from(cats).sort();
+    defaultCategories.forEach((c) => cats.add(c));
+    return Array.from(cats).sort((a, b) => {
+      const ai = defaultCategories.indexOf(a);
+      const bi = defaultCategories.indexOf(b);
+      if (ai === -1 && bi === -1) return a.localeCompare(b);
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
   }, [definitions]);
 
   // Filtered list
@@ -104,51 +157,145 @@ export default function AdminDocumentsListTab() {
     return list;
   }, [definitions, filterCompany, filterCategory, search]);
 
+  // Add mutation
+  const addMutation = useMutation({
+    mutationFn: async (def: { company_id: string; category: string; document_name: string; description: string | null }) => {
+      const { data, error } = await supabase
+        .from("document_definitions")
+        .insert({
+          company_id: def.company_id,
+          category: def.category,
+          document_name: def.document_name,
+          description: def.description,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-document-definitions"] });
+      setIsAddOpen(false);
+      setNewDef({ company_id: "", category: "", document_name: "", description: "" });
+      toast.success("Document added to catalog");
+    },
+    onError: (error) => {
+      if (error.message?.includes("duplicate")) {
+        toast.error("Document already exists in this category");
+      } else {
+        toast.error("Failed to add document", { description: error.message });
+      }
+    },
+  });
+
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: async (def: DocumentDefinition) => {
+      const { data, error } = await supabase
+        .from("document_definitions")
+        .update({
+          category: def.category,
+          document_name: def.document_name,
+          description: def.description,
+        })
+        .eq("id", def.id)
+        .select()
+        .single();
+      if (error) throw error;
+
+      const { data: syncCount } = await supabase.rpc("sync_definition_description_to_all", {
+        p_definition_id: def.id,
+        p_new_description: def.description || "",
+      });
+
+      return { data, syncCount: syncCount ?? 0 };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-document-definitions"] });
+      setEditing(null);
+      if (result.syncCount > 0) {
+        toast.success("Document updated", {
+          description: `Description synced to ${result.syncCount} application checklist(s)`,
+        });
+      } else {
+        toast.success("Document updated");
+      }
+    },
+    onError: (error) => {
+      toast.error("Failed to update document", { description: error.message });
+    },
+  });
+
+  // Delete mutation (soft delete)
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("document_definitions")
+        .update({ is_active: false })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-document-definitions"] });
+      setToDelete(null);
+      toast.success("Document removed from catalog");
+    },
+    onError: (error) => {
+      toast.error("Failed to remove document", { description: error.message });
+    },
+  });
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-        <div className="relative flex-1 sm:max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search documents..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-          {search && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-              onClick={() => setSearch("")}
-            >
-              <X className="w-3 h-3" />
-            </Button>
-          )}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center flex-1">
+          <div className="relative flex-1 sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search documents..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+            {search && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                onClick={() => setSearch("")}
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
+          <Select value={filterCompany} onValueChange={setFilterCompany}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All companies" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Companies</SelectItem>
+              {companies.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterCategory} onValueChange={setFilterCategory}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="All categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {categories.map((cat) => (
+                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={filterCompany} onValueChange={setFilterCompany}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All companies" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Companies</SelectItem>
-            {companies.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All categories" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {categories.map((cat) => (
-              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Button variant="gradient" onClick={() => setIsAddOpen(true)}>
+          <Plus className="w-4 h-4 mr-2" />
+          Add Document
+        </Button>
       </div>
 
       {/* Table */}
@@ -179,6 +326,7 @@ export default function AdminDocumentsListTab() {
                 <TableHead>Category</TableHead>
                 <TableHead>Document Name</TableHead>
                 <TableHead className="hidden md:table-cell">Description</TableHead>
+                <TableHead className="text-right w-[100px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -194,6 +342,21 @@ export default function AdminDocumentsListTab() {
                   <TableCell className="hidden md:table-cell text-muted-foreground max-w-xs truncate">
                     {def.description || <span className="italic">No description</span>}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => setEditing(def)}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setToDelete(def)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -204,6 +367,163 @@ export default function AdminDocumentsListTab() {
           </div>
         </>
       )}
+
+      {/* Add Dialog */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Document to Catalog</DialogTitle>
+            <DialogDescription>
+              Define a document that can be used across application checklists.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Company</Label>
+              <Select value={newDef.company_id} onValueChange={(v) => setNewDef({ ...newDef, company_id: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select company" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={newDef.category} onValueChange={(v) => setNewDef({ ...newDef, category: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Document Name</Label>
+              <Input
+                value={newDef.document_name}
+                onChange={(e) => setNewDef({ ...newDef, document_name: e.target.value })}
+                placeholder="e.g., Passport (certified copy)"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description / Instructions</Label>
+              <Textarea
+                value={newDef.description}
+                onChange={(e) => setNewDef({ ...newDef, description: e.target.value })}
+                placeholder="Instructions shown to clients in the portal..."
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+              <Button
+                onClick={() =>
+                  addMutation.mutate({
+                    company_id: newDef.company_id,
+                    category: newDef.category,
+                    document_name: newDef.document_name.trim(),
+                    description: newDef.description || null,
+                  })
+                }
+                disabled={!newDef.company_id || !newDef.category || !newDef.document_name.trim() || addMutation.isPending}
+              >
+                {addMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+                Add Document
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Document</DialogTitle>
+            <DialogDescription>
+              Changes to the description will sync to all application checklists.
+            </DialogDescription>
+          </DialogHeader>
+          {editing && (
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>Company</Label>
+                <Input value={companyMap.get(editing.company_id) || "Unknown"} disabled />
+              </div>
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select value={editing.category} onValueChange={(v) => setEditing({ ...editing, category: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Document Name</Label>
+                <Input
+                  value={editing.document_name}
+                  onChange={(e) => setEditing({ ...editing, document_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description / Instructions</Label>
+                <Textarea
+                  value={editing.description || ""}
+                  onChange={(e) => setEditing({ ...editing, description: e.target.value || null })}
+                  placeholder="Instructions shown to clients in the portal..."
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Updating this will automatically sync to all templates and application checklists.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+                <Button
+                  onClick={() => editing && updateMutation.mutate(editing)}
+                  disabled={!editing.document_name.trim() || updateMutation.isPending}
+                >
+                  {updateMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!toDelete} onOpenChange={(open) => !open && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove "{toDelete?.document_name}" from the catalog. Existing templates and application checklists won't be affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => toDelete && deleteMutation.mutate(toDelete.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? "Removing..." : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
