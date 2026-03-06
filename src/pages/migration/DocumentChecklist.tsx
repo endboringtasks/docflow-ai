@@ -1547,30 +1547,66 @@ const DocumentTemplates = () => {
                             </Button>
                           </div>
                         </CommandEmpty>
-                        {editingDoc.category && commonDocuments[editingDoc.category]?.length > 0 && (
-                          <CommandGroup heading={`${editingDoc.category} Documents`}>
-                            {commonDocuments[editingDoc.category].map((doc) => (
-                              <CommandItem
-                                key={doc}
-                                value={doc}
-                                onSelect={() => {
-                                  setEditingDoc({ ...editingDoc, document_name: doc });
-                                  setEditDocNameOpen(false);
-                                  setCustomDocName("");
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    editingDoc.document_name === doc ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                {doc}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        )}
-                        {customDocName && !commonDocuments[editingDoc.category]?.some(d => 
+                        {(() => {
+                          const defsForCategory = documentDefinitions.filter(d => d.category === editingDoc.category);
+                          const fallbackDocs = commonDocuments[editingDoc.category] || [];
+                          const defNames = new Set(defsForCategory.map(d => d.document_name));
+                          const extraDocs = fallbackDocs.filter(d => !defNames.has(d));
+                          
+                          return (
+                            <>
+                              {defsForCategory.length > 0 && (
+                                <CommandGroup heading="Your Documents">
+                                  {defsForCategory.map((def) => (
+                                    <CommandItem
+                                      key={def.id}
+                                      value={def.document_name}
+                                      onSelect={() => {
+                                        setEditingDoc({ ...editingDoc, document_name: def.document_name, description: def.description });
+                                        setEditDocNameOpen(false);
+                                        setCustomDocName("");
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          editingDoc.document_name === def.document_name ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      {def.document_name}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              )}
+                              {extraDocs.length > 0 && (
+                                <CommandGroup heading="Common Documents">
+                                  {extraDocs.map((doc) => (
+                                    <CommandItem
+                                      key={doc}
+                                      value={doc}
+                                      onSelect={() => {
+                                        setEditingDoc({ ...editingDoc, document_name: doc });
+                                        setEditDocNameOpen(false);
+                                        setCustomDocName("");
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          editingDoc.document_name === doc ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      {doc}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              )}
+                            </>
+                          );
+                        })()}
+                        {customDocName && !documentDefinitions.some(d => 
+                          d.document_name.toLowerCase().includes(customDocName.toLowerCase())
+                        ) && !commonDocuments[editingDoc.category]?.some(d =>
                           d.toLowerCase().includes(customDocName.toLowerCase())
                         ) && (
                           <>
