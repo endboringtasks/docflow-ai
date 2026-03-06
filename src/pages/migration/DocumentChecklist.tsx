@@ -252,6 +252,8 @@ const DocumentTemplates = () => {
   const { currentCompany, currentRole } = useCompany();
   const isAdmin = currentRole === "owner" || currentRole === "admin";
   
+  const [activeTab, setActiveTab] = useState("checklist");
+  
   // Filter states
   const [selectedCountry, setSelectedCountry] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
@@ -375,6 +377,24 @@ const DocumentTemplates = () => {
       return data as VisaType[];
     },
     enabled: !!selectedCountry && !!selectedCategory,
+  });
+
+  // Fetch document definitions for the company
+  const { data: documentDefinitions = [] } = useQuery({
+    queryKey: ["document-definitions", currentCompany?.id],
+    queryFn: async () => {
+      if (!currentCompany?.id) return [];
+      const { data, error } = await supabase
+        .from("document_definitions")
+        .select("id, company_id, category, document_name, description")
+        .eq("company_id", currentCompany.id)
+        .eq("is_active", true)
+        .order("category")
+        .order("document_name");
+      if (error) throw error;
+      return data as DocumentDefinition[];
+    },
+    enabled: !!currentCompany?.id,
   });
 
   // Fetch applicant types
