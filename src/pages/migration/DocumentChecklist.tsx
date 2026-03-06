@@ -265,6 +265,7 @@ const DocumentTemplates = () => {
   // Dialog states
   const [isAddDocOpen, setIsAddDocOpen] = useState(false);
   const [editingDoc, setEditingDoc] = useState<DocumentTemplate | null>(null);
+  const [editingDocOriginalDescription, setEditingDocOriginalDescription] = useState<string | null>(null);
   const [docToDelete, setDocToDelete] = useState<DocumentTemplate | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(defaultCategories));
   const [expandedApplicantTypes, setExpandedApplicantTypes] = useState<Set<string>>(new Set(["Primary Applicant", "Partner", "Dependant", "Sponsor", "Witness", "General"]));
