@@ -81,7 +81,6 @@ export default function AdminDocumentsListTab() {
   const [editing, setEditing] = useState<DocumentDefinition | null>(null);
   const [toDelete, setToDelete] = useState<DocumentDefinition | null>(null);
   const [newDef, setNewDef] = useState({
-    company_id: "",
     category: "",
     document_name: "",
     description: "",
@@ -149,11 +148,15 @@ export default function AdminDocumentsListTab() {
 
   // Add mutation
   const addMutation = useMutation({
-    mutationFn: async (def: { company_id: string; category: string; document_name: string; description: string | null }) => {
+    mutationFn: async (def: { category: string; document_name: string; description: string | null }) => {
+      // Auto-assign first company to satisfy DB constraint since documents are universal
+      const firstCompany = companies[0];
+      if (!firstCompany) throw new Error("No companies available");
+      
       const { data, error } = await supabase
         .from("document_definitions")
         .insert({
-          company_id: def.company_id,
+          company_id: firstCompany.id,
           category: def.category,
           document_name: def.document_name,
           description: def.description,
@@ -166,7 +169,7 @@ export default function AdminDocumentsListTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-document-definitions"] });
       setIsAddOpen(false);
-      setNewDef({ company_id: "", category: "", document_name: "", description: "" });
+      setNewDef({ category: "", document_name: "", description: "" });
       toast.success("Document added to catalog");
     },
     onError: (error) => {
@@ -354,19 +357,6 @@ export default function AdminDocumentsListTab() {
           </DialogHeader>
           <div className="space-y-4 pt-4">
             <div className="space-y-2">
-              <Label>Company</Label>
-              <Select value={newDef.company_id} onValueChange={(v) => setNewDef({ ...newDef, company_id: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select company" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
               <Label>Category</Label>
               <Select value={newDef.category} onValueChange={(v) => setNewDef({ ...newDef, category: v })}>
                 <SelectTrigger>
@@ -401,13 +391,12 @@ export default function AdminDocumentsListTab() {
               <Button
                 onClick={() =>
                   addMutation.mutate({
-                    company_id: newDef.company_id,
                     category: newDef.category,
                     document_name: newDef.document_name.trim(),
                     description: newDef.description || null,
                   })
                 }
-                disabled={!newDef.company_id || !newDef.category || !newDef.document_name.trim() || addMutation.isPending}
+                disabled={!newDef.category || !newDef.document_name.trim() || addMutation.isPending}
               >
                 {addMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
                 Add Document
