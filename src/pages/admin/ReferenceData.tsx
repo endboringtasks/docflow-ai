@@ -2896,14 +2896,13 @@ function DocumentsTab() {
               <div className="space-y-2">
                 <Label>Document Name</Label>
                 <Select
-                  value={form.document_name || "__custom__"}
-                  onValueChange={(value) => setForm({ ...form, document_name: value === "__custom__" ? "" : value })}
+                  value={form.document_name || ""}
+                  onValueChange={(value) => setForm({ ...form, document_name: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select or type a document name" />
+                    <SelectValue placeholder="Select a document name" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__custom__">+ Add Custom Name</SelectItem>
                     {(form.category ? getDocumentNamesForCategory(form.category) : getAllDocumentNames()).map((name) => (
                       <SelectItem key={name} value={name}>
                         {name}
@@ -2911,14 +2910,6 @@ function DocumentsTab() {
                     ))}
                   </SelectContent>
                 </Select>
-                {(form.document_name === "" || ![...getAllDocumentNames()].includes(form.document_name)) && (
-                  <Input
-                    value={form.document_name}
-                    onChange={(e) => setForm({ ...form, document_name: e.target.value })}
-                    placeholder="Enter custom document name"
-                    className="mt-2"
-                  />
-                )}
               </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
