@@ -3075,18 +3075,6 @@ function DocumentsTab() {
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Description / Instructions</Label>
-              <Textarea
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="e.g., A copy of the biographical details page of your current valid passport. This page must include photograph, name, date of birth and passport number."
-                rows={3}
-              />
-              <p className="text-xs text-muted-foreground">
-                This instruction will be shown to clients in the portal when uploading this document.
-              </p>
-            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Min Files Required</Label>
