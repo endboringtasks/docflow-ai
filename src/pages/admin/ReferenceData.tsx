@@ -2869,14 +2869,13 @@ function DocumentsTab() {
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select
-                  value={form.category || "__custom__"}
-                  onValueChange={(value) => setForm({ ...form, category: value === "__custom__" ? "" : value, document_name: "" })}
+                  value={form.category || ""}
+                  onValueChange={(value) => setForm({ ...form, category: value, document_name: "" })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select or type a category" />
+                    <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__custom__">+ Add Custom Category</SelectItem>
                     {documentCategories.sort().map((cat) => (
                       <SelectItem key={cat} value={cat!}>
                         {cat}
@@ -2884,14 +2883,6 @@ function DocumentsTab() {
                     ))}
                   </SelectContent>
                 </Select>
-                {(form.category === "" || !documentCategories.includes(form.category)) && (
-                  <Input
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    placeholder="Enter custom category"
-                    className="mt-2"
-                  />
-                )}
               </div>
               <div className="space-y-2">
                 <Label>Document Name</Label>
