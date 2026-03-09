@@ -2859,9 +2859,9 @@ function DocumentsTab() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingDoc ? "Edit Document" : "Add Document"}</DialogTitle>
+            <DialogTitle>{editingDoc ? "Edit Document" : "Link Document"}</DialogTitle>
             <DialogDescription>
-              {editingDoc ? "Update document details" : "Add a new document to the checklist"}
+              {editingDoc ? "Update document details" : "Link an existing document to the checklist"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
