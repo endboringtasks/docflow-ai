@@ -2797,7 +2797,7 @@ function DocumentsTab() {
           )}
           <Button onClick={openCreate} size="sm">
             <Plus className="w-4 h-4 mr-2" />
-            Add Document
+            Link Document
           </Button>
         </div>
       </div>
