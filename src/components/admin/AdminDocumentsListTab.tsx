@@ -357,19 +357,6 @@ export default function AdminDocumentsListTab() {
           </DialogHeader>
           <div className="space-y-4 pt-4">
             <div className="space-y-2">
-              <Label>Company</Label>
-              <Select value={newDef.company_id} onValueChange={(v) => setNewDef({ ...newDef, company_id: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select company" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
               <Label>Category</Label>
               <Select value={newDef.category} onValueChange={(v) => setNewDef({ ...newDef, category: v })}>
                 <SelectTrigger>
@@ -404,13 +391,12 @@ export default function AdminDocumentsListTab() {
               <Button
                 onClick={() =>
                   addMutation.mutate({
-                    company_id: newDef.company_id,
                     category: newDef.category,
                     document_name: newDef.document_name.trim(),
                     description: newDef.description || null,
                   })
                 }
-                disabled={!newDef.company_id || !newDef.category || !newDef.document_name.trim() || addMutation.isPending}
+                disabled={!newDef.category || !newDef.document_name.trim() || addMutation.isPending}
               >
                 {addMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
                 Add Document
