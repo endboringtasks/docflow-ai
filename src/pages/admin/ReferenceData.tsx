@@ -2797,7 +2797,7 @@ function DocumentsTab() {
           )}
           <Button onClick={openCreate} size="sm">
             <Plus className="w-4 h-4 mr-2" />
-            Add Document
+            Link Document
           </Button>
         </div>
       </div>
@@ -2859,9 +2859,9 @@ function DocumentsTab() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingDoc ? "Edit Document" : "Add Document"}</DialogTitle>
+            <DialogTitle>{editingDoc ? "Edit Document" : "Link Document"}</DialogTitle>
             <DialogDescription>
-              {editingDoc ? "Update document details" : "Add a new document to the checklist"}
+              {editingDoc ? "Update document details" : "Link an existing document to the checklist"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -2896,14 +2896,13 @@ function DocumentsTab() {
               <div className="space-y-2">
                 <Label>Document Name</Label>
                 <Select
-                  value={form.document_name || "__custom__"}
-                  onValueChange={(value) => setForm({ ...form, document_name: value === "__custom__" ? "" : value })}
+                  value={form.document_name || ""}
+                  onValueChange={(value) => setForm({ ...form, document_name: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select or type a document name" />
+                    <SelectValue placeholder="Select a document name" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__custom__">+ Add Custom Name</SelectItem>
                     {(form.category ? getDocumentNamesForCategory(form.category) : getAllDocumentNames()).map((name) => (
                       <SelectItem key={name} value={name}>
                         {name}
@@ -2911,14 +2910,6 @@ function DocumentsTab() {
                     ))}
                   </SelectContent>
                 </Select>
-                {(form.document_name === "" || ![...getAllDocumentNames()].includes(form.document_name)) && (
-                  <Input
-                    value={form.document_name}
-                    onChange={(e) => setForm({ ...form, document_name: e.target.value })}
-                    placeholder="Enter custom document name"
-                    className="mt-2"
-                  />
-                )}
               </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -3083,18 +3074,6 @@ function DocumentsTab() {
                   placeholder="e.g., +16yrs, Under 18"
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Description / Instructions</Label>
-              <Textarea
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="e.g., A copy of the biographical details page of your current valid passport. This page must include photograph, name, date of birth and passport number."
-                rows={3}
-              />
-              <p className="text-xs text-muted-foreground">
-                This instruction will be shown to clients in the portal when uploading this document.
-              </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
