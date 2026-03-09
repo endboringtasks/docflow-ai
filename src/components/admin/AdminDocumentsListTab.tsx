@@ -149,11 +149,15 @@ export default function AdminDocumentsListTab() {
 
   // Add mutation
   const addMutation = useMutation({
-    mutationFn: async (def: { company_id: string; category: string; document_name: string; description: string | null }) => {
+    mutationFn: async (def: { category: string; document_name: string; description: string | null }) => {
+      // Auto-assign first company to satisfy DB constraint since documents are universal
+      const firstCompany = companies[0];
+      if (!firstCompany) throw new Error("No companies available");
+      
       const { data, error } = await supabase
         .from("document_definitions")
         .insert({
-          company_id: def.company_id,
+          company_id: firstCompany.id,
           category: def.category,
           document_name: def.document_name,
           description: def.description,
@@ -166,7 +170,7 @@ export default function AdminDocumentsListTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-document-definitions"] });
       setIsAddOpen(false);
-      setNewDef({ company_id: "", category: "", document_name: "", description: "" });
+      setNewDef({ category: "", document_name: "", description: "" });
       toast.success("Document added to catalog");
     },
     onError: (error) => {
