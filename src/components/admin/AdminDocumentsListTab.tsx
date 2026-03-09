@@ -81,7 +81,6 @@ export default function AdminDocumentsListTab() {
   const [editing, setEditing] = useState<DocumentDefinition | null>(null);
   const [toDelete, setToDelete] = useState<DocumentDefinition | null>(null);
   const [newDef, setNewDef] = useState({
-    company_id: "",
     category: "",
     document_name: "",
     description: "",
