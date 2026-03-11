@@ -85,6 +85,8 @@ export default function AdminDocumentsListTab() {
     document_name: "",
     description: "",
   });
+  const [customCategoryAdd, setCustomCategoryAdd] = useState("");
+  const [customCategoryEdit, setCustomCategoryEdit] = useState("");
 
   // Fetch all companies for the filter
   const { data: companies = [] } = useQuery({
@@ -358,7 +360,17 @@ export default function AdminDocumentsListTab() {
           <div className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label>Category</Label>
-              <Select value={newDef.category} onValueChange={(v) => setNewDef({ ...newDef, category: v })}>
+              <Select
+                value={newDef.category === "__custom__" ? "__custom__" : newDef.category}
+                onValueChange={(v) => {
+                  if (v === "__custom__") {
+                    setNewDef({ ...newDef, category: "__custom__" });
+                    setCustomCategoryAdd("");
+                  } else {
+                    setNewDef({ ...newDef, category: v });
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
@@ -366,8 +378,17 @@ export default function AdminDocumentsListTab() {
                   {categories.map((cat) => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
+                  <SelectItem value="__custom__" className="text-primary font-medium">+ New Category</SelectItem>
                 </SelectContent>
               </Select>
+              {newDef.category === "__custom__" && (
+                <Input
+                  placeholder="Enter new category name"
+                  value={customCategoryAdd}
+                  onChange={(e) => setCustomCategoryAdd(e.target.value)}
+                  className="mt-2"
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label>Document Name</Label>
@@ -389,14 +410,15 @@ export default function AdminDocumentsListTab() {
             <div className="flex justify-end gap-2 pt-4">
               <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
               <Button
-                onClick={() =>
+                onClick={() => {
+                  const resolvedCategory = newDef.category === "__custom__" ? customCategoryAdd.trim() : newDef.category;
                   addMutation.mutate({
-                    category: newDef.category,
+                    category: resolvedCategory,
                     document_name: newDef.document_name.trim(),
                     description: newDef.description || null,
-                  })
-                }
-                disabled={!newDef.category || !newDef.document_name.trim() || addMutation.isPending}
+                  });
+                }}
+                disabled={(!newDef.category || (newDef.category === "__custom__" && !customCategoryAdd.trim())) || !newDef.document_name.trim() || addMutation.isPending}
               >
                 {addMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
                 Add Document
@@ -419,7 +441,17 @@ export default function AdminDocumentsListTab() {
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
                 <Label>Category</Label>
-                <Select value={editing.category} onValueChange={(v) => setEditing({ ...editing, category: v })}>
+                <Select
+                  value={editing.category === "__custom__" ? "__custom__" : editing.category}
+                  onValueChange={(v) => {
+                    if (v === "__custom__") {
+                      setEditing({ ...editing, category: "__custom__" });
+                      setCustomCategoryEdit("");
+                    } else {
+                      setEditing({ ...editing, category: v });
+                    }
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -427,8 +459,17 @@ export default function AdminDocumentsListTab() {
                     {categories.map((cat) => (
                       <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                     ))}
+                    <SelectItem value="__custom__" className="text-primary font-medium">+ New Category</SelectItem>
                   </SelectContent>
                 </Select>
+                {editing.category === "__custom__" && (
+                  <Input
+                    placeholder="Enter new category name"
+                    value={customCategoryEdit}
+                    onChange={(e) => setCustomCategoryEdit(e.target.value)}
+                    className="mt-2"
+                  />
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Document Name</Label>
@@ -452,8 +493,12 @@ export default function AdminDocumentsListTab() {
               <div className="flex justify-end gap-2 pt-4">
                 <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
                 <Button
-                  onClick={() => editing && updateMutation.mutate(editing)}
-                  disabled={!editing.document_name.trim() || updateMutation.isPending}
+                  onClick={() => {
+                    if (!editing) return;
+                    const resolvedCategory = editing.category === "__custom__" ? customCategoryEdit.trim() : editing.category;
+                    updateMutation.mutate({ ...editing, category: resolvedCategory });
+                  }}
+                  disabled={!editing.document_name.trim() || (editing.category === "__custom__" && !customCategoryEdit.trim()) || updateMutation.isPending}
                 >
                   {updateMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                   Save Changes
