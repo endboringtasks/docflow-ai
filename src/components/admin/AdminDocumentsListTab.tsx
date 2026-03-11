@@ -85,6 +85,8 @@ export default function AdminDocumentsListTab() {
     document_name: "",
     description: "",
   });
+  const [customCategoryAdd, setCustomCategoryAdd] = useState("");
+  const [customCategoryEdit, setCustomCategoryEdit] = useState("");
 
   // Fetch all companies for the filter
   const { data: companies = [] } = useQuery({
