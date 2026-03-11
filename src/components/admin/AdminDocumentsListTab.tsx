@@ -493,8 +493,12 @@ export default function AdminDocumentsListTab() {
               <div className="flex justify-end gap-2 pt-4">
                 <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
                 <Button
-                  onClick={() => editing && updateMutation.mutate(editing)}
-                  disabled={!editing.document_name.trim() || updateMutation.isPending}
+                  onClick={() => {
+                    if (!editing) return;
+                    const resolvedCategory = editing.category === "__custom__" ? customCategoryEdit.trim() : editing.category;
+                    updateMutation.mutate({ ...editing, category: resolvedCategory });
+                  }}
+                  disabled={!editing.document_name.trim() || (editing.category === "__custom__" && !customCategoryEdit.trim()) || updateMutation.isPending}
                 >
                   {updateMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                   Save Changes
