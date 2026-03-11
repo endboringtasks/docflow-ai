@@ -440,7 +440,17 @@ export default function AdminDocumentsListTab() {
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
                 <Label>Category</Label>
-                <Select value={editing.category} onValueChange={(v) => setEditing({ ...editing, category: v })}>
+                <Select
+                  value={editing.category === "__custom__" ? "__custom__" : editing.category}
+                  onValueChange={(v) => {
+                    if (v === "__custom__") {
+                      setEditing({ ...editing, category: "__custom__" });
+                      setCustomCategoryEdit("");
+                    } else {
+                      setEditing({ ...editing, category: v });
+                    }
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -448,8 +458,17 @@ export default function AdminDocumentsListTab() {
                     {categories.map((cat) => (
                       <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                     ))}
+                    <SelectItem value="__custom__" className="text-primary font-medium">+ New Category</SelectItem>
                   </SelectContent>
                 </Select>
+                {editing.category === "__custom__" && (
+                  <Input
+                    placeholder="Enter new category name"
+                    value={customCategoryEdit}
+                    onChange={(e) => setCustomCategoryEdit(e.target.value)}
+                    className="mt-2"
+                  />
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Document Name</Label>
