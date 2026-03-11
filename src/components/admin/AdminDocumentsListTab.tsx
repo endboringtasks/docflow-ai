@@ -410,14 +410,15 @@ export default function AdminDocumentsListTab() {
             <div className="flex justify-end gap-2 pt-4">
               <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
               <Button
-                onClick={() =>
+                onClick={() => {
+                  const resolvedCategory = newDef.category === "__custom__" ? customCategoryAdd.trim() : newDef.category;
                   addMutation.mutate({
-                    category: newDef.category,
+                    category: resolvedCategory,
                     document_name: newDef.document_name.trim(),
                     description: newDef.description || null,
-                  })
-                }
-                disabled={!newDef.category || !newDef.document_name.trim() || addMutation.isPending}
+                  });
+                }}
+                disabled={(!newDef.category || (newDef.category === "__custom__" && !customCategoryAdd.trim())) || !newDef.document_name.trim() || addMutation.isPending}
               >
                 {addMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
                 Add Document
