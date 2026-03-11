@@ -360,7 +360,17 @@ export default function AdminDocumentsListTab() {
           <div className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label>Category</Label>
-              <Select value={newDef.category} onValueChange={(v) => setNewDef({ ...newDef, category: v })}>
+              <Select
+                value={newDef.category === "__custom__" ? "__custom__" : newDef.category}
+                onValueChange={(v) => {
+                  if (v === "__custom__") {
+                    setNewDef({ ...newDef, category: "__custom__" });
+                    setCustomCategoryAdd("");
+                  } else {
+                    setNewDef({ ...newDef, category: v });
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
@@ -368,8 +378,17 @@ export default function AdminDocumentsListTab() {
                   {categories.map((cat) => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
+                  <SelectItem value="__custom__" className="text-primary font-medium">+ New Category</SelectItem>
                 </SelectContent>
               </Select>
+              {newDef.category === "__custom__" && (
+                <Input
+                  placeholder="Enter new category name"
+                  value={customCategoryAdd}
+                  onChange={(e) => setCustomCategoryAdd(e.target.value)}
+                  className="mt-2"
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label>Document Name</Label>
