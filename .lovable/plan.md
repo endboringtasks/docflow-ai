@@ -1,24 +1,17 @@
 
 
-## Problem
+## Documents List + Document Checklist Split (Completed)
 
-The "Link Document" dialog in the Document Checklist tab sources its category and document name options from a **hardcoded `predefinedDocuments` map** merged with existing templates. It does not query the `document_definitions` table — the master catalog managed in the "Documents List" tab.
+### What Changed
 
-This means "Business Registration" (which exists in `document_definitions` under category **"Employment"**) doesn't appear because the hardcoded list puts it under "Supporting Evidence", and the categories don't match the ones in the database (e.g., "Employment Records" vs "Employment").
+**New `document_definitions` table** — master catalog of documents per company with category, name, and description. Unique constraint on (company_id, category, document_name).
 
-## Plan
+**New `document_definition_id` FK** on `document_checklist_templates` — links templates to definitions for single-source-of-truth descriptions.
 
-**File: `src/pages/admin/ReferenceData.tsx`**
+**Migration backfill** — existing templates were deduplicated into definitions and linked back.
 
-1. **Add a query for `document_definitions`** — fetch all active definitions from the database to populate the Link Document dialog.
+**New `sync_definition_description_to_all` DB function** — when a definition's description changes, it propagates to all linked templates AND all matching application checklists.
 
-2. **Remove the hardcoded `predefinedDocuments` map** — the ~60 lines of hardcoded document names are no longer needed since the Documents List tab is the single source of truth.
+**New "Documents List" tab** in Document Checklist page — CRUD for document definitions with search/filter by category.
 
-3. **Update `getDocumentNamesForCategory`** — source names from `document_definitions` filtered by category instead of the hardcoded map.
-
-4. **Update `getAllDocumentNames`** — same approach, source from definitions.
-
-5. **Update `documentCategories`** — derive categories from `document_definitions` instead of `predefinedDocuments` keys.
-
-This aligns the Document Checklist tab with the master catalog architecture, ensuring any document added in the Documents List tab immediately appears as a linkable option.
-
+**Updated "Document Checklist" tab** — add/edit dialogs now show "Your Documents" from definitions first, then "Common Documents" as fallback, with custom entry still allowed. Selecting a definition auto-fills description.
