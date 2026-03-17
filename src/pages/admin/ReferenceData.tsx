@@ -2358,97 +2358,39 @@ function DocumentsTab() {
     },
   });
 
-  // Predefined document names by category
-  const predefinedDocuments: Record<string, string[]> = {
-    "Identity Documents": [
-      "Passport",
-      "Birth Certificate",
-      "National ID Card",
-      "Driver's License",
-      "Marriage Certificate",
-      "Divorce Certificate",
-      "Name Change Certificate",
-    ],
-    "Financial Documents": [
-      "Bank Statements",
-      "Tax Returns",
-      "Pay Slips",
-      "Proof of Assets",
-      "Investment Statements",
-      "Credit Card Statements",
-      "Loan Documents",
-    ],
-    "Employment Records": [
-      "Employment Contract",
-      "Reference Letters",
-      "Resume/CV",
-      "Job Offer Letter",
-      "Salary Certificate",
-      "Employment Verification Letter",
-      "Work Experience Letters",
-    ],
-    "Educational Documents": [
-      "Degree Certificate",
-      "Transcripts",
-      "Diploma",
-      "Academic Records",
-      "Professional Certifications",
-      "Skills Assessment",
-      "English Test Results",
-    ],
-    "Health & Medical": [
-      "Medical Examination",
-      "Vaccination Records",
-      "Health Insurance",
-      "Medical Clearance",
-      "Chest X-Ray",
-      "Blood Test Results",
-    ],
-    "Legal Documents": [
-      "Police Clearance Certificate",
-      "Character Reference",
-      "Court Records",
-      "Statutory Declaration",
-      "Power of Attorney",
-      "Affidavit",
-    ],
-    "Travel Documents": [
-      "Previous Visas",
-      "Travel History",
-      "Flight Itinerary",
-      "Hotel Bookings",
-      "Travel Insurance",
-    ],
-    "Supporting Evidence": [
-      "Photographs",
-      "Relationship Evidence",
-      "Sponsor Documents",
-      "Accommodation Proof",
-      "Business Registration",
-    ],
-  };
+  // Fetch document definitions from the master catalog
+  const { data: documentDefinitions } = useQuery({
+    queryKey: ["admin-document-definitions-for-linking"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("document_definitions")
+        .select("id, category, document_name")
+        .eq("is_active", true)
+        .order("category")
+        .order("document_name");
+      if (error) throw error;
+      return data as { id: string; category: string; document_name: string }[];
+    },
+  });
 
-  // Predefined categories (keys from predefinedDocuments)
-  const predefinedCategories = Object.keys(predefinedDocuments);
-
-  // Get unique categories from documents, merged with predefined ones
+  // Get unique categories from definitions + existing templates
   const documentCategories = [...new Set([
-    ...predefinedCategories,
+    ...(documentDefinitions?.map((d) => d.category) || []),
     ...(documents?.map((d) => d.category).filter(Boolean) || [])
-  ])];
+  ])].sort();
 
-  // Get document names for the selected category (predefined + existing from DB)
+  // Get document names for the selected category
   const getDocumentNamesForCategory = (category: string) => {
-    const predefined = predefinedDocuments[category] || [];
+    const fromDefinitions = documentDefinitions?.filter(d => d.category === category).map(d => d.document_name) || [];
     const existing = documents?.filter(d => d.category === category).map(d => d.document_name) || [];
-    return [...new Set([...predefined, ...existing])].sort();
+    return [...new Set([...fromDefinitions, ...existing])].sort();
   };
 
   // Get all document names (for when no category is selected)
   const getAllDocumentNames = () => {
-    const allPredefined = Object.values(predefinedDocuments).flat();
+    const fromDefinitions = documentDefinitions?.map(d => d.document_name) || [];
     const existing = documents?.map(d => d.document_name).filter(Boolean) || [];
-    return [...new Set([...allPredefined, ...existing])].sort();
+    return [...new Set([...fromDefinitions, ...existing])].sort();
   };
 
   const saveMutation = useMutation({
