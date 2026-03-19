@@ -28,27 +28,20 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, Plus, Trash2, Search } from "lucide-react";
+import { Loader2, Plus, Trash2, Search, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
-export default function ApplicationChecklistTab() {
-  const queryClient = useQueryClient();
+// ── List Mode ──────────────────────────────────────────────────────────
 
-  // Filter state
-  const [countryId, setCountryId] = useState<string>("");
-  const [categoryId, setCategoryId] = useState<string>("");
-  const [subcategoryId, setSubcategoryId] = useState<string>("");
-  const [visaTypeId, setVisaTypeId] = useState<string>("");
-
-  // Selection state
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  // Add dialog state
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [addSearch, setAddSearch] = useState("");
-  const [addSelected, setAddSelected] = useState<Set<string>>(new Set());
-
-  // --- Queries ---
+function ApplicationListView({
+  onSelect,
+}: {
+  onSelect: (id: string, name: string) => void;
+}) {
+  const [countryFilter, setCountryFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [subcategoryFilter, setSubcategoryFilter] = useState("");
+  const [search, setSearch] = useState("");
 
   const { data: countries } = useQuery({
     queryKey: ["admin-countries"],
@@ -64,14 +57,14 @@ export default function ApplicationChecklistTab() {
   });
 
   const { data: categories } = useQuery({
-    queryKey: ["admin-categories", countryId],
+    queryKey: ["admin-categories", countryFilter],
     queryFn: async () => {
       let q = supabase
         .from("application_categories")
         .select("id, name, code")
         .eq("is_active", true)
         .order("sort_order");
-      if (countryId) q = q.eq("country_id", countryId);
+      if (countryFilter) q = q.eq("country_id", countryFilter);
       const { data, error } = await q;
       if (error) throw error;
       return data;
@@ -79,13 +72,13 @@ export default function ApplicationChecklistTab() {
   });
 
   const { data: subcategories } = useQuery({
-    queryKey: ["admin-subcategories", categoryId],
-    enabled: !!categoryId,
+    queryKey: ["admin-subcategories-filter", categoryFilter],
+    enabled: !!categoryFilter,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("application_subcategories")
         .select("id, name, code")
-        .eq("category_id", categoryId)
+        .eq("category_id", categoryFilter)
         .eq("is_active", true)
         .order("sort_order");
       if (error) throw error;
@@ -93,49 +86,191 @@ export default function ApplicationChecklistTab() {
     },
   });
 
-  const { data: visaTypes } = useQuery({
-    queryKey: ["admin-visa-types-filtered", countryId, categoryId, subcategoryId],
+  const { data: visaTypes, isLoading } = useQuery({
+    queryKey: [
+      "admin-visa-types-list",
+      countryFilter,
+      categoryFilter,
+      subcategoryFilter,
+      search,
+    ],
     queryFn: async () => {
       let q = supabase
         .from("visa_types")
-        .select("id, name, code")
+        .select(
+          `id, name, code,
+           countries ( name ),
+           application_categories ( name ),
+           application_subcategories ( name )`
+        )
         .eq("is_active", true)
         .order("name");
-      if (countryId) q = q.eq("country_id", countryId);
-      if (categoryId) q = q.eq("category_id", categoryId);
-      if (subcategoryId) q = q.eq("subcategory_id", subcategoryId);
+      if (countryFilter) q = q.eq("country_id", countryFilter);
+      if (categoryFilter) q = q.eq("category_id", categoryFilter);
+      if (subcategoryFilter) q = q.eq("subcategory_id", subcategoryFilter);
+      if (search) q = q.ilike("name", `%${search}%`);
       const { data, error } = await q;
       if (error) throw error;
       return data;
     },
   });
 
-  // Linked documents for selected visa type
-  const { data: linkedDocs, isLoading: linkedLoading } = useQuery({
-    queryKey: ["app-checklist-linked", visaTypeId],
-    enabled: !!visaTypeId,
+  // Get doc counts per visa type
+  const { data: docCounts } = useQuery({
+    queryKey: ["admin-doc-counts"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("document_template_applications")
-        .select(`
-          id,
-          document_template_id,
-          document_checklist_templates (
-            id,
-            document_name,
-            category,
-            applicant_type_id,
-            requirement_type,
-            description
-          )
-        `)
-        .eq("visa_type_id", visaTypeId);
+        .select("visa_type_id");
       if (error) throw error;
-      return data;
+      const counts = new Map<string, number>();
+      data.forEach((r) => {
+        counts.set(r.visa_type_id, (counts.get(r.visa_type_id) || 0) + 1);
+      });
+      return counts;
     },
   });
 
-  // Applicant types for display
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
+        <Select
+          value={countryFilter || "all"}
+          onValueChange={(v) => {
+            setCountryFilter(v === "all" ? "" : v);
+            setCategoryFilter("");
+            setSubcategoryFilter("");
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="All Countries" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Countries</SelectItem>
+            {countries?.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={categoryFilter || "all"}
+          onValueChange={(v) => {
+            setCategoryFilter(v === "all" ? "" : v);
+            setSubcategoryFilter("");
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="All Categories" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            {categories?.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={subcategoryFilter || "all"}
+          onValueChange={(v) => setSubcategoryFilter(v === "all" ? "" : v)}
+          disabled={!categoryFilter}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="All Subcategories" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Subcategories</SelectItem>
+            {subcategories?.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : !visaTypes?.length ? (
+        <p className="text-muted-foreground text-sm py-8 text-center">
+          No applications found.
+        </p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Code</TableHead>
+              <TableHead>Country</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Subcategory</TableHead>
+              <TableHead className="text-right">Linked Docs</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visaTypes.map((vt: any) => (
+              <TableRow
+                key={vt.id}
+                className="cursor-pointer"
+                onClick={() => onSelect(vt.id, `${vt.name} (${vt.code})`)}
+              >
+                <TableCell className="font-medium">{vt.name}</TableCell>
+                <TableCell>
+                  <Badge variant="outline">{vt.code}</Badge>
+                </TableCell>
+                <TableCell>{vt.countries?.name || "—"}</TableCell>
+                <TableCell>{vt.application_categories?.name || "—"}</TableCell>
+                <TableCell>
+                  {vt.application_subcategories?.name || "—"}
+                </TableCell>
+                <TableCell className="text-right">
+                  <Badge variant="secondary">
+                    {docCounts?.get(vt.id) || 0}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </div>
+  );
+}
+
+// ── Detail Mode ────────────────────────────────────────────────────────
+
+function ApplicationDetailView({
+  visaTypeId,
+  visaTypeName,
+  onBack,
+}: {
+  visaTypeId: string;
+  visaTypeName: string;
+  onBack: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addSearch, setAddSearch] = useState("");
+  const [addSelected, setAddSelected] = useState<Set<string>>(new Set());
+
   const { data: applicantTypes } = useQuery({
     queryKey: ["admin-applicant-types"],
     queryFn: async () => {
@@ -148,7 +283,29 @@ export default function ApplicationChecklistTab() {
     },
   });
 
-  // Document definitions for the add dialog
+  const applicantTypeMap = useMemo(() => {
+    const m = new Map<string, string>();
+    applicantTypes?.forEach((at) => m.set(at.id, at.name));
+    return m;
+  }, [applicantTypes]);
+
+  const { data: linkedDocs, isLoading: linkedLoading } = useQuery({
+    queryKey: ["app-checklist-linked", visaTypeId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("document_template_applications")
+        .select(
+          `id, document_template_id,
+           document_checklist_templates (
+             id, document_name, category, applicant_type_id, requirement_type, description
+           )`
+        )
+        .eq("visa_type_id", visaTypeId);
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: definitions } = useQuery({
     queryKey: ["admin-doc-definitions-all"],
     queryFn: async () => {
@@ -163,34 +320,22 @@ export default function ApplicationChecklistTab() {
     },
   });
 
-  const applicantTypeMap = useMemo(() => {
-    const m = new Map<string, string>();
-    applicantTypes?.forEach((at) => m.set(at.id, at.name));
-    return m;
-  }, [applicantTypes]);
-
-  // Already-linked template IDs (to filter out in add dialog)
   const alreadyLinkedTemplateIds = useMemo(
     () => new Set(linkedDocs?.map((d) => d.document_template_id) ?? []),
     [linkedDocs]
   );
 
-  // Filtered definitions for add dialog
   const filteredDefinitions = useMemo(() => {
     if (!definitions) return [];
-    let filtered = definitions;
-    if (addSearch) {
-      const s = addSearch.toLowerCase();
-      filtered = filtered.filter(
-        (d) =>
-          d.document_name.toLowerCase().includes(s) ||
-          d.category.toLowerCase().includes(s)
-      );
-    }
-    return filtered;
+    if (!addSearch) return definitions;
+    const s = addSearch.toLowerCase();
+    return definitions.filter(
+      (d) =>
+        d.document_name.toLowerCase().includes(s) ||
+        d.category.toLowerCase().includes(s)
+    );
   }, [definitions, addSearch]);
 
-  // Group definitions by category for display
   const groupedDefinitions = useMemo(() => {
     const groups: Record<string, typeof filteredDefinitions> = {};
     filteredDefinitions.forEach((d) => {
@@ -200,16 +345,13 @@ export default function ApplicationChecklistTab() {
     return groups;
   }, [filteredDefinitions]);
 
-  // --- Mutations ---
-
   const addDocsMutation = useMutation({
     mutationFn: async (definitionIds: string[]) => {
-      if (!visaTypeId || !definitions) return;
-
-      const selectedDefs = definitions.filter((d) => definitionIds.includes(d.id));
-
+      if (!definitions) return;
+      const selectedDefs = definitions.filter((d) =>
+        definitionIds.includes(d.id)
+      );
       for (const def of selectedDefs) {
-        // Find or create a global template
         let templateId: string;
         const { data: existing } = await supabase
           .from("document_checklist_templates")
@@ -235,30 +377,24 @@ export default function ApplicationChecklistTab() {
           if (createErr) throw createErr;
           templateId = created.id;
         }
-
-        // Check if already linked
         if (alreadyLinkedTemplateIds.has(templateId)) continue;
-
-        // Link to visa type
         const { error: linkErr } = await supabase
           .from("document_template_applications")
-          .insert({
-            document_template_id: templateId,
-            visa_type_id: visaTypeId,
-          });
+          .insert({ document_template_id: templateId, visa_type_id: visaTypeId });
         if (linkErr) throw linkErr;
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["app-checklist-linked", visaTypeId] });
+      queryClient.invalidateQueries({
+        queryKey: ["app-checklist-linked", visaTypeId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-doc-counts"] });
       setAddDialogOpen(false);
       setAddSelected(new Set());
       setAddSearch("");
       toast.success("Documents added to application");
     },
-    onError: (err: any) => {
-      toast.error("Failed to add documents: " + err.message);
-    },
+    onError: (err: any) => toast.error("Failed to add documents: " + err.message),
   });
 
   const removeDocsMutation = useMutation({
@@ -270,167 +406,79 @@ export default function ApplicationChecklistTab() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["app-checklist-linked", visaTypeId] });
+      queryClient.invalidateQueries({
+        queryKey: ["app-checklist-linked", visaTypeId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-doc-counts"] });
       setSelectedIds(new Set());
       toast.success("Documents removed from application");
     },
-    onError: (err: any) => {
-      toast.error("Failed to remove: " + err.message);
-    },
+    onError: (err: any) => toast.error("Failed to remove: " + err.message),
   });
 
-  // --- Handlers ---
-
-  const handleCountryChange = (val: string) => {
-    setCountryId(val === "all" ? "" : val);
-    setCategoryId("");
-    setSubcategoryId("");
-    setVisaTypeId("");
-    setSelectedIds(new Set());
-  };
-
-  const handleCategoryChange = (val: string) => {
-    setCategoryId(val === "all" ? "" : val);
-    setSubcategoryId("");
-    setVisaTypeId("");
-    setSelectedIds(new Set());
-  };
-
-  const handleSubcategoryChange = (val: string) => {
-    setSubcategoryId(val === "all" ? "" : val);
-    setVisaTypeId("");
-    setSelectedIds(new Set());
-  };
-
-  const handleVisaTypeChange = (val: string) => {
-    setVisaTypeId(val);
-    setSelectedIds(new Set());
-  };
-
-  const toggleSelected = (id: string) => {
+  const toggleSelected = (id: string) =>
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  };
 
   const toggleAllSelected = () => {
     if (!linkedDocs) return;
-    if (selectedIds.size === linkedDocs.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(linkedDocs.map((d) => d.id)));
-    }
+    setSelectedIds(
+      selectedIds.size === linkedDocs.length
+        ? new Set()
+        : new Set(linkedDocs.map((d) => d.id))
+    );
   };
 
-  const toggleAddItem = (defId: string) => {
+  const toggleAddItem = (defId: string) =>
     setAddSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(defId)) next.delete(defId);
-      else next.add(defId);
+      next.has(defId) ? next.delete(defId) : next.add(defId);
       return next;
     });
-  };
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4">
-        {/* Filters row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <Select value={countryId || "all"} onValueChange={handleCountryChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="All Countries" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Countries</SelectItem>
-              {countries?.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" onClick={onBack}>
+          <ArrowLeft className="w-4 h-4 mr-1" />
+          Back
+        </Button>
+        <h3 className="text-lg font-semibold">{visaTypeName}</h3>
+      </div>
 
-          <Select value={categoryId || "all"} onValueChange={handleCategoryChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {categories?.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={subcategoryId || "all"}
-            onValueChange={handleSubcategoryChange}
-            disabled={!categoryId}
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          onClick={() => {
+            setAddDialogOpen(true);
+            setAddSelected(new Set());
+            setAddSearch("");
+          }}
+        >
+          <Plus className="w-4 h-4 mr-1" />
+          Add Documents
+        </Button>
+        {selectedIds.size > 0 && (
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => removeDocsMutation.mutate(Array.from(selectedIds))}
+            disabled={removeDocsMutation.isPending}
           >
-            <SelectTrigger>
-              <SelectValue placeholder="All Subcategories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Subcategories</SelectItem>
-              {subcategories?.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={visaTypeId || ""} onValueChange={handleVisaTypeChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select Application..." />
-            </SelectTrigger>
-            <SelectContent>
-              {visaTypes?.map((vt) => (
-                <SelectItem key={vt.id} value={vt.id}>
-                  {vt.name} ({vt.code})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Action buttons */}
-        {visaTypeId && (
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => { setAddDialogOpen(true); setAddSelected(new Set()); setAddSearch(""); }}>
-              <Plus className="w-4 h-4 mr-1" />
-              Add Documents
-            </Button>
-            {selectedIds.size > 0 && (
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => removeDocsMutation.mutate(Array.from(selectedIds))}
-                disabled={removeDocsMutation.isPending}
-              >
-                {removeDocsMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                ) : (
-                  <Trash2 className="w-4 h-4 mr-1" />
-                )}
-                Remove Selected ({selectedIds.size})
-              </Button>
+            {removeDocsMutation.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-1" />
+            ) : (
+              <Trash2 className="w-4 h-4 mr-1" />
             )}
-          </div>
+            Remove Selected ({selectedIds.size})
+          </Button>
         )}
       </div>
 
-      {/* Linked documents table */}
-      {!visaTypeId ? (
-        <p className="text-muted-foreground text-sm py-8 text-center">
-          Select an application to view its document checklist.
-        </p>
-      ) : linkedLoading ? (
+      {linkedLoading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
@@ -466,7 +514,9 @@ export default function ApplicationChecklistTab() {
                       onCheckedChange={() => toggleSelected(row.id)}
                     />
                   </TableCell>
-                  <TableCell className="font-medium">{tmpl.document_name}</TableCell>
+                  <TableCell className="font-medium">
+                    {tmpl.document_name}
+                  </TableCell>
                   <TableCell>
                     <Badge variant="outline">{tmpl.category || "—"}</Badge>
                   </TableCell>
@@ -493,7 +543,8 @@ export default function ApplicationChecklistTab() {
           <DialogHeader>
             <DialogTitle>Add Documents to Application</DialogTitle>
             <DialogDescription>
-              Select documents from the master catalog to link to this application.
+              Select documents from the master catalog to link to this
+              application.
             </DialogDescription>
           </DialogHeader>
 
@@ -510,22 +561,25 @@ export default function ApplicationChecklistTab() {
           <div className="max-h-[400px] overflow-y-auto space-y-4">
             {Object.entries(groupedDefinitions).map(([category, defs]) => (
               <div key={category}>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-2">{category}</h4>
+                <h4 className="text-sm font-semibold text-muted-foreground mb-2">
+                  {category}
+                </h4>
                 <div className="space-y-1">
                   {defs.map((def) => {
-                    // Check if already linked via template
                     const isAlreadyLinked = linkedDocs?.some((ld) => {
-                      const tmpl = ld.document_checklist_templates as any;
+                      const t = ld.document_checklist_templates as any;
                       return (
-                        tmpl?.document_name === def.document_name &&
-                        tmpl?.category === def.category
+                        t?.document_name === def.document_name &&
+                        t?.category === def.category
                       );
                     });
                     return (
                       <label
                         key={def.id}
                         className={`flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted cursor-pointer ${
-                          isAlreadyLinked ? "opacity-50 pointer-events-none" : ""
+                          isAlreadyLinked
+                            ? "opacity-50 pointer-events-none"
+                            : ""
                         }`}
                       >
                         <Checkbox
@@ -534,9 +588,14 @@ export default function ApplicationChecklistTab() {
                           onCheckedChange={() => toggleAddItem(def.id)}
                         />
                         <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium">{def.document_name}</span>
+                          <span className="text-sm font-medium">
+                            {def.document_name}
+                          </span>
                           {isAlreadyLinked && (
-                            <Badge variant="secondary" className="ml-2 text-xs">
+                            <Badge
+                              variant="secondary"
+                              className="ml-2 text-xs"
+                            >
                               Already linked
                             </Badge>
                           )}
@@ -562,12 +621,40 @@ export default function ApplicationChecklistTab() {
               disabled={addSelected.size === 0 || addDocsMutation.isPending}
               onClick={() => addDocsMutation.mutate(Array.from(addSelected))}
             >
-              {addDocsMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
-              Add {addSelected.size} Document{addSelected.size !== 1 ? "s" : ""}
+              {addDocsMutation.isPending && (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              )}
+              Add {addSelected.size} Document
+              {addSelected.size !== 1 ? "s" : ""}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// ── Main Component ─────────────────────────────────────────────────────
+
+export default function ApplicationChecklistTab() {
+  const [selected, setSelected] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  if (selected) {
+    return (
+      <ApplicationDetailView
+        visaTypeId={selected.id}
+        visaTypeName={selected.name}
+        onBack={() => setSelected(null)}
+      />
+    );
+  }
+
+  return (
+    <ApplicationListView
+      onSelect={(id, name) => setSelected({ id, name })}
+    />
   );
 }
