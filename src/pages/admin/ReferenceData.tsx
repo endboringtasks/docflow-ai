@@ -63,6 +63,7 @@ import {
 } from "lucide-react";
 import { CategoryApplicantRulesTab } from "@/components/admin/CategoryApplicantRulesTab";
 import AdminDocumentsListTab from "@/components/admin/AdminDocumentsListTab";
+import ApplicationChecklistTab from "@/components/admin/ApplicationChecklistTab";
 import { toast } from "sonner";
 import { getCountryFlag } from "@/lib/countryFlags";
 import {
@@ -3364,6 +3365,10 @@ export default function AdminReferenceData() {
               <CheckSquare className="w-4 h-4" />
               Document Checklist
             </TabsTrigger>
+            <TabsTrigger value="app-checklist" className="gap-2">
+              <Layers className="w-4 h-4" />
+              Application Checklist
+            </TabsTrigger>
           </TabsList>
 
           <Card>
@@ -3402,6 +3407,10 @@ export default function AdminReferenceData() {
 
               <TabsContent value="documents" className="mt-0">
                 <DocumentsTab />
+              </TabsContent>
+
+              <TabsContent value="app-checklist" className="mt-0">
+                <ApplicationChecklistTab />
               </TabsContent>
             </CardContent>
           </Card>
