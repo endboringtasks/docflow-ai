@@ -3408,6 +3408,10 @@ export default function AdminReferenceData() {
               <TabsContent value="documents" className="mt-0">
                 <DocumentsTab />
               </TabsContent>
+
+              <TabsContent value="app-checklist" className="mt-0">
+                <ApplicationChecklistTab />
+              </TabsContent>
             </CardContent>
           </Card>
         </Tabs>
