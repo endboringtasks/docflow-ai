@@ -1,17 +1,30 @@
 
 
-## Documents List + Document Checklist Split (Completed)
+## Redesign Application Checklist: List View with Filters
 
-### What Changed
+### Current state
+The tab uses cascading dropdowns (Country > Category > Subcategory > Application) to select a single application before showing its documents. The user wants to see all applications in a table first, with filters, then click into one.
 
-**New `document_definitions` table** — master catalog of documents per company with category, name, and description. Unique constraint on (company_id, category, document_name).
+### Plan
 
-**New `document_definition_id` FK** on `document_checklist_templates` — links templates to definitions for single-source-of-truth descriptions.
+**File: `src/components/admin/ApplicationChecklistTab.tsx`** -- rewrite to two-mode UI
 
-**Migration backfill** — existing templates were deduplicated into definitions and linked back.
+**Mode 1 -- Application List (default)**
+- Show a table of all `visa_types` with columns: Name, Code, Country, Category, Subcategory, Linked Docs count
+- Filter row above: Country, Category, Subcategory dropdowns + text search input
+- Query `visa_types` joined with `countries`, `application_categories`, `application_subcategories` for display names
+- Include a count of linked documents per application (query `document_template_applications` grouped by `visa_type_id`)
+- Each row is clickable -- clicking sets `visaTypeId` and switches to detail mode
 
-**New `sync_definition_description_to_all` DB function** — when a definition's description changes, it propagates to all linked templates AND all matching application checklists.
+**Mode 2 -- Document Detail (when an application is selected)**
+- Show a back button/breadcrumb to return to the list
+- Display the selected application name prominently
+- Keep the existing linked documents table, Add Documents dialog, and Remove functionality exactly as-is
 
-**New "Documents List" tab** in Document Checklist page — CRUD for document definitions with search/filter by category.
+### Technical details
+- Add a `visaTypeId` state that toggles between list mode (empty) and detail mode (set)
+- Fetch visa_types with joins: `visa_types(id, name, code, countries(name), application_categories(name), application_subcategories(name))`
+- For doc counts, query `document_template_applications` and aggregate client-side, or use a separate count query
+- Filters apply to the visa_types list query
+- No database changes needed
 
-**Updated "Document Checklist" tab** — add/edit dialogs now show "Your Documents" from definitions first, then "Common Documents" as fallback, with custom entry still allowed. Selecting a definition auto-fills description.
