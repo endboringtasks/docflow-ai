@@ -3365,6 +3365,10 @@ export default function AdminReferenceData() {
               <CheckSquare className="w-4 h-4" />
               Document Checklist
             </TabsTrigger>
+            <TabsTrigger value="app-checklist" className="gap-2">
+              <Layers className="w-4 h-4" />
+              Application Checklist
+            </TabsTrigger>
           </TabsList>
 
           <Card>
