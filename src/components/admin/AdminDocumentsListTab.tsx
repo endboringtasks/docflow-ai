@@ -314,8 +314,8 @@ export default function AdminDocumentsListTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Category</TableHead>
-                <TableHead>Document Name</TableHead>
+                <SortableTableHead column="category" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Category</SortableTableHead>
+                <SortableTableHead column="document_name" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Document Name</SortableTableHead>
                 <TableHead className="hidden md:table-cell">Description</TableHead>
                 <TableHead className="text-right w-[100px]">Actions</TableHead>
               </TableRow>
