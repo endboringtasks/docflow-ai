@@ -402,6 +402,52 @@ function ApplicationDetailView({
       return next;
     });
 
+  const handleSort = (col: typeof sortColumn) => {
+    if (sortColumn === col) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(col);
+      setSortDirection("asc");
+    }
+  };
+
+  const SortIcon = ({ col }: { col: typeof sortColumn }) => {
+    if (sortColumn !== col) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40" />;
+    return sortDirection === "asc"
+      ? <ArrowUp className="w-3 h-3 ml-1" />
+      : <ArrowDown className="w-3 h-3 ml-1" />;
+  };
+
+  const sortedDocs = useMemo(() => {
+    if (!linkedDocs || !sortColumn) return linkedDocs;
+    return [...linkedDocs].sort((a, b) => {
+      const tA = a.document_checklist_templates as any;
+      const tB = b.document_checklist_templates as any;
+      let valA = "";
+      let valB = "";
+      switch (sortColumn) {
+        case "document_name":
+          valA = tA?.document_name ?? "";
+          valB = tB?.document_name ?? "";
+          break;
+        case "category":
+          valA = tA?.category ?? "";
+          valB = tB?.category ?? "";
+          break;
+        case "applicant_type":
+          valA = tA?.applicant_type_id ? (applicantTypeMap.get(tA.applicant_type_id) ?? "") : "";
+          valB = tB?.applicant_type_id ? (applicantTypeMap.get(tB.applicant_type_id) ?? "") : "";
+          break;
+        case "requirement_type":
+          valA = tA?.requirement_type ?? "required";
+          valB = tB?.requirement_type ?? "required";
+          break;
+      }
+      const cmp = valA.localeCompare(valB);
+      return sortDirection === "asc" ? cmp : -cmp;
+    });
+  }, [linkedDocs, sortColumn, sortDirection, applicantTypeMap]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
