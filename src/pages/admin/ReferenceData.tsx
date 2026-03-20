@@ -266,6 +266,8 @@ function CountriesTab() {
     saveMutation.mutate(form);
   };
 
+  const { sortedData: sortedCountries, sortColumn, sortDirection, handleSort } = useTableSort(countries, countryAccessors);
+
   if (isLoading) {
     return <Skeleton className="h-64 w-full" />;
   }
