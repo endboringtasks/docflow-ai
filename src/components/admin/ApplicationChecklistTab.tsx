@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, Plus, Trash2, Search, ArrowLeft } from "lucide-react";
+import { Loader2, Plus, Trash2, Search, ArrowLeft, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 
 // ── List Mode ──────────────────────────────────────────────────────────
@@ -228,6 +228,8 @@ function ApplicationDetailView({
   const [addSearch, setAddSearch] = useState("");
   const [addSelected, setAddSelected] = useState<Set<string>>(new Set());
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  const [sortColumn, setSortColumn] = useState<"document_name" | "category" | "applicant_type" | "requirement_type" | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const { data: applicantTypes } = useQuery({
     queryKey: ["admin-applicant-types"],
@@ -400,6 +402,52 @@ function ApplicationDetailView({
       return next;
     });
 
+  const handleSort = (col: typeof sortColumn) => {
+    if (sortColumn === col) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(col);
+      setSortDirection("asc");
+    }
+  };
+
+  const SortIcon = ({ col }: { col: typeof sortColumn }) => {
+    if (sortColumn !== col) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40" />;
+    return sortDirection === "asc"
+      ? <ArrowUp className="w-3 h-3 ml-1" />
+      : <ArrowDown className="w-3 h-3 ml-1" />;
+  };
+
+  const sortedDocs = useMemo(() => {
+    if (!linkedDocs || !sortColumn) return linkedDocs;
+    return [...linkedDocs].sort((a, b) => {
+      const tA = a.document_checklist_templates as any;
+      const tB = b.document_checklist_templates as any;
+      let valA = "";
+      let valB = "";
+      switch (sortColumn) {
+        case "document_name":
+          valA = tA?.document_name ?? "";
+          valB = tB?.document_name ?? "";
+          break;
+        case "category":
+          valA = tA?.category ?? "";
+          valB = tB?.category ?? "";
+          break;
+        case "applicant_type":
+          valA = tA?.applicant_type_id ? (applicantTypeMap.get(tA.applicant_type_id) ?? "") : "";
+          valB = tB?.applicant_type_id ? (applicantTypeMap.get(tB.applicant_type_id) ?? "") : "";
+          break;
+        case "requirement_type":
+          valA = tA?.requirement_type ?? "required";
+          valB = tB?.requirement_type ?? "required";
+          break;
+      }
+      const cmp = valA.localeCompare(valB);
+      return sortDirection === "asc" ? cmp : -cmp;
+    });
+  }, [linkedDocs, sortColumn, sortDirection, applicantTypeMap]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -457,14 +505,22 @@ function ApplicationDetailView({
                   onCheckedChange={toggleAllSelected}
                 />
               </TableHead>
-              <TableHead>Document Name</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Applicant Type</TableHead>
-              <TableHead>Requirement</TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("document_name")}>
+                <span className="flex items-center">Document Name<SortIcon col="document_name" /></span>
+              </TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("category")}>
+                <span className="flex items-center">Category<SortIcon col="category" /></span>
+              </TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("applicant_type")}>
+                <span className="flex items-center">Applicant Type<SortIcon col="applicant_type" /></span>
+              </TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("requirement_type")}>
+                <span className="flex items-center">Requirement<SortIcon col="requirement_type" /></span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {linkedDocs.map((row) => {
+            {sortedDocs?.map((row) => {
               const tmpl = row.document_checklist_templates as any;
               if (!tmpl) return null;
               return (
