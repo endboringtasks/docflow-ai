@@ -1349,6 +1349,16 @@ function TypesTab() {
     sort_order: 0,
   });
 
+  const typesAccessors = useMemo(() => ({
+    sort_order: (t: ApplicationType) => t.sort_order,
+    code: (t: ApplicationType) => t.code,
+    name: (t: ApplicationType) => t.name,
+    country: (t: ApplicationType) => t.country?.name ?? "All",
+    category: (t: ApplicationType) => t.category?.name ?? "",
+    subcategory: (t: ApplicationType) => t.subcategory?.name ?? "",
+    status: (t: ApplicationType) => t.is_active ? "Active" : "Inactive",
+  }), []);
+
   const { data: countries } = useQuery({
     queryKey: ["admin-countries"],
     queryFn: async () => {
