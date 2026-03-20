@@ -538,6 +538,8 @@ function CategoriesTab() {
     saveMutation.mutate(form);
   };
 
+  const { sortedData: sortedCategories, sortColumn: catSortCol, sortDirection: catSortDir, handleSort: handleCatSort } = useTableSort(categories, catAccessors);
+
   if (isLoading) {
     return <Skeleton className="h-64 w-full" />;
   }
