@@ -470,18 +470,10 @@ function ApplicationDetailView({
                   onCheckedChange={toggleAllSelected}
                 />
               </TableHead>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("document_name")}>
-                <span className="flex items-center">Document Name<SortIcon col="document_name" /></span>
-              </TableHead>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("category")}>
-                <span className="flex items-center">Category<SortIcon col="category" /></span>
-              </TableHead>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("applicant_type")}>
-                <span className="flex items-center">Applicant Type<SortIcon col="applicant_type" /></span>
-              </TableHead>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("requirement_type")}>
-                <span className="flex items-center">Requirement<SortIcon col="requirement_type" /></span>
-              </TableHead>
+              <SortableTableHead column="document_name" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Document Name</SortableTableHead>
+              <SortableTableHead column="category" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Category</SortableTableHead>
+              <SortableTableHead column="applicant_type" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Applicant Type</SortableTableHead>
+              <SortableTableHead column="requirement_type" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Requirement</SortableTableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
