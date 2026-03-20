@@ -1,32 +1,36 @@
 
 
-## Add Inline Editing for Document Settings in Application Checklist Detail View
+## Make EditDocumentSettingsDialog match the Document Checklist edit dialog
 
-### What changes
-When viewing a linked document in the Application Checklist detail view (Step 2), clicking a document row will open an **Edit Document Settings** dialog where admins can modify template-level properties for that specific document.
+The current `EditDocumentSettingsDialog` has a condensed layout. It needs to match the richer form from the Document Checklist tab in `ReferenceData.tsx` (lines 2810-3175).
 
-### File: `src/components/admin/ApplicationChecklistTab.tsx`
+### Changes to `src/components/admin/EditDocumentSettingsDialog.tsx`
 
-**1. Expand the linked docs query** to fetch all editable fields from `document_checklist_templates`:
-- Add: `age_condition`, `min_files`, `max_files`, `requires_translation`, `translation_target_language`, `translation_certification_type_id`, `translation_notes`, `applicability_condition`, `sort_order`
+**1. Show Category and Document Name (read-only)** at the top, matching the reference layout with two columns.
 
-**2. Add an Edit Dialog** with form fields for:
-- **Applicant Type** -- Select dropdown from `applicant_types` table (or "All")
-- **Requirement Type** -- Select: required, conditional, optional
-- **Age Condition** -- Text input (e.g., "under_18", "over_18")
-- **Applicability Condition** -- Text input for conditional logic
-- **Min Files / Max Files** -- Number inputs
-- **Requires Translation** -- Checkbox/switch
-- **Translation Target Language** -- Text input (shown when translation enabled)
-- **Translation Certification Type** -- Select from `translation_certification_types` table (shown when translation enabled)
-- **Translation Notes** -- Textarea (shown when translation enabled)
+**2. Add Sort Order + Country row** -- Sort Order as number input, Country as read-only display (since it's already determined by the visa type context). Keep Sort Order editable.
 
-**3. Add an update mutation** that updates the `document_checklist_templates` row by its `id` with the edited fields.
+**3. Restructure Applicant Type + Age Condition** into a 2-column row with:
+- Applicant Type: use "No specific type" as the none label (instead of "All")
+- Age Condition: placeholder "e.g., +16yrs, Under 18"
 
-**4. Wire up row click** -- clicking a document row (not the checkbox) opens the edit dialog pre-populated with current values.
+**4. Add Min Files / Max Files** in a 2-column row with helper text underneath each:
+- "Minimum number of files clients must upload"
+- "Maximum number of files clients can upload"
 
-**5. Fetch `translation_certification_types`** for the certification type dropdown.
+**5. Requirement Type** as a full-width select with dynamic helper text:
+- required: "Document is mandatory for all applications"
+- conditional: "Document is only required in specific situations"
+- optional: "Document is not required but may support the application"
 
-### No database changes needed
-All fields already exist on `document_checklist_templates`. Platform admin RLS policy already allows full management.
+**6. Add conditional Applicability Condition section** -- when requirement_type is "conditional", show a highlighted box with preset condition options (same list from ReferenceData: "If previously married", "If divorced", etc.) plus custom option.
+
+**7. Requires Translation toggle + expanded translation section** matching reference:
+- Translation Requirements header with Languages icon
+- Target Language as a Select with common languages (not just a text input)
+- Certification Type dropdown
+- Translation Notes textarea with helper text
+
+### No new files needed
+Only modifying `src/components/admin/EditDocumentSettingsDialog.tsx`.
 
