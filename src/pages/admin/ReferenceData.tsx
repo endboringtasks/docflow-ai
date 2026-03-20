@@ -904,18 +904,18 @@ function SubcategoriesTab() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-12">Order</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Country</TableHead>
+            <SortableTableHead column="sort_order" currentSort={subSortCol} direction={subSortDir} onSort={handleSubSort} className="w-12">Order</SortableTableHead>
+            <SortableTableHead column="code" currentSort={subSortCol} direction={subSortDir} onSort={handleSubSort}>Code</SortableTableHead>
+            <SortableTableHead column="name" currentSort={subSortCol} direction={subSortDir} onSort={handleSubSort}>Name</SortableTableHead>
+            <SortableTableHead column="category" currentSort={subSortCol} direction={subSortDir} onSort={handleSubSort}>Category</SortableTableHead>
+            <SortableTableHead column="country" currentSort={subSortCol} direction={subSortDir} onSort={handleSubSort}>Country</SortableTableHead>
             <TableHead>Description</TableHead>
-            <TableHead>Status</TableHead>
+            <SortableTableHead column="status" currentSort={subSortCol} direction={subSortDir} onSort={handleSubSort}>Status</SortableTableHead>
             <TableHead className="w-24">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {subcategories?.map((subcategory) => (
+          {sortedSubs.map((subcategory) => (
             <TableRow key={subcategory.id}>
               <TableCell className="text-muted-foreground">{subcategory.sort_order}</TableCell>
               <TableCell className="font-mono">{subcategory.code}</TableCell>
