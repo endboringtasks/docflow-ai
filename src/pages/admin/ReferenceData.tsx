@@ -183,6 +183,13 @@ function CountriesTab() {
   const [deleteCountry, setDeleteCountry] = useState<Country | null>(null);
   const [form, setForm] = useState({ code: "", name: "", is_active: true, sort_order: 0 });
 
+  const countryAccessors = useMemo(() => ({
+    sort_order: (c: Country) => c.sort_order,
+    code: (c: Country) => c.code,
+    name: (c: Country) => c.name,
+    status: (c: Country) => c.is_active ? "Active" : "Inactive",
+  }), []);
+
   const { data: countries, isLoading } = useQuery({
     queryKey: ["admin-countries"],
     queryFn: async () => {
