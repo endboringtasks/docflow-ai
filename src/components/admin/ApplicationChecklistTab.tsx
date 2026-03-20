@@ -115,6 +115,8 @@ function ApplicationListView({
     },
   });
 
+  const { sortedData: sortedVisaTypes, sortColumn: listSortCol, sortDirection: listSortDir, handleSort: handleListSort } = useTableSort(visaTypes, listAccessors);
+
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
