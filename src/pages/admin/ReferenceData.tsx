@@ -1214,15 +1214,15 @@ function ApplicantTypesTab() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-12">Order</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Status</TableHead>
+            <SortableTableHead column="sort_order" currentSort={atSortCol} direction={atSortDir} onSort={handleATSort} className="w-12">Order</SortableTableHead>
+            <SortableTableHead column="code" currentSort={atSortCol} direction={atSortDir} onSort={handleATSort}>Code</SortableTableHead>
+            <SortableTableHead column="name" currentSort={atSortCol} direction={atSortDir} onSort={handleATSort}>Name</SortableTableHead>
+            <SortableTableHead column="status" currentSort={atSortCol} direction={atSortDir} onSort={handleATSort}>Status</SortableTableHead>
             <TableHead className="w-24">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {applicantTypes?.map((type) => (
+          {sortedAT.map((type) => (
             <TableRow key={type.id}>
               <TableCell className="text-muted-foreground">{type.sort_order}</TableCell>
               <TableCell className="font-mono">{type.code}</TableCell>
