@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { useTableSort, SortableTableHead } from "@/hooks/useTableSort";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -147,6 +148,13 @@ export default function AdminDocumentsListTab() {
     }
     return list;
   }, [definitions, filterCategory, search]);
+
+  const sortAccessors = useCallback(() => ({
+    category: (d: DocumentDefinition) => d.category,
+    document_name: (d: DocumentDefinition) => d.document_name,
+  }), []);
+
+  const { sortedData, sortColumn, sortDirection, handleSort } = useTableSort(filtered, sortAccessors());
 
   // Add mutation
   const addMutation = useMutation({
@@ -306,14 +314,14 @@ export default function AdminDocumentsListTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Category</TableHead>
-                <TableHead>Document Name</TableHead>
+                <SortableTableHead column="category" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Category</SortableTableHead>
+                <SortableTableHead column="document_name" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Document Name</SortableTableHead>
                 <TableHead className="hidden md:table-cell">Description</TableHead>
                 <TableHead className="text-right w-[100px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((def) => (
+              {sortedData.map((def) => (
                 <TableRow key={def.id}>
                   <TableCell>
                     <Badge variant="outline">{def.category}</Badge>
@@ -342,8 +350,8 @@ export default function AdminDocumentsListTab() {
             </TableBody>
           </Table>
           <div className="text-sm text-muted-foreground">
-            {filtered.length} document{filtered.length !== 1 ? "s" : ""}
-            {filtered.length !== definitions.length && ` (of ${definitions.length} total)`}
+            {sortedData.length} document{sortedData.length !== 1 ? "s" : ""}
+            {sortedData.length !== definitions.length && ` (of ${definitions.length} total)`}
           </div>
         </>
       )}

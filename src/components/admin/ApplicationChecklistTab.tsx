@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useTableSort, SortableTableHead } from "@/hooks/useTableSort";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { EditDocumentSettingsDialog } from "./EditDocumentSettingsDialog";
@@ -29,7 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, Plus, Trash2, Search, ArrowLeft, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, Plus, Trash2, Search, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 // ── List Mode ──────────────────────────────────────────────────────────
@@ -42,6 +43,12 @@ function ApplicationListView({
   const [countryFilter, setCountryFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [subcategoryFilter, setSubcategoryFilter] = useState("");
+
+  const listAccessors = useMemo(() => ({
+    sort_order: (vt: any) => (vt.sort_order ?? 0) as number,
+    code: (vt: any) => vt.code as string,
+    name: (vt: any) => vt.name as string,
+  }), []);
 
   const { data: countries } = useQuery({
     queryKey: ["admin-countries"],
@@ -107,6 +114,8 @@ function ApplicationListView({
       return data;
     },
   });
+
+  const { sortedData: sortedVisaTypes, sortColumn: listSortCol, sortDirection: listSortDir, handleSort: handleListSort } = useTableSort(visaTypes, listAccessors);
 
   return (
     <div className="space-y-4">
@@ -183,13 +192,13 @@ function ApplicationListView({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-16">Order</TableHead>
-              <TableHead className="w-32">Code</TableHead>
-              <TableHead>Name</TableHead>
+              <SortableTableHead column="sort_order" currentSort={listSortCol} direction={listSortDir} onSort={handleListSort} className="w-16">Order</SortableTableHead>
+              <SortableTableHead column="code" currentSort={listSortCol} direction={listSortDir} onSort={handleListSort} className="w-32">Code</SortableTableHead>
+              <SortableTableHead column="name" currentSort={listSortCol} direction={listSortDir} onSort={handleListSort}>Name</SortableTableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {visaTypes.map((vt: any) => (
+            {sortedVisaTypes.map((vt: any) => (
               <TableRow
                 key={vt.id}
                 className="cursor-pointer hover:bg-muted/50"
@@ -228,8 +237,6 @@ function ApplicationDetailView({
   const [addSearch, setAddSearch] = useState("");
   const [addSelected, setAddSelected] = useState<Set<string>>(new Set());
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
-  const [sortColumn, setSortColumn] = useState<"document_name" | "category" | "applicant_type" | "requirement_type" | null>(null);
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const { data: applicantTypes } = useQuery({
     queryKey: ["admin-applicant-types"],
@@ -402,51 +409,17 @@ function ApplicationDetailView({
       return next;
     });
 
-  const handleSort = (col: typeof sortColumn) => {
-    if (sortColumn === col) {
-      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortColumn(col);
-      setSortDirection("asc");
-    }
-  };
+  const detailAccessors = useMemo(() => ({
+    document_name: (row: any) => (row.document_checklist_templates as any)?.document_name ?? "",
+    category: (row: any) => (row.document_checklist_templates as any)?.category ?? "",
+    applicant_type: (row: any) => {
+      const id = (row.document_checklist_templates as any)?.applicant_type_id;
+      return id ? (applicantTypeMap.get(id) ?? "") : "";
+    },
+    requirement_type: (row: any) => (row.document_checklist_templates as any)?.requirement_type ?? "required",
+  }), [applicantTypeMap]);
 
-  const SortIcon = ({ col }: { col: typeof sortColumn }) => {
-    if (sortColumn !== col) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-40" />;
-    return sortDirection === "asc"
-      ? <ArrowUp className="w-3 h-3 ml-1" />
-      : <ArrowDown className="w-3 h-3 ml-1" />;
-  };
-
-  const sortedDocs = useMemo(() => {
-    if (!linkedDocs || !sortColumn) return linkedDocs;
-    return [...linkedDocs].sort((a, b) => {
-      const tA = a.document_checklist_templates as any;
-      const tB = b.document_checklist_templates as any;
-      let valA = "";
-      let valB = "";
-      switch (sortColumn) {
-        case "document_name":
-          valA = tA?.document_name ?? "";
-          valB = tB?.document_name ?? "";
-          break;
-        case "category":
-          valA = tA?.category ?? "";
-          valB = tB?.category ?? "";
-          break;
-        case "applicant_type":
-          valA = tA?.applicant_type_id ? (applicantTypeMap.get(tA.applicant_type_id) ?? "") : "";
-          valB = tB?.applicant_type_id ? (applicantTypeMap.get(tB.applicant_type_id) ?? "") : "";
-          break;
-        case "requirement_type":
-          valA = tA?.requirement_type ?? "required";
-          valB = tB?.requirement_type ?? "required";
-          break;
-      }
-      const cmp = valA.localeCompare(valB);
-      return sortDirection === "asc" ? cmp : -cmp;
-    });
-  }, [linkedDocs, sortColumn, sortDirection, applicantTypeMap]);
+  const { sortedData: sortedDocs, sortColumn, sortDirection, handleSort } = useTableSort(linkedDocs, detailAccessors);
 
   return (
     <div className="space-y-4">
@@ -505,18 +478,10 @@ function ApplicationDetailView({
                   onCheckedChange={toggleAllSelected}
                 />
               </TableHead>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("document_name")}>
-                <span className="flex items-center">Document Name<SortIcon col="document_name" /></span>
-              </TableHead>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("category")}>
-                <span className="flex items-center">Category<SortIcon col="category" /></span>
-              </TableHead>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("applicant_type")}>
-                <span className="flex items-center">Applicant Type<SortIcon col="applicant_type" /></span>
-              </TableHead>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("requirement_type")}>
-                <span className="flex items-center">Requirement<SortIcon col="requirement_type" /></span>
-              </TableHead>
+              <SortableTableHead column="document_name" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Document Name</SortableTableHead>
+              <SortableTableHead column="category" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Category</SortableTableHead>
+              <SortableTableHead column="applicant_type" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Applicant Type</SortableTableHead>
+              <SortableTableHead column="requirement_type" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Requirement</SortableTableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

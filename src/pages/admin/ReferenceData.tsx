@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useTableSort, SortableTableHead } from "@/hooks/useTableSort";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -182,6 +183,13 @@ function CountriesTab() {
   const [deleteCountry, setDeleteCountry] = useState<Country | null>(null);
   const [form, setForm] = useState({ code: "", name: "", is_active: true, sort_order: 0 });
 
+  const countryAccessors = useMemo(() => ({
+    sort_order: (c: Country) => c.sort_order,
+    code: (c: Country) => c.code,
+    name: (c: Country) => c.name,
+    status: (c: Country) => c.is_active ? "Active" : "Inactive",
+  }), []);
+
   const { data: countries, isLoading } = useQuery({
     queryKey: ["admin-countries"],
     queryFn: async () => {
@@ -258,6 +266,8 @@ function CountriesTab() {
     saveMutation.mutate(form);
   };
 
+  const { sortedData: sortedCountries, sortColumn, sortDirection, handleSort } = useTableSort(countries, countryAccessors);
+
   if (isLoading) {
     return <Skeleton className="h-64 w-full" />;
   }
@@ -277,16 +287,16 @@ function CountriesTab() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-12">Order</TableHead>
+            <SortableTableHead column="sort_order" currentSort={sortColumn} direction={sortDirection} onSort={handleSort} className="w-12">Order</SortableTableHead>
             <TableHead>Flag</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Status</TableHead>
+            <SortableTableHead column="code" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Code</SortableTableHead>
+            <SortableTableHead column="name" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Name</SortableTableHead>
+            <SortableTableHead column="status" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Status</SortableTableHead>
             <TableHead className="w-24">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {countries?.map((country) => (
+          {sortedCountries.map((country) => (
             <TableRow key={country.id}>
               <TableCell className="text-muted-foreground">{country.sort_order}</TableCell>
               <TableCell>{getCountryFlag(country.code)}</TableCell>
@@ -414,6 +424,14 @@ function CategoriesTab() {
     sort_order: 0,
   });
 
+  const catAccessors = useMemo(() => ({
+    sort_order: (c: ApplicationCategory) => c.sort_order,
+    code: (c: ApplicationCategory) => c.code,
+    name: (c: ApplicationCategory) => c.name,
+    country: (c: ApplicationCategory) => c.country?.name ?? "All Countries",
+    status: (c: ApplicationCategory) => c.is_active ? "Active" : "Inactive",
+  }), []);
+
   const { data: countries } = useQuery({
     queryKey: ["admin-countries"],
     queryFn: async () => {
@@ -520,6 +538,8 @@ function CategoriesTab() {
     saveMutation.mutate(form);
   };
 
+  const { sortedData: sortedCategories, sortColumn: catSortCol, sortDirection: catSortDir, handleSort: handleCatSort } = useTableSort(categories, catAccessors);
+
   if (isLoading) {
     return <Skeleton className="h-64 w-full" />;
   }
@@ -539,17 +559,17 @@ function CategoriesTab() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-12">Order</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Country</TableHead>
+            <SortableTableHead column="sort_order" currentSort={catSortCol} direction={catSortDir} onSort={handleCatSort} className="w-12">Order</SortableTableHead>
+            <SortableTableHead column="code" currentSort={catSortCol} direction={catSortDir} onSort={handleCatSort}>Code</SortableTableHead>
+            <SortableTableHead column="name" currentSort={catSortCol} direction={catSortDir} onSort={handleCatSort}>Name</SortableTableHead>
+            <SortableTableHead column="country" currentSort={catSortCol} direction={catSortDir} onSort={handleCatSort}>Country</SortableTableHead>
             <TableHead>Description</TableHead>
-            <TableHead>Status</TableHead>
+            <SortableTableHead column="status" currentSort={catSortCol} direction={catSortDir} onSort={handleCatSort}>Status</SortableTableHead>
             <TableHead className="w-24">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {categories?.map((category) => (
+          {sortedCategories.map((category) => (
             <TableRow key={category.id}>
               <TableCell className="text-muted-foreground">{category.sort_order}</TableCell>
               <TableCell className="font-mono">{category.code}</TableCell>
@@ -717,6 +737,15 @@ function SubcategoriesTab() {
     sort_order: 0,
   });
 
+  const subAccessors = useMemo(() => ({
+    sort_order: (s: ApplicationSubcategory) => s.sort_order,
+    code: (s: ApplicationSubcategory) => s.code,
+    name: (s: ApplicationSubcategory) => s.name,
+    category: (s: ApplicationSubcategory) => s.category?.name ?? "",
+    country: (s: ApplicationSubcategory) => s.country?.name ?? s.category?.country?.name ?? "All",
+    status: (s: ApplicationSubcategory) => s.is_active ? "Active" : "Inactive",
+  }), []);
+
   const { data: categories } = useQuery({
     queryKey: ["admin-categories"],
     queryFn: async () => {
@@ -842,6 +871,8 @@ function SubcategoriesTab() {
     saveMutation.mutate(form);
   };
 
+  const { sortedData: sortedSubs, sortColumn: subSortCol, sortDirection: subSortDir, handleSort: handleSubSort } = useTableSort(subcategories, subAccessors);
+
   if (isLoading) {
     return <Skeleton className="h-64 w-full" />;
   }
@@ -873,18 +904,18 @@ function SubcategoriesTab() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-12">Order</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Country</TableHead>
+            <SortableTableHead column="sort_order" currentSort={subSortCol} direction={subSortDir} onSort={handleSubSort} className="w-12">Order</SortableTableHead>
+            <SortableTableHead column="code" currentSort={subSortCol} direction={subSortDir} onSort={handleSubSort}>Code</SortableTableHead>
+            <SortableTableHead column="name" currentSort={subSortCol} direction={subSortDir} onSort={handleSubSort}>Name</SortableTableHead>
+            <SortableTableHead column="category" currentSort={subSortCol} direction={subSortDir} onSort={handleSubSort}>Category</SortableTableHead>
+            <SortableTableHead column="country" currentSort={subSortCol} direction={subSortDir} onSort={handleSubSort}>Country</SortableTableHead>
             <TableHead>Description</TableHead>
-            <TableHead>Status</TableHead>
+            <SortableTableHead column="status" currentSort={subSortCol} direction={subSortDir} onSort={handleSubSort}>Status</SortableTableHead>
             <TableHead className="w-24">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {subcategories?.map((subcategory) => (
+          {sortedSubs.map((subcategory) => (
             <TableRow key={subcategory.id}>
               <TableCell className="text-muted-foreground">{subcategory.sort_order}</TableCell>
               <TableCell className="font-mono">{subcategory.code}</TableCell>
@@ -1079,6 +1110,13 @@ function ApplicantTypesTab() {
   const [deleteType, setDeleteType] = useState<{ id: string; name: string; code: string; sort_order: number; is_active: boolean } | null>(null);
   const [form, setForm] = useState({ code: "", name: "", is_active: true, sort_order: 0 });
 
+  const atAccessors = useMemo(() => ({
+    sort_order: (t: any) => t.sort_order as number,
+    code: (t: any) => t.code as string,
+    name: (t: any) => t.name as string,
+    status: (t: any) => t.is_active ? "Active" : "Inactive",
+  }), []);
+
   const { data: applicantTypes, isLoading } = useQuery({
     queryKey: ["admin-applicant-types"],
     queryFn: async () => {
@@ -1155,6 +1193,8 @@ function ApplicantTypesTab() {
     saveMutation.mutate(form);
   };
 
+  const { sortedData: sortedAT, sortColumn: atSortCol, sortDirection: atSortDir, handleSort: handleATSort } = useTableSort(applicantTypes, atAccessors);
+
   if (isLoading) {
     return <Skeleton className="h-64 w-full" />;
   }
@@ -1174,15 +1214,15 @@ function ApplicantTypesTab() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-12">Order</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Status</TableHead>
+            <SortableTableHead column="sort_order" currentSort={atSortCol} direction={atSortDir} onSort={handleATSort} className="w-12">Order</SortableTableHead>
+            <SortableTableHead column="code" currentSort={atSortCol} direction={atSortDir} onSort={handleATSort}>Code</SortableTableHead>
+            <SortableTableHead column="name" currentSort={atSortCol} direction={atSortDir} onSort={handleATSort}>Name</SortableTableHead>
+            <SortableTableHead column="status" currentSort={atSortCol} direction={atSortDir} onSort={handleATSort}>Status</SortableTableHead>
             <TableHead className="w-24">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {applicantTypes?.map((type) => (
+          {sortedAT.map((type) => (
             <TableRow key={type.id}>
               <TableCell className="text-muted-foreground">{type.sort_order}</TableCell>
               <TableCell className="font-mono">{type.code}</TableCell>
@@ -1312,6 +1352,16 @@ function TypesTab() {
     is_active: true,
     sort_order: 0,
   });
+
+  const typesAccessors = useMemo(() => ({
+    sort_order: (t: ApplicationType) => t.sort_order,
+    code: (t: ApplicationType) => t.code,
+    name: (t: ApplicationType) => t.name,
+    country: (t: ApplicationType) => t.country?.name ?? "All",
+    category: (t: ApplicationType) => t.category?.name ?? "",
+    subcategory: (t: ApplicationType) => t.subcategory?.name ?? "",
+    status: (t: ApplicationType) => t.is_active ? "Active" : "Inactive",
+  }), []);
 
   const { data: countries } = useQuery({
     queryKey: ["admin-countries"],
@@ -1488,6 +1538,8 @@ function TypesTab() {
     saveMutation.mutate(form);
   };
 
+  const { sortedData: sortedTypes, sortColumn: typesSortCol, sortDirection: typesSortDir, handleSort: handleTypesSort } = useTableSort(types, typesAccessors);
+
   if (isLoading) {
     return <Skeleton className="h-64 w-full" />;
   }
@@ -1567,18 +1619,18 @@ function TypesTab() {
                 className="h-4 w-4 rounded border-input"
               />
             </TableHead>
-            <TableHead className="w-12">Order</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Country</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Subcategory</TableHead>
-            <TableHead>Status</TableHead>
+            <SortableTableHead column="sort_order" currentSort={typesSortCol} direction={typesSortDir} onSort={handleTypesSort} className="w-12">Order</SortableTableHead>
+            <SortableTableHead column="code" currentSort={typesSortCol} direction={typesSortDir} onSort={handleTypesSort}>Code</SortableTableHead>
+            <SortableTableHead column="name" currentSort={typesSortCol} direction={typesSortDir} onSort={handleTypesSort}>Name</SortableTableHead>
+            <SortableTableHead column="country" currentSort={typesSortCol} direction={typesSortDir} onSort={handleTypesSort}>Country</SortableTableHead>
+            <SortableTableHead column="category" currentSort={typesSortCol} direction={typesSortDir} onSort={handleTypesSort}>Category</SortableTableHead>
+            <SortableTableHead column="subcategory" currentSort={typesSortCol} direction={typesSortDir} onSort={handleTypesSort}>Subcategory</SortableTableHead>
+            <SortableTableHead column="status" currentSort={typesSortCol} direction={typesSortDir} onSort={handleTypesSort}>Status</SortableTableHead>
             <TableHead className="w-24">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {types?.map((type) => (
+          {sortedTypes.map((type) => (
             <TableRow key={type.id} className={selectedTypes.has(type.id) ? "bg-muted/50" : ""}>
               <TableCell>
                 <input
