@@ -287,16 +287,16 @@ function CountriesTab() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-12">Order</TableHead>
+            <SortableTableHead column="sort_order" currentSort={sortColumn} direction={sortDirection} onSort={handleSort} className="w-12">Order</SortableTableHead>
             <TableHead>Flag</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Status</TableHead>
+            <SortableTableHead column="code" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Code</SortableTableHead>
+            <SortableTableHead column="name" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Name</SortableTableHead>
+            <SortableTableHead column="status" currentSort={sortColumn} direction={sortDirection} onSort={handleSort}>Status</SortableTableHead>
             <TableHead className="w-24">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {countries?.map((country) => (
+          {sortedCountries.map((country) => (
             <TableRow key={country.id}>
               <TableCell className="text-muted-foreground">{country.sort_order}</TableCell>
               <TableCell>{getCountryFlag(country.code)}</TableCell>
