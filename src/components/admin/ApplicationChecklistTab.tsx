@@ -228,6 +228,8 @@ function ApplicationDetailView({
   const [addSearch, setAddSearch] = useState("");
   const [addSelected, setAddSelected] = useState<Set<string>>(new Set());
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  const [sortColumn, setSortColumn] = useState<"document_name" | "category" | "applicant_type" | "requirement_type" | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const { data: applicantTypes } = useQuery({
     queryKey: ["admin-applicant-types"],
