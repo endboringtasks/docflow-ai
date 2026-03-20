@@ -149,6 +149,13 @@ export default function AdminDocumentsListTab() {
     return list;
   }, [definitions, filterCategory, search]);
 
+  const sortAccessors = useCallback(() => ({
+    category: (d: DocumentDefinition) => d.category,
+    document_name: (d: DocumentDefinition) => d.document_name,
+  }), []);
+
+  const { sortedData, sortColumn, sortDirection, handleSort } = useTableSort(filtered, sortAccessors());
+
   // Add mutation
   const addMutation = useMutation({
     mutationFn: async (def: { category: string; document_name: string; description: string | null }) => {
