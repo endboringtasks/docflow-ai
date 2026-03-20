@@ -737,6 +737,15 @@ function SubcategoriesTab() {
     sort_order: 0,
   });
 
+  const subAccessors = useMemo(() => ({
+    sort_order: (s: ApplicationSubcategory) => s.sort_order,
+    code: (s: ApplicationSubcategory) => s.code,
+    name: (s: ApplicationSubcategory) => s.name,
+    category: (s: ApplicationSubcategory) => s.category?.name ?? "",
+    country: (s: ApplicationSubcategory) => s.country?.name ?? s.category?.country?.name ?? "All",
+    status: (s: ApplicationSubcategory) => s.is_active ? "Active" : "Inactive",
+  }), []);
+
   const { data: categories } = useQuery({
     queryKey: ["admin-categories"],
     queryFn: async () => {
