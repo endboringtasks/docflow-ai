@@ -1193,6 +1193,8 @@ function ApplicantTypesTab() {
     saveMutation.mutate(form);
   };
 
+  const { sortedData: sortedAT, sortColumn: atSortCol, sortDirection: atSortDir, handleSort: handleATSort } = useTableSort(applicantTypes, atAccessors);
+
   if (isLoading) {
     return <Skeleton className="h-64 w-full" />;
   }
