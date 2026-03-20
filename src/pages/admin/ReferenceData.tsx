@@ -1108,6 +1108,13 @@ function ApplicantTypesTab() {
   const [deleteType, setDeleteType] = useState<{ id: string; name: string; code: string; sort_order: number; is_active: boolean } | null>(null);
   const [form, setForm] = useState({ code: "", name: "", is_active: true, sort_order: 0 });
 
+  const atAccessors = useMemo(() => ({
+    sort_order: (t: { sort_order: number }) => t.sort_order,
+    code: (t: { code: string }) => t.code,
+    name: (t: { name: string }) => t.name,
+    status: (t: { is_active: boolean }) => t.is_active ? "Active" : "Inactive",
+  }), []);
+
   const { data: applicantTypes, isLoading } = useQuery({
     queryKey: ["admin-applicant-types"],
     queryFn: async () => {
