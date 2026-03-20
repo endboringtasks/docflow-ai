@@ -424,6 +424,14 @@ function CategoriesTab() {
     sort_order: 0,
   });
 
+  const catAccessors = useMemo(() => ({
+    sort_order: (c: ApplicationCategory) => c.sort_order,
+    code: (c: ApplicationCategory) => c.code,
+    name: (c: ApplicationCategory) => c.name,
+    country: (c: ApplicationCategory) => c.country?.name ?? "All Countries",
+    status: (c: ApplicationCategory) => c.is_active ? "Active" : "Inactive",
+  }), []);
+
   const { data: countries } = useQuery({
     queryKey: ["admin-countries"],
     queryFn: async () => {
