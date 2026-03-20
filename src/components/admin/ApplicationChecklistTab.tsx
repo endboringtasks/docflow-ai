@@ -468,8 +468,12 @@ function ApplicationDetailView({
               const tmpl = row.document_checklist_templates as any;
               if (!tmpl) return null;
               return (
-                <TableRow key={row.id}>
-                  <TableCell>
+                <TableRow
+                  key={row.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => setEditingTemplate(tmpl)}
+                >
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <Checkbox
                       checked={selectedIds.has(row.id)}
                       onCheckedChange={() => toggleSelected(row.id)}
