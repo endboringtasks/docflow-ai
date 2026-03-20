@@ -1111,10 +1111,10 @@ function ApplicantTypesTab() {
   const [form, setForm] = useState({ code: "", name: "", is_active: true, sort_order: 0 });
 
   const atAccessors = useMemo(() => ({
-    sort_order: (t: { sort_order: number }) => t.sort_order,
-    code: (t: { code: string }) => t.code,
-    name: (t: { name: string }) => t.name,
-    status: (t: { is_active: boolean }) => t.is_active ? "Active" : "Inactive",
+    sort_order: (t: any) => t.sort_order as number,
+    code: (t: any) => t.code as string,
+    name: (t: any) => t.name as string,
+    status: (t: any) => t.is_active ? "Active" : "Inactive",
   }), []);
 
   const { data: applicantTypes, isLoading } = useQuery({
