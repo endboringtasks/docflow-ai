@@ -227,6 +227,7 @@ function ApplicationDetailView({
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addSearch, setAddSearch] = useState("");
   const [addSelected, setAddSelected] = useState<Set<string>>(new Set());
+  const [editingTemplate, setEditingTemplate] = useState<any>(null);
 
   const { data: applicantTypes } = useQuery({
     queryKey: ["admin-applicant-types"],
