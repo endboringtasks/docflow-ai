@@ -1538,6 +1538,8 @@ function TypesTab() {
     saveMutation.mutate(form);
   };
 
+  const { sortedData: sortedTypes, sortColumn: typesSortCol, sortDirection: typesSortDir, handleSort: handleTypesSort } = useTableSort(types, typesAccessors);
+
   if (isLoading) {
     return <Skeleton className="h-64 w-full" />;
   }
