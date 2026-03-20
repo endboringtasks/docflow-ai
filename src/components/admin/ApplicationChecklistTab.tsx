@@ -505,14 +505,22 @@ function ApplicationDetailView({
                   onCheckedChange={toggleAllSelected}
                 />
               </TableHead>
-              <TableHead>Document Name</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Applicant Type</TableHead>
-              <TableHead>Requirement</TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("document_name")}>
+                <span className="flex items-center">Document Name<SortIcon col="document_name" /></span>
+              </TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("category")}>
+                <span className="flex items-center">Category<SortIcon col="category" /></span>
+              </TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("applicant_type")}>
+                <span className="flex items-center">Applicant Type<SortIcon col="applicant_type" /></span>
+              </TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("requirement_type")}>
+                <span className="flex items-center">Requirement<SortIcon col="requirement_type" /></span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {linkedDocs.map((row) => {
+            {sortedDocs?.map((row) => {
               const tmpl = row.document_checklist_templates as any;
               if (!tmpl) return null;
               return (
