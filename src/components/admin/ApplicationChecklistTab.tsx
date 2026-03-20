@@ -41,7 +41,6 @@ function ApplicationListView({
   const [countryFilter, setCountryFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [subcategoryFilter, setSubcategoryFilter] = useState("");
-  const [search, setSearch] = useState("");
 
   const { data: countries } = useQuery({
     queryKey: ["admin-countries"],
@@ -92,58 +91,25 @@ function ApplicationListView({
       countryFilter,
       categoryFilter,
       subcategoryFilter,
-      search,
     ],
     queryFn: async () => {
       let q = supabase
         .from("visa_types")
-        .select(
-          `id, name, code,
-           countries ( name ),
-           application_categories ( name ),
-           application_subcategories ( name )`
-        )
+        .select("id, name, code, sort_order")
         .eq("is_active", true)
-        .order("name");
+        .order("sort_order");
       if (countryFilter) q = q.eq("country_id", countryFilter);
       if (categoryFilter) q = q.eq("category_id", categoryFilter);
       if (subcategoryFilter) q = q.eq("subcategory_id", subcategoryFilter);
-      if (search) q = q.ilike("name", `%${search}%`);
       const { data, error } = await q;
       if (error) throw error;
       return data;
     },
   });
 
-  // Get doc counts per visa type
-  const { data: docCounts } = useQuery({
-    queryKey: ["admin-doc-counts"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("document_template_applications")
-        .select("visa_type_id");
-      if (error) throw error;
-      const counts = new Map<string, number>();
-      data.forEach((r) => {
-        counts.set(r.visa_type_id, (counts.get(r.visa_type_id) || 0) + 1);
-      });
-      return counts;
-    },
-  });
-
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by name..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-
+      <div className="flex gap-2">
         <Select
           value={countryFilter || "all"}
           onValueChange={(v) => {
@@ -152,7 +118,7 @@ function ApplicationListView({
             setSubcategoryFilter("");
           }}
         >
-          <SelectTrigger>
+          <SelectTrigger className="w-48">
             <SelectValue placeholder="All Countries" />
           </SelectTrigger>
           <SelectContent>
@@ -172,7 +138,7 @@ function ApplicationListView({
             setSubcategoryFilter("");
           }}
         >
-          <SelectTrigger>
+          <SelectTrigger className="w-48">
             <SelectValue placeholder="All Categories" />
           </SelectTrigger>
           <SelectContent>
@@ -190,7 +156,7 @@ function ApplicationListView({
           onValueChange={(v) => setSubcategoryFilter(v === "all" ? "" : v)}
           disabled={!categoryFilter}
         >
-          <SelectTrigger>
+          <SelectTrigger className="w-48">
             <SelectValue placeholder="All Subcategories" />
           </SelectTrigger>
           <SelectContent>
@@ -216,35 +182,25 @@ function ApplicationListView({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-16">Order</TableHead>
+              <TableHead className="w-32">Code</TableHead>
               <TableHead>Name</TableHead>
-              <TableHead>Code</TableHead>
-              <TableHead>Country</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Subcategory</TableHead>
-              <TableHead className="text-right">Linked Docs</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {visaTypes.map((vt: any) => (
               <TableRow
                 key={vt.id}
-                className="cursor-pointer"
+                className="cursor-pointer hover:bg-muted/50"
                 onClick={() => onSelect(vt.id, `${vt.name} (${vt.code})`)}
               >
-                <TableCell className="font-medium">{vt.name}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {vt.sort_order ?? 0}
+                </TableCell>
                 <TableCell>
                   <Badge variant="outline">{vt.code}</Badge>
                 </TableCell>
-                <TableCell>{vt.countries?.name || "—"}</TableCell>
-                <TableCell>{vt.application_categories?.name || "—"}</TableCell>
-                <TableCell>
-                  {vt.application_subcategories?.name || "—"}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Badge variant="secondary">
-                    {docCounts?.get(vt.id) || 0}
-                  </Badge>
-                </TableCell>
+                <TableCell className="font-medium">{vt.name}</TableCell>
               </TableRow>
             ))}
           </TableBody>
