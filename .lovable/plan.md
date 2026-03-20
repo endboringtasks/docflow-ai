@@ -1,36 +1,19 @@
 
 
-## Make EditDocumentSettingsDialog match the Document Checklist edit dialog
+## Add Column Sorting to Application Checklist Detail View
 
-The current `EditDocumentSettingsDialog` has a condensed layout. It needs to match the richer form from the Document Checklist tab in `ReferenceData.tsx` (lines 2810-3175).
+### What changes
+Add clickable column headers (Document Name, Category, Applicant Type, Requirement) that toggle ascending/descending sort on the linked documents table in `ApplicationDetailView`.
 
-### Changes to `src/components/admin/EditDocumentSettingsDialog.tsx`
+### File: `src/components/admin/ApplicationChecklistTab.tsx`
 
-**1. Show Category and Document Name (read-only)** at the top, matching the reference layout with two columns.
+**1. Add sort state** -- `sortColumn` (string: "document_name" | "category" | "applicant_type" | "requirement_type") and `sortDirection` ("asc" | "desc"), defaulting to no sort.
 
-**2. Add Sort Order + Country row** -- Sort Order as number input, Country as read-only display (since it's already determined by the visa type context). Keep Sort Order editable.
+**2. Add a `sortedDocs` useMemo** that takes `linkedDocs`, resolves applicant type names via `applicantTypeMap`, and sorts based on the active column/direction. Clicking the same column toggles direction; clicking a different column sets ascending.
 
-**3. Restructure Applicant Type + Age Condition** into a 2-column row with:
-- Applicant Type: use "No specific type" as the none label (instead of "All")
-- Age Condition: placeholder "e.g., +16yrs, Under 18"
+**3. Replace static `<TableHead>` elements** with clickable headers showing an arrow indicator (ArrowUpDown / ArrowUp / ArrowDown from lucide-react) for the four sortable columns: Document Name, Category, Applicant Type, Requirement.
 
-**4. Add Min Files / Max Files** in a 2-column row with helper text underneath each:
-- "Minimum number of files clients must upload"
-- "Maximum number of files clients can upload"
+**4. Render `sortedDocs`** instead of `linkedDocs` in the table body.
 
-**5. Requirement Type** as a full-width select with dynamic helper text:
-- required: "Document is mandatory for all applications"
-- conditional: "Document is only required in specific situations"
-- optional: "Document is not required but may support the application"
-
-**6. Add conditional Applicability Condition section** -- when requirement_type is "conditional", show a highlighted box with preset condition options (same list from ReferenceData: "If previously married", "If divorced", etc.) plus custom option.
-
-**7. Requires Translation toggle + expanded translation section** matching reference:
-- Translation Requirements header with Languages icon
-- Target Language as a Select with common languages (not just a text input)
-- Certification Type dropdown
-- Translation Notes textarea with helper text
-
-### No new files needed
-Only modifying `src/components/admin/EditDocumentSettingsDialog.tsx`.
+No new files. Only modifying `ApplicationChecklistTab.tsx`.
 
