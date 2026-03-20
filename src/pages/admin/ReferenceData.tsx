@@ -559,17 +559,17 @@ function CategoriesTab() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-12">Order</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Country</TableHead>
+            <SortableTableHead column="sort_order" currentSort={catSortCol} direction={catSortDir} onSort={handleCatSort} className="w-12">Order</SortableTableHead>
+            <SortableTableHead column="code" currentSort={catSortCol} direction={catSortDir} onSort={handleCatSort}>Code</SortableTableHead>
+            <SortableTableHead column="name" currentSort={catSortCol} direction={catSortDir} onSort={handleCatSort}>Name</SortableTableHead>
+            <SortableTableHead column="country" currentSort={catSortCol} direction={catSortDir} onSort={handleCatSort}>Country</SortableTableHead>
             <TableHead>Description</TableHead>
-            <TableHead>Status</TableHead>
+            <SortableTableHead column="status" currentSort={catSortCol} direction={catSortDir} onSort={handleCatSort}>Status</SortableTableHead>
             <TableHead className="w-24">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {categories?.map((category) => (
+          {sortedCategories.map((category) => (
             <TableRow key={category.id}>
               <TableCell className="text-muted-foreground">{category.sort_order}</TableCell>
               <TableCell className="font-mono">{category.code}</TableCell>
