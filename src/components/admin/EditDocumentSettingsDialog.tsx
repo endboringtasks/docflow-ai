@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, Languages, CheckSquare } from "lucide-react";
 import { toast } from "sonner";
 
 interface DocumentTemplate {
@@ -48,6 +48,21 @@ interface EditDocumentSettingsDialogProps {
   visaTypeId: string;
 }
 
+const PRESET_CONDITIONS = [
+  "If previously married",
+  "If spouse/partner deceased",
+  "If divorced",
+  "If widowed",
+  "If changed name",
+  "If self-employed",
+  "If has children",
+  "If served in armed forces",
+  "If adopted",
+  "If custody arrangements exist",
+  "If owns property",
+  "If previously refused visa",
+];
+
 export function EditDocumentSettingsDialog({
   open,
   onOpenChange,
@@ -56,7 +71,7 @@ export function EditDocumentSettingsDialog({
 }: EditDocumentSettingsDialogProps) {
   const queryClient = useQueryClient();
 
-  const [applicantTypeId, setApplicantTypeId] = useState<string>("all");
+  const [applicantTypeId, setApplicantTypeId] = useState<string>("__none__");
   const [requirementType, setRequirementType] = useState("required");
   const [ageCondition, setAgeCondition] = useState("");
   const [applicabilityCondition, setApplicabilityCondition] = useState("");
@@ -64,13 +79,13 @@ export function EditDocumentSettingsDialog({
   const [maxFiles, setMaxFiles] = useState(1);
   const [requiresTranslation, setRequiresTranslation] = useState(false);
   const [translationTargetLanguage, setTranslationTargetLanguage] = useState("English");
-  const [translationCertTypeId, setTranslationCertTypeId] = useState<string>("none");
+  const [translationCertTypeId, setTranslationCertTypeId] = useState<string>("__none__");
   const [translationNotes, setTranslationNotes] = useState("");
   const [sortOrder, setSortOrder] = useState(0);
 
   useEffect(() => {
     if (template) {
-      setApplicantTypeId(template.applicant_type_id || "all");
+      setApplicantTypeId(template.applicant_type_id || "__none__");
       setRequirementType(template.requirement_type || "required");
       setAgeCondition(template.age_condition || "");
       setApplicabilityCondition(template.applicability_condition || "");
@@ -78,7 +93,7 @@ export function EditDocumentSettingsDialog({
       setMaxFiles(template.max_files ?? 1);
       setRequiresTranslation(template.requires_translation ?? false);
       setTranslationTargetLanguage(template.translation_target_language || "English");
-      setTranslationCertTypeId(template.translation_certification_type_id || "none");
+      setTranslationCertTypeId(template.translation_certification_type_id || "__none__");
       setTranslationNotes(template.translation_notes || "");
       setSortOrder(template.sort_order ?? 0);
     }
@@ -116,7 +131,7 @@ export function EditDocumentSettingsDialog({
       const { error } = await supabase
         .from("document_checklist_templates")
         .update({
-          applicant_type_id: applicantTypeId === "all" ? null : applicantTypeId,
+          applicant_type_id: applicantTypeId === "__none__" ? null : applicantTypeId,
           requirement_type: requirementType as any,
           age_condition: ageCondition || null,
           applicability_condition: applicabilityCondition || null,
@@ -124,7 +139,7 @@ export function EditDocumentSettingsDialog({
           max_files: maxFiles,
           requires_translation: requiresTranslation,
           translation_target_language: requiresTranslation ? translationTargetLanguage || null : null,
-          translation_certification_type_id: requiresTranslation && translationCertTypeId !== "none" ? translationCertTypeId : null,
+          translation_certification_type_id: requiresTranslation && translationCertTypeId !== "__none__" ? translationCertTypeId : null,
           translation_notes: requiresTranslation ? translationNotes || null : null,
           sort_order: sortOrder,
         })
@@ -139,6 +154,8 @@ export function EditDocumentSettingsDialog({
     onError: (err: any) => toast.error("Failed to update: " + err.message),
   });
 
+  const isCustomCondition = applicabilityCondition !== "" && !PRESET_CONDITIONS.includes(applicabilityCondition);
+
   if (!template) return null;
 
   return (
@@ -147,81 +164,25 @@ export function EditDocumentSettingsDialog({
         <DialogHeader>
           <DialogTitle>Edit Document Settings</DialogTitle>
           <DialogDescription>
-            {template.document_name}
-            {template.category ? ` — ${template.category}` : ""}
+            Configure rules for this document template
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Read-only: Category + Document Name */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Applicant Type</Label>
-              <Select value={applicantTypeId} onValueChange={setApplicantTypeId}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  {applicantTypes?.map((at) => (
-                    <SelectItem key={at.id} value={at.id}>{at.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Category</Label>
+              <Input value={template.category || "—"} disabled />
             </div>
-
             <div className="space-y-2">
-              <Label>Requirement Type</Label>
-              <Select value={requirementType} onValueChange={setRequirementType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="required">Required</SelectItem>
-                  <SelectItem value="conditional">Conditional</SelectItem>
-                  <SelectItem value="optional">Optional</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Document Name</Label>
+              <Input value={template.document_name} disabled />
             </div>
           </div>
 
+          {/* Sort Order */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Age Condition</Label>
-              <Input
-                placeholder="e.g. under_18, over_18"
-                value={ageCondition}
-                onChange={(e) => setAgeCondition(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Applicability Condition</Label>
-              <Input
-                placeholder="e.g. married, has_children"
-                value={applicabilityCondition}
-                onChange={(e) => setApplicabilityCondition(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Min Files</Label>
-              <Input
-                type="number"
-                min={0}
-                value={minFiles}
-                onChange={(e) => setMinFiles(parseInt(e.target.value) || 0)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Max Files</Label>
-              <Input
-                type="number"
-                min={1}
-                value={maxFiles}
-                onChange={(e) => setMaxFiles(parseInt(e.target.value) || 1)}
-              />
-            </div>
             <div className="space-y-2">
               <Label>Sort Order</Label>
               <Input
@@ -232,7 +193,117 @@ export function EditDocumentSettingsDialog({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 pt-2">
+          {/* Applicant Type + Age Condition */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Applicant Type</Label>
+              <Select value={applicantTypeId} onValueChange={setApplicantTypeId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select applicant type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No specific type</SelectItem>
+                  {applicantTypes?.map((at) => (
+                    <SelectItem key={at.id} value={at.id}>{at.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Age Condition</Label>
+              <Input
+                value={ageCondition}
+                onChange={(e) => setAgeCondition(e.target.value)}
+                placeholder="e.g., +16yrs, Under 18"
+              />
+            </div>
+          </div>
+
+          {/* Min Files / Max Files */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Min Files Required</Label>
+              <Input
+                type="number"
+                min={1}
+                value={minFiles}
+                onChange={(e) => setMinFiles(Math.max(1, parseInt(e.target.value) || 1))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Minimum number of files clients must upload
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Max Files Allowed</Label>
+              <Input
+                type="number"
+                min={minFiles}
+                value={maxFiles}
+                onChange={(e) => setMaxFiles(Math.max(minFiles, parseInt(e.target.value) || 1))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Maximum number of files clients can upload
+              </p>
+            </div>
+          </div>
+
+          {/* Requirement Type */}
+          <div className="space-y-2">
+            <Label>Requirement Type</Label>
+            <Select value={requirementType} onValueChange={setRequirementType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select requirement type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="required">Required</SelectItem>
+                <SelectItem value="conditional">If Applicable</SelectItem>
+                <SelectItem value="optional">Optional</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {requirementType === "required" && "Document is mandatory for all applications"}
+              {requirementType === "conditional" && "Document is only required in specific situations"}
+              {requirementType === "optional" && "Document is not required but may support the application"}
+            </p>
+          </div>
+
+          {/* Conditional: Applicability Condition */}
+          {requirementType === "conditional" && (
+            <div className="space-y-2 p-4 border rounded-lg bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+              <Label className="flex items-center gap-2">
+                <CheckSquare className="w-4 h-4 text-amber-600" />
+                When is this document required?
+              </Label>
+              <Select
+                value={PRESET_CONDITIONS.includes(applicabilityCondition) ? applicabilityCondition : "__custom__"}
+                onValueChange={(value) => setApplicabilityCondition(value === "__custom__" ? "" : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select or type a condition" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__custom__">+ Custom Condition</SelectItem>
+                  {PRESET_CONDITIONS.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(applicabilityCondition === "" || isCustomCondition) && (
+                <Input
+                  value={applicabilityCondition}
+                  onChange={(e) => setApplicabilityCondition(e.target.value)}
+                  placeholder="e.g., If previously married"
+                  className="mt-2"
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                This condition will be shown to staff and clients to indicate when this document is needed
+              </p>
+            </div>
+          )}
+
+          {/* Translation toggle */}
+          <div className="flex items-center gap-2">
             <Switch
               checked={requiresTranslation}
               onCheckedChange={setRequiresTranslation}
@@ -240,24 +311,42 @@ export function EditDocumentSettingsDialog({
             <Label>Requires Translation</Label>
           </div>
 
+          {/* Translation section */}
           {requiresTranslation && (
-            <div className="space-y-4 rounded-md border border-border p-4">
+            <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+              <p className="text-sm font-medium flex items-center gap-2">
+                <Languages className="w-4 h-4" />
+                Translation Requirements
+              </p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Target Language</Label>
-                  <Input
-                    value={translationTargetLanguage}
-                    onChange={(e) => setTranslationTargetLanguage(e.target.value)}
-                  />
+                  <Select value={translationTargetLanguage} onValueChange={setTranslationTargetLanguage}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="English">English</SelectItem>
+                      <SelectItem value="Spanish">Spanish</SelectItem>
+                      <SelectItem value="Portuguese">Portuguese</SelectItem>
+                      <SelectItem value="French">French</SelectItem>
+                      <SelectItem value="German">German</SelectItem>
+                      <SelectItem value="Italian">Italian</SelectItem>
+                      <SelectItem value="Chinese">Chinese</SelectItem>
+                      <SelectItem value="Japanese">Japanese</SelectItem>
+                      <SelectItem value="Korean">Korean</SelectItem>
+                      <SelectItem value="Arabic">Arabic</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Certification Type</Label>
                   <Select value={translationCertTypeId} onValueChange={setTranslationCertTypeId}>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select certification" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="__none__">Any Certified Translator</SelectItem>
                       {certTypes?.map((ct) => (
                         <SelectItem key={ct.id} value={ct.id}>{ct.name}</SelectItem>
                       ))}
@@ -266,13 +355,16 @@ export function EditDocumentSettingsDialog({
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Translation Notes</Label>
+                <Label>Translation Notes / Instructions</Label>
                 <Textarea
-                  placeholder="Additional notes about translation requirements..."
                   value={translationNotes}
                   onChange={(e) => setTranslationNotes(e.target.value)}
+                  placeholder="Any specific translation requirements..."
                   rows={2}
                 />
+                <p className="text-xs text-muted-foreground">
+                  These notes will be visible to staff managing document collection
+                </p>
               </div>
             </div>
           )}
