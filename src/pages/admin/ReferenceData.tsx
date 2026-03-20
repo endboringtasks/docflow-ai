@@ -871,6 +871,8 @@ function SubcategoriesTab() {
     saveMutation.mutate(form);
   };
 
+  const { sortedData: sortedSubs, sortColumn: subSortCol, sortDirection: subSortDir, handleSort: handleSubSort } = useTableSort(subcategories, subAccessors);
+
   if (isLoading) {
     return <Skeleton className="h-64 w-full" />;
   }
