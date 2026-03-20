@@ -1619,18 +1619,18 @@ function TypesTab() {
                 className="h-4 w-4 rounded border-input"
               />
             </TableHead>
-            <TableHead className="w-12">Order</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Country</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Subcategory</TableHead>
-            <TableHead>Status</TableHead>
+            <SortableTableHead column="sort_order" currentSort={typesSortCol} direction={typesSortDir} onSort={handleTypesSort} className="w-12">Order</SortableTableHead>
+            <SortableTableHead column="code" currentSort={typesSortCol} direction={typesSortDir} onSort={handleTypesSort}>Code</SortableTableHead>
+            <SortableTableHead column="name" currentSort={typesSortCol} direction={typesSortDir} onSort={handleTypesSort}>Name</SortableTableHead>
+            <SortableTableHead column="country" currentSort={typesSortCol} direction={typesSortDir} onSort={handleTypesSort}>Country</SortableTableHead>
+            <SortableTableHead column="category" currentSort={typesSortCol} direction={typesSortDir} onSort={handleTypesSort}>Category</SortableTableHead>
+            <SortableTableHead column="subcategory" currentSort={typesSortCol} direction={typesSortDir} onSort={handleTypesSort}>Subcategory</SortableTableHead>
+            <SortableTableHead column="status" currentSort={typesSortCol} direction={typesSortDir} onSort={handleTypesSort}>Status</SortableTableHead>
             <TableHead className="w-24">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {types?.map((type) => (
+          {sortedTypes.map((type) => (
             <TableRow key={type.id} className={selectedTypes.has(type.id) ? "bg-muted/50" : ""}>
               <TableCell>
                 <input
