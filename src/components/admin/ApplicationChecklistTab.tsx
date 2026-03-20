@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { EditDocumentSettingsDialog } from "./EditDocumentSettingsDialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -226,6 +227,7 @@ function ApplicationDetailView({
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addSearch, setAddSearch] = useState("");
   const [addSelected, setAddSelected] = useState<Set<string>>(new Set());
+  const [editingTemplate, setEditingTemplate] = useState<any>(null);
 
   const { data: applicantTypes } = useQuery({
     queryKey: ["admin-applicant-types"],
@@ -253,7 +255,10 @@ function ApplicationDetailView({
         .select(
           `id, document_template_id,
            document_checklist_templates (
-             id, document_name, category, applicant_type_id, requirement_type, description
+             id, document_name, category, applicant_type_id, requirement_type, description,
+             age_condition, applicability_condition, min_files, max_files,
+             requires_translation, translation_target_language,
+             translation_certification_type_id, translation_notes, sort_order
            )`
         )
         .eq("visa_type_id", visaTypeId);
@@ -463,8 +468,12 @@ function ApplicationDetailView({
               const tmpl = row.document_checklist_templates as any;
               if (!tmpl) return null;
               return (
-                <TableRow key={row.id}>
-                  <TableCell>
+                <TableRow
+                  key={row.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => setEditingTemplate(tmpl)}
+                >
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <Checkbox
                       checked={selectedIds.has(row.id)}
                       onCheckedChange={() => toggleSelected(row.id)}
@@ -586,6 +595,13 @@ function ApplicationDetailView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EditDocumentSettingsDialog
+        open={!!editingTemplate}
+        onOpenChange={(open) => { if (!open) setEditingTemplate(null); }}
+        template={editingTemplate}
+        visaTypeId={visaTypeId}
+      />
     </div>
   );
 }
