@@ -350,8 +350,8 @@ export default function AdminDocumentsListTab() {
             </TableBody>
           </Table>
           <div className="text-sm text-muted-foreground">
-            {filtered.length} document{filtered.length !== 1 ? "s" : ""}
-            {filtered.length !== definitions.length && ` (of ${definitions.length} total)`}
+            {sortedData.length} document{sortedData.length !== 1 ? "s" : ""}
+            {sortedData.length !== definitions.length && ` (of ${definitions.length} total)`}
           </div>
         </>
       )}
