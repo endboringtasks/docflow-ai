@@ -595,6 +595,13 @@ function ApplicationDetailView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EditDocumentSettingsDialog
+        open={!!editingTemplate}
+        onOpenChange={(open) => { if (!open) setEditingTemplate(null); }}
+        template={editingTemplate}
+        visaTypeId={visaTypeId}
+      />
     </div>
   );
 }
