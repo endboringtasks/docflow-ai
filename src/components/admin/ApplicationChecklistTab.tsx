@@ -192,13 +192,13 @@ function ApplicationListView({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-16">Order</TableHead>
-              <TableHead className="w-32">Code</TableHead>
-              <TableHead>Name</TableHead>
+              <SortableTableHead column="sort_order" currentSort={listSortCol} direction={listSortDir} onSort={handleListSort} className="w-16">Order</SortableTableHead>
+              <SortableTableHead column="code" currentSort={listSortCol} direction={listSortDir} onSort={handleListSort} className="w-32">Code</SortableTableHead>
+              <SortableTableHead column="name" currentSort={listSortCol} direction={listSortDir} onSort={handleListSort}>Name</SortableTableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {visaTypes.map((vt: any) => (
+            {sortedVisaTypes.map((vt: any) => (
               <TableRow
                 key={vt.id}
                 className="cursor-pointer hover:bg-muted/50"
