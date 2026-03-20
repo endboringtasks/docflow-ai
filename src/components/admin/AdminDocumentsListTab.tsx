@@ -321,7 +321,7 @@ export default function AdminDocumentsListTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((def) => (
+              {sortedData.map((def) => (
                 <TableRow key={def.id}>
                   <TableCell>
                     <Badge variant="outline">{def.category}</Badge>
