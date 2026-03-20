@@ -44,6 +44,12 @@ function ApplicationListView({
   const [categoryFilter, setCategoryFilter] = useState("");
   const [subcategoryFilter, setSubcategoryFilter] = useState("");
 
+  const listAccessors = useMemo(() => ({
+    sort_order: (vt: any) => (vt.sort_order ?? 0) as number,
+    code: (vt: any) => vt.code as string,
+    name: (vt: any) => vt.name as string,
+  }), []);
+
   const { data: countries } = useQuery({
     queryKey: ["admin-countries"],
     queryFn: async () => {
