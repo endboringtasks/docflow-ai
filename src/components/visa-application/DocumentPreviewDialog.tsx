@@ -85,7 +85,7 @@ export function DocumentPreviewDialog({
   const [rotation, setRotation] = useState(0);
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showCommentInput, setShowCommentInput] = useState(false);
+  
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [driveFileInfo, setDriveFileInfo] = useState<{
     name: string;
@@ -418,7 +418,7 @@ export function DocumentPreviewDialog({
           )}
 
           {/* Comment Section */}
-          {document.reviewComment && !showCommentInput && (
+          {document.reviewComment && (
             <div className="bg-secondary/30 rounded-lg p-4">
               <div className="flex items-center gap-2 text-sm font-medium mb-2">
                 <MessageSquare className="w-4 h-4" />
@@ -428,29 +428,18 @@ export function DocumentPreviewDialog({
             </div>
           )}
 
-          {showCommentInput && (
-            <div className="space-y-2">
-              <Label>Add Comment</Label>
-              <Textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Add feedback for the client..."
-                className="min-h-[80px]"
-              />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label>Add Comment</Label>
+            <Textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Add feedback for the client..."
+              className="min-h-[80px]"
+            />
+          </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-between gap-3 pt-2 border-t">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowCommentInput(!showCommentInput)}
-            >
-              <MessageSquare className="w-4 h-4 mr-2" />
-              {showCommentInput ? "Hide Comment" : "Add Comment"}
-            </Button>
-
+          <div className="flex items-center justify-end gap-3 pt-2 border-t">
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
