@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
     // Verify document_checklist belongs to this visa application
     const { data: docData, error: docError } = await supabase
       .from('document_checklist')
-      .select('id, visa_application_id, max_files')
+      .select('id, visa_application_id, max_files, review_status')
       .eq('id', document_checklist_id)
       .eq('visa_application_id', portalAccess.visa_application_id)
       .single()
@@ -148,18 +148,20 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Check attachment count against max_files
-    const { count: currentCount } = await supabase
-      .from('document_attachments')
-      .select('id', { count: 'exact', head: true })
-      .eq('document_checklist_id', document_checklist_id)
+    // Check attachment count against max_files (skip for rejected docs — finalize archives old ones)
+    if (docData.review_status !== 'rejected') {
+      const { count: currentCount } = await supabase
+        .from('document_attachments')
+        .select('id', { count: 'exact', head: true })
+        .eq('document_checklist_id', document_checklist_id)
 
-    const maxFiles = docData.max_files || 1
-    if ((currentCount || 0) >= maxFiles) {
-      return new Response(
-        JSON.stringify({ error: `Maximum ${maxFiles} file(s) allowed for this document` }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      const maxFiles = docData.max_files || 1
+      if ((currentCount || 0) >= maxFiles) {
+        return new Response(
+          JSON.stringify({ error: `Maximum ${maxFiles} file(s) allowed for this document` }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
     // Generate storage path
