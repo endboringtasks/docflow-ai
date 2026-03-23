@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
     // Smart status: transition based on current review status
     let newReviewStatus = docData.review_status
     if (docData.review_status === 'rejected') {
-      newReviewStatus = 'pending'
+      newReviewStatus = 'in_review'
     } else if (docData.review_status === 'pending_client') {
       newReviewStatus = 'in_review'
     }
