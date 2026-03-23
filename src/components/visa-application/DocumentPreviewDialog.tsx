@@ -428,17 +428,15 @@ export function DocumentPreviewDialog({
             </div>
           )}
 
-          {showCommentInput && (
-            <div className="space-y-2">
-              <Label>Add Comment</Label>
-              <Textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Add feedback for the client..."
-                className="min-h-[80px]"
-              />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label>Add Comment</Label>
+            <Textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Add feedback for the client..."
+              className="min-h-[80px]"
+            />
+          </div>
 
           {/* Action Buttons */}
           <div className="flex items-center justify-between gap-3 pt-2 border-t">
