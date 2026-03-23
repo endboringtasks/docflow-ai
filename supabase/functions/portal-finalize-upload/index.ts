@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
       newReviewStatus = 'in_review'
     }
     
-    await supabase
+    const { error: updateError } = await supabase
       .from('document_checklist')
       .update({
         is_completed: true,
@@ -169,10 +169,18 @@ Deno.serve(async (req) => {
         uploaded_at: new Date().toISOString(),
         uploaded_by_client: portalAccess.client_id,
         review_status: newReviewStatus,
-        // Clear review comment if re-uploading after rejection
-        ...(docData.review_status === 'rejected' ? { review_comment: null } : {}),
+        // Clear review metadata if re-uploading after rejection
+        ...(docData.review_status === 'rejected' ? {
+          review_comment: null,
+          reviewed_by: null,
+          reviewed_at: null,
+        } : {}),
       })
       .eq('id', document_checklist_id)
+
+    if (updateError) {
+      console.error('Failed to update document_checklist:', updateError)
+    }
 
     return new Response(
       JSON.stringify({
