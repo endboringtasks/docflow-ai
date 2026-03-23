@@ -1,16 +1,47 @@
 
 
-## Fix: Client Cannot Upload Replacement for Rejected Document
+## Fix: Rejected Document Status Not Updating After Replacement Upload
 
-### Problem
-The `portal-request-upload-url` Edge Function blocks uploads when `attachment_count >= max_files`, but doesn't check if the document is rejected. For rejected documents, the old attachments get archived during finalization — so the upload should be allowed.
+### Root Cause
+Two issues in `portal-finalize-upload`:
 
-### Fix
+1. **No error handling on the checklist update** — the `document_checklist` update (line 164) uses `await` but never checks if it succeeded. A silent failure would leave the status unchanged.
 
-**File: `supabase/functions/portal-request-upload-url/index.ts`**
+2. **Stale review metadata** — when a rejected document gets a replacement upload, only `review_comment` is cleared. The `reviewed_by` and `reviewed_at` fields remain, which may confuse the UI into still showing the "Rejected" state.
 
-1. Add `review_status` to the `document_checklist` select query (line 139)
-2. Skip the max_files check when `review_status === 'rejected'` (line 158) — the finalize function already archives old attachments before inserting the new one
+3. **Possible stale deployment** — the function may need redeployment to ensure the latest code is live.
 
-Single file change + redeploy.
+### Changes
+
+**File: `supabase/functions/portal-finalize-upload/index.ts`**
+
+1. Add error logging on the `document_checklist` update call (capture and log the error from `.update()`)
+2. When transitioning from `rejected`, also clear `reviewed_by`, `reviewed_at`, and `review_comment` so the document fully resets
+3. Redeploy the edge function
+
+### Code change (lines 164-175)
+```typescript
+const { error: updateError } = await supabase
+  .from('document_checklist')
+  .update({
+    is_completed: true,
+    file_path: storage_path,
+    uploaded_at: new Date().toISOString(),
+    uploaded_by_client: portalAccess.client_id,
+    review_status: newReviewStatus,
+    // Clear review metadata if re-uploading after rejection
+    ...(docData.review_status === 'rejected' ? {
+      review_comment: null,
+      reviewed_by: null,
+      reviewed_at: null,
+    } : {}),
+  })
+  .eq('id', document_checklist_id)
+
+if (updateError) {
+  console.error('Failed to update document_checklist:', updateError)
+}
+```
+
+Single file edit + redeploy.
 
