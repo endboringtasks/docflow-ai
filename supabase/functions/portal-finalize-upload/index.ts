@@ -153,8 +153,13 @@ Deno.serve(async (req) => {
     }
 
     // Update document_checklist status
-    // Smart status: if was rejected, reset to pending; otherwise mark completed
-    const newReviewStatus = docData.review_status === 'rejected' ? 'pending' : docData.review_status
+    // Smart status: transition based on current review status
+    let newReviewStatus = docData.review_status
+    if (docData.review_status === 'rejected') {
+      newReviewStatus = 'pending'
+    } else if (docData.review_status === 'pending_client') {
+      newReviewStatus = 'in_review'
+    }
     
     await supabase
       .from('document_checklist')
