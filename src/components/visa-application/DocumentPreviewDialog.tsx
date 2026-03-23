@@ -439,16 +439,7 @@ export function DocumentPreviewDialog({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-between gap-3 pt-2 border-t">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowCommentInput(!showCommentInput)}
-            >
-              <MessageSquare className="w-4 h-4 mr-2" />
-              {showCommentInput ? "Hide Comment" : "Add Comment"}
-            </Button>
-
+          <div className="flex items-center justify-end gap-3 pt-2 border-t">
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
