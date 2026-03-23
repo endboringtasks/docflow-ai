@@ -418,7 +418,7 @@ export function DocumentPreviewDialog({
           )}
 
           {/* Comment Section */}
-          {document.reviewComment && !showCommentInput && (
+          {document.reviewComment && (
             <div className="bg-secondary/30 rounded-lg p-4">
               <div className="flex items-center gap-2 text-sm font-medium mb-2">
                 <MessageSquare className="w-4 h-4" />
