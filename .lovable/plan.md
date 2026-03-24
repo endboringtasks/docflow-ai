@@ -1,34 +1,24 @@
 
 
-## Fix Document Row Color After Client Deletion
+## Keep Document History Visible on Application Detail Page
 
 ### Problem
-When a client uploads then deletes a document, the backend resets `review_status` to `in_review` (line 317-320 of `client-portal-remove-document`). This causes the row to show a blue background (`bg-blue-500/5`) even though there are no files attached. Meanwhile, the badge correctly shows "Pending Client" because `attachmentCount === 0`. The result: CoE has a blue-tinted row while Diploma and Professional Certifications have a white background — an inconsistency.
-
-### Solution
-Update the row color logic in `ApplicationDetail.tsx` to treat documents with zero attachments as pending/default, regardless of their `reviewStatus`. The `in_review` blue styling should only apply when there are actually files to review.
+On the Application Detail page, the "Previous Versions" section is rendered inside a collapsible that starts collapsed. The user wants it always visible (expanded) on this page, while keeping the collapsible behavior in the client portal.
 
 ### Change
 
-**File: `src/pages/migration/ApplicationDetail.tsx` (~lines 2295-2304)**
+**File: `src/pages/migration/ApplicationDetail.tsx` (~lines 2514 and 2537)**
 
-Update the color logic to check `attachmentCount` before applying status-based colors:
+Pass `inline={true}` to both `DocumentHistorySection` usages so the history entries render directly without the collapsible wrapper:
 
-```typescript
-className={`p-3 rounded-lg border transition-colors ${
-  doc.attachmentCount === 0
-    ? "bg-background border-border/50 hover:border-border"
-    : doc.reviewStatus === "approved" 
-    ? "bg-green-500/5 border-green-500/20"
-    : doc.reviewStatus === "rejected"
-    ? "bg-destructive/5 border-destructive/20"
-    : doc.reviewStatus === "in_review"
-    ? "bg-blue-500/5 border-blue-500/20"
-    : doc.completed 
-    ? "bg-primary/5 border-primary/20" 
-    : "bg-background border-border/50 hover:border-border"
-}`}
+```tsx
+<DocumentHistorySection
+  history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
+  companyId={visaApplication?.company_id}
+  onViewDocument={(url, fileName) => setHistoryPreview({ url, name: fileName })}
+  inline
+/>
 ```
 
-This ensures that when a client deletes all files, the row resets to the default white background — matching documents that were never uploaded to.
+The `inline` prop already exists on the component and renders the timeline content directly without the `Collapsible` wrapper. No other files need changes.
 
