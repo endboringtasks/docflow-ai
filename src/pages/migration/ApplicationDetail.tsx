@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Switch } from "@/components/ui/switch";
 import { useParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
-import { getFileTypeBadge } from "@/lib/fileUtils";
+
 import { DocumentThumbnail } from "@/components/documents/DocumentThumbnail";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -2510,14 +2510,6 @@ const VisaApplicationDetail = () => {
                                           ({(attachment.file_size / 1024).toFixed(0)} KB)
                                         </span>
                                       )}
-                                      {attachment.file_type && (() => {
-                                        const fileType = getFileTypeBadge(attachment.file_path);
-                                        return fileType ? (
-                                          <Badge variant="outline" className={`text-xs ${fileType.color}`}>
-                                            {fileType.label}
-                                          </Badge>
-                                        ) : null;
-                                      })()}
                                     </div>
                                   </div>
                                 ))}
