@@ -1,38 +1,36 @@
 
 
-## Fix: Document History Not Updating in Real-Time
+## Hide Thumbnail When Document Has No Attachments
 
 ### Problem
-When a client uploads and deletes a file, the new history entry doesn't appear on the Application Detail page until a manual refresh. The realtime subscription listens to `document_checklist` and `document_attachments` tables, but **not** `document_attachment_history`. When the edge function archives a deleted file to history, no realtime event triggers a re-fetch of the history query.
-
-Although the `document_checklist` change does trigger invalidation of `["document-history", visaApplicationId]`, React Query may serve stale data if the invalidation races with the history insert (the checklist update and history insert happen in the same edge function call, but the realtime event for checklist may fire before the history row is committed).
-
-### Solution
-Add a realtime subscription for the `document_attachment_history` table to the existing channel in `ApplicationDetail.tsx`.
+When a client deletes a file, `doc.filePath` still retains its value even though the physical file is gone. The legacy single-file display block (line 2539) renders a `DocumentThumbnail` for this stale path, showing a broken mini image.
 
 ### Change
 
-**File: `src/pages/migration/ApplicationDetail.tsx` (~line 1055, before `.subscribe()`)**
+**File: `src/pages/migration/ApplicationDetail.tsx` (~line 2539)**
 
-Add a third `.on()` listener to the existing channel:
+Add `doc.attachmentCount > 0` to the condition so the thumbnail only renders when there are actual files:
 
 ```typescript
-.on(
-  "postgres_changes",
-  {
-    event: "INSERT",
-    schema: "public",
-    table: "document_attachment_history",
-  },
-  (payload) => {
-    const checklistId = (payload.new as any)?.document_checklist_id;
-    if (checklistId && docIdsForHistory.includes(checklistId)) {
-      queryClient.invalidateQueries({ queryKey: ["document-history", visaApplicationId] });
-    }
-  }
-)
+{doc.filePath && doc.attachmentCount > 0 && (!doc.attachments || doc.attachments.length === 0) && (
 ```
 
-This ensures that whenever a new history record is inserted (from upload-then-delete or rejection archiving), the history query is immediately re-fetched.
+This prevents the stale thumbnail from appearing while still showing the document history section. The history block needs to be moved outside this conditional so it still renders when `attachmentCount === 0`:
 
-**Note**: The `document_attachment_history` table must have realtime enabled in Supabase. If not already enabled, a migration or Supabase dashboard toggle will be needed.
+After the legacy block (ending ~line 2561), add a standalone history section for the case where there are no attachments but history exists:
+
+```typescript
+{doc.attachmentCount === 0 && documentHistoryByDoc?.[doc.id] && (documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]).length > 0 && (
+  <div className="mt-2 ml-8">
+    <DocumentHistorySection
+      history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
+      companyId={visaApplication?.company_id}
+      onViewDocument={(url, fileName) => setHistoryPreview({ url, name: fileName })}
+      inline
+    />
+  </div>
+)}
+```
+
+This ensures: (1) no broken thumbnail for deleted files, and (2) history entries still display when all files have been removed.
+
