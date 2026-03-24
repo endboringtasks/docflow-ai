@@ -269,11 +269,15 @@ Deno.serve(async (req) => {
         const driveFileId = filePath.replace('drive://', '')
         const accessToken = await getValidAccessToken(supabase, companyId)
         if (accessToken) {
-          const deletedName = `DELETED_${attachmentData.file_name}`
-          console.log(`Renaming deleted Drive file ${driveFileId} to ${deletedName}`)
-          await renameGoogleDriveFile(accessToken, driveFileId, deletedName)
+          console.log(`Deleting Drive file ${driveFileId} (CDR compliance)`)
+          await deleteGoogleDriveFile(accessToken, driveFileId)
+          // Also delete from app folder if present
+          if (attachmentData.drive_app_folder_file_id) {
+            console.log(`Deleting Drive app folder file ${attachmentData.drive_app_folder_file_id}`)
+            await deleteGoogleDriveFile(accessToken, attachmentData.drive_app_folder_file_id)
+          }
         } else {
-          console.warn('No valid access token for renaming deleted Drive file, skipping rename')
+          console.warn('No valid access token for deleting Drive file, skipping delete')
         }
       } else if (filePath && !filePath.startsWith('drive://')) {
         const { error: removeError } = await supabase.storage
