@@ -1,31 +1,24 @@
 
 
-## Fix: Client Portal Document Background Colors to Match Agent View
+## Remove Circle Icons and Fix Document Name Color in Client Portal
 
 ### Problem
-In the client portal, document card backgrounds are determined by `is_completed` (green) rather than `review_status`. So when a document is "In Review", it shows a green background instead of the blue background used in the agent's application view.
+The client portal shows circle/checkmark icons next to document names and turns completed document names green, which is inconsistent with the agent's application view.
 
-### Change
+### Changes
 
-**File: `src/pages/client-portal/ClientPortal.tsx` (~lines 1138-1145)**
+**File: `src/pages/client-portal/ClientPortal.tsx`**
 
-Update the background color logic to prioritize `review_status` over `is_completed`, matching the agent view:
+1. **Remove the circle icon block** (~lines 1155-1161): Delete the `<div className="flex-shrink-0">` block containing `CheckCircle2` and `Circle` icons.
 
-```typescript
-className={`rounded-lg border transition-all ${
-  isRejected
-    ? "bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-800 border-2"
-    : doc.review_status === "in_review" && doc.attachment_count > 0
-      ? "bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800"
-      : doc.review_status === "approved" && doc.attachment_count > 0
-        ? "bg-[#f4fbf6] dark:bg-slate-900/30 border-[#e8f0eb] dark:border-slate-700"
-        : doc.is_completed
-          ? "bg-[#f4fbf6] dark:bg-slate-900/30 border-[#e8f0eb] dark:border-slate-700"
-          : dragOverDocId === doc.id
-            ? "bg-primary/10 border-primary border-dashed"
-            : "bg-background border-border/50 hover:border-border"
-}`}
-```
+2. **Remove green text color from document name** (~line 1164): Change:
+   ```typescript
+   <p className={`font-medium text-sm ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
+   ```
+   To:
+   ```typescript
+   <p className="font-medium text-sm">
+   ```
 
-This gives "In Review" documents a blue-tinted background (matching the agent view's `bg-blue-500/5`) and keeps the green for approved/completed documents.
+These two changes align the client portal document rows with the agent's application view — no leading circle icons, and document names use the default foreground color regardless of completion status. The status badges (In Review, Approved, Rejected) already communicate the document state.
 
