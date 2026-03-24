@@ -220,37 +220,38 @@ export function DocumentHistorySection({
                   </span>
                 )}
               </div>
-              {/* Download and View buttons together */}
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs text-muted-foreground"
-                  onClick={() => handleDownload(entry)}
-                  disabled={loadingId === `${entry.id}:download`}
-                >
-                  {loadingId === `${entry.id}:download` ? (
-                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  ) : (
-                    <Download className="w-3 h-3 mr-1" />
-                  )}
-                  Download
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs text-primary"
-                  onClick={() => handleViewDocument(entry)}
-                  disabled={loadingId === `${entry.id}:view`}
-                >
-                  {loadingId === `${entry.id}:view` ? (
-                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  ) : (
-                    <Eye className="w-3 h-3 mr-1" />
-                  )}
-                  Review
-                </Button>
-              </div>
+              {entry.archived_reason !== 'client_deleted' && (
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-muted-foreground"
+                    onClick={() => handleDownload(entry)}
+                    disabled={loadingId === `${entry.id}:download`}
+                  >
+                    {loadingId === `${entry.id}:download` ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Download className="w-3 h-3 mr-1" />
+                    )}
+                    Download
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-primary"
+                    onClick={() => handleViewDocument(entry)}
+                    disabled={loadingId === `${entry.id}:view`}
+                  >
+                    {loadingId === `${entry.id}:view` ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Eye className="w-3 h-3 mr-1" />
+                    )}
+                    Review
+                  </Button>
+                </div>
+              )}
             </div>
 
               {/* Dates */}
