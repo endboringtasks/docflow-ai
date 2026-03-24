@@ -1,24 +1,38 @@
 
 
-## Keep Document History Visible on Application Detail Page
+## Fix: Document History Not Updating in Real-Time
 
 ### Problem
-On the Application Detail page, the "Previous Versions" section is rendered inside a collapsible that starts collapsed. The user wants it always visible (expanded) on this page, while keeping the collapsible behavior in the client portal.
+When a client uploads and deletes a file, the new history entry doesn't appear on the Application Detail page until a manual refresh. The realtime subscription listens to `document_checklist` and `document_attachments` tables, but **not** `document_attachment_history`. When the edge function archives a deleted file to history, no realtime event triggers a re-fetch of the history query.
+
+Although the `document_checklist` change does trigger invalidation of `["document-history", visaApplicationId]`, React Query may serve stale data if the invalidation races with the history insert (the checklist update and history insert happen in the same edge function call, but the realtime event for checklist may fire before the history row is committed).
+
+### Solution
+Add a realtime subscription for the `document_attachment_history` table to the existing channel in `ApplicationDetail.tsx`.
 
 ### Change
 
-**File: `src/pages/migration/ApplicationDetail.tsx` (~lines 2514 and 2537)**
+**File: `src/pages/migration/ApplicationDetail.tsx` (~line 1055, before `.subscribe()`)**
 
-Pass `inline={true}` to both `DocumentHistorySection` usages so the history entries render directly without the collapsible wrapper:
+Add a third `.on()` listener to the existing channel:
 
-```tsx
-<DocumentHistorySection
-  history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
-  companyId={visaApplication?.company_id}
-  onViewDocument={(url, fileName) => setHistoryPreview({ url, name: fileName })}
-  inline
-/>
+```typescript
+.on(
+  "postgres_changes",
+  {
+    event: "INSERT",
+    schema: "public",
+    table: "document_attachment_history",
+  },
+  (payload) => {
+    const checklistId = (payload.new as any)?.document_checklist_id;
+    if (checklistId && docIdsForHistory.includes(checklistId)) {
+      queryClient.invalidateQueries({ queryKey: ["document-history", visaApplicationId] });
+    }
+  }
+)
 ```
 
-The `inline` prop already exists on the component and renders the timeline content directly without the `Collapsible` wrapper. No other files need changes.
+This ensures that whenever a new history record is inserted (from upload-then-delete or rejection archiving), the history query is immediately re-fetched.
 
+**Note**: The `document_attachment_history` table must have realtime enabled in Supabase. If not already enabled, a migration or Supabase dashboard toggle will be needed.
