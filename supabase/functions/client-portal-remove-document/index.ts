@@ -105,30 +105,26 @@ async function getValidAccessToken(
   return accessToken
 }
 
-async function renameGoogleDriveFile(
+async function deleteGoogleDriveFile(
   accessToken: string,
-  fileId: string,
-  newName: string
+  fileId: string
 ): Promise<boolean> {
   try {
     const response = await fetch(
       `https://www.googleapis.com/drive/v3/files/${fileId}`,
       {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: newName }),
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` },
       }
     )
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
-      console.error('Google Drive rename error:', response.status, errorData)
+    // 204 = success, 404 = already gone (both are fine)
+    if (!response.ok && response.status !== 404) {
+      console.error('Google Drive delete error:', response.status)
+      return false
     }
-    return response.ok
+    return true
   } catch (error) {
-    console.error('Failed to rename Drive file:', error)
+    console.error('Failed to delete Drive file:', error)
     return false
   }
 }
