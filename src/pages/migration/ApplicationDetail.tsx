@@ -2293,15 +2293,17 @@ const VisaApplicationDetail = () => {
                         <motion.div
                           key={doc.id}
                           className={`p-3 rounded-lg border transition-colors ${
-                            doc.reviewStatus === "approved" 
-                              ? "bg-green-500/5 border-green-500/20"
-                              : doc.reviewStatus === "rejected"
-                              ? "bg-destructive/5 border-destructive/20"
-                              : doc.reviewStatus === "in_review"
-                              ? "bg-blue-500/5 border-blue-500/20"
-                              : doc.completed 
-                              ? "bg-primary/5 border-primary/20" 
-                              : "bg-background border-border/50 hover:border-border"
+                             doc.attachmentCount === 0
+                               ? "bg-background border-border/50 hover:border-border"
+                               : doc.reviewStatus === "approved" 
+                               ? "bg-green-500/5 border-green-500/20"
+                               : doc.reviewStatus === "rejected"
+                               ? "bg-destructive/5 border-destructive/20"
+                               : doc.reviewStatus === "in_review"
+                               ? "bg-blue-500/5 border-blue-500/20"
+                               : doc.completed 
+                               ? "bg-primary/5 border-primary/20" 
+                               : "bg-background border-border/50 hover:border-border"
                           }`}
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
