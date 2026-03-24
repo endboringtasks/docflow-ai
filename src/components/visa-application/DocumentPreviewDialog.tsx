@@ -427,20 +427,6 @@ export function DocumentPreviewDialog({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleRequestNew}
-                disabled={isSubmitting || !comment.trim()}
-                title={!comment.trim() ? "Add a comment first" : undefined}
-              >
-                {isSubmitting ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 mr-2" />
-                )}
-                Request Different Doc
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
                 onClick={() => handleReview("in_review")}
                 disabled={isSubmitting}
                 className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
