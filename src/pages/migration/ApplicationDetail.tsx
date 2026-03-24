@@ -2510,14 +2510,6 @@ const VisaApplicationDetail = () => {
                                           ({(attachment.file_size / 1024).toFixed(0)} KB)
                                         </span>
                                       )}
-                                      {attachment.file_type && (() => {
-                                        const fileType = getFileTypeBadge(attachment.file_path);
-                                        return fileType ? (
-                                          <Badge variant="outline" className={`text-xs ${fileType.color}`}>
-                                            {fileType.label}
-                                          </Badge>
-                                        ) : null;
-                                      })()}
                                     </div>
                                   </div>
                                 ))}
