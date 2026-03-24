@@ -105,30 +105,26 @@ async function getValidAccessToken(
   return accessToken
 }
 
-async function renameGoogleDriveFile(
+async function deleteGoogleDriveFile(
   accessToken: string,
-  fileId: string,
-  newName: string
+  fileId: string
 ): Promise<boolean> {
   try {
     const response = await fetch(
       `https://www.googleapis.com/drive/v3/files/${fileId}`,
       {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: newName }),
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` },
       }
     )
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
-      console.error('Google Drive rename error:', response.status, errorData)
+    // 204 = success, 404 = already gone (both are fine)
+    if (!response.ok && response.status !== 404) {
+      console.error('Google Drive delete error:', response.status)
+      return false
     }
-    return response.ok
+    return true
   } catch (error) {
-    console.error('Failed to rename Drive file:', error)
+    console.error('Failed to delete Drive file:', error)
     return false
   }
 }
@@ -187,6 +183,7 @@ Deno.serve(async (req) => {
           uploaded_at,
           uploaded_by,
           uploaded_by_client,
+          drive_app_folder_file_id,
           document_checklist_id,
           document_checklist!inner (
             id,
@@ -272,11 +269,15 @@ Deno.serve(async (req) => {
         const driveFileId = filePath.replace('drive://', '')
         const accessToken = await getValidAccessToken(supabase, companyId)
         if (accessToken) {
-          const deletedName = `DELETED_${attachmentData.file_name}`
-          console.log(`Renaming deleted Drive file ${driveFileId} to ${deletedName}`)
-          await renameGoogleDriveFile(accessToken, driveFileId, deletedName)
+          console.log(`Deleting Drive file ${driveFileId} (CDR compliance)`)
+          await deleteGoogleDriveFile(accessToken, driveFileId)
+          // Also delete from app folder if present
+          if (attachmentData.drive_app_folder_file_id) {
+            console.log(`Deleting Drive app folder file ${attachmentData.drive_app_folder_file_id}`)
+            await deleteGoogleDriveFile(accessToken, attachmentData.drive_app_folder_file_id)
+          }
         } else {
-          console.warn('No valid access token for renaming deleted Drive file, skipping rename')
+          console.warn('No valid access token for deleting Drive file, skipping delete')
         }
       } else if (filePath && !filePath.startsWith('drive://')) {
         const { error: removeError } = await supabase.storage
@@ -370,7 +371,7 @@ Deno.serve(async (req) => {
       // Get all attachments for this document
       const { data: attachments } = await supabase
         .from('document_attachments')
-        .select('id, file_path, file_name, file_type, file_size, uploaded_at, uploaded_by, uploaded_by_client')
+        .select('id, file_path, file_name, file_type, file_size, uploaded_at, uploaded_by, uploaded_by_client, drive_app_folder_file_id')
         .eq('document_checklist_id', doc_id)
 
       // Archive and delete all attachments
@@ -399,19 +400,22 @@ Deno.serve(async (req) => {
           console.log('Archived', attachments.length, 'attachments to history')
         }
 
-        // Rename Drive files with DELETED_ prefix
+        // Delete Drive files (CDR compliance)
         const driveAttachments = attachments.filter(a => a.file_path && a.file_path.startsWith('drive://'))
         if (driveAttachments.length > 0 && docData.company_id) {
           const accessToken = await getValidAccessToken(supabase, docData.company_id)
           if (accessToken) {
             for (const att of driveAttachments) {
               const driveFileId = att.file_path.replace('drive://', '')
-              const deletedName = `DELETED_${att.file_name}`
-              console.log(`Renaming deleted Drive file ${driveFileId} to ${deletedName}`)
-              await renameGoogleDriveFile(accessToken, driveFileId, deletedName)
+              console.log(`Deleting Drive file ${driveFileId} (CDR compliance)`)
+              await deleteGoogleDriveFile(accessToken, driveFileId)
+              if (att.drive_app_folder_file_id) {
+                console.log(`Deleting Drive app folder file ${att.drive_app_folder_file_id}`)
+                await deleteGoogleDriveFile(accessToken, att.drive_app_folder_file_id)
+              }
             }
           } else {
-            console.warn('No valid access token for renaming deleted Drive files, skipping rename')
+            console.warn('No valid access token for deleting Drive files, skipping delete')
           }
         }
 
@@ -451,11 +455,12 @@ Deno.serve(async (req) => {
           console.error('Failed to remove legacy file from storage:', removeError)
         }
       } else if (docData.file_path && docData.file_path.startsWith('drive://') && docData.company_id) {
-        // Rename legacy Drive file too
+        // Delete legacy Drive file (CDR compliance)
         const driveFileId = docData.file_path.replace('drive://', '')
         const accessToken = await getValidAccessToken(supabase, docData.company_id)
         if (accessToken) {
-          await renameGoogleDriveFile(accessToken, driveFileId, `DELETED_legacy_file`)
+          console.log(`Deleting legacy Drive file ${driveFileId} (CDR compliance)`)
+          await deleteGoogleDriveFile(accessToken, driveFileId)
         }
       }
 
