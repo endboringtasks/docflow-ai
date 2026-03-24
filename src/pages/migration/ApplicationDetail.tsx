@@ -2513,7 +2513,7 @@ const VisaApplicationDetail = () => {
                                   <DocumentHistorySection
                                     history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
                                     companyId={visaApplication?.company_id}
-                                    inline={true}
+                                    
                                     onViewDocument={(url, fileName) => setHistoryPreview({ url, name: fileName })}
                                   />
                                 </div>
