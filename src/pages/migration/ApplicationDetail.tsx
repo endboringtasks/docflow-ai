@@ -2536,7 +2536,7 @@ const VisaApplicationDetail = () => {
                             </div>
                           )}
                           {/* Legacy single file display (for backward compatibility) */}
-                          {doc.filePath && (!doc.attachments || doc.attachments.length === 0) && (
+{doc.filePath && doc.attachmentCount > 0 && (!doc.attachments || doc.attachments.length === 0) && (
                             <div className="mt-2 ml-8 space-y-2">
                               <div className="flex items-center gap-2">
                                 <DocumentThumbnail
@@ -2557,6 +2557,17 @@ const VisaApplicationDetail = () => {
                                   />
                                 </div>
                               )}
+                            </div>
+                          )}
+                          {/* History section when all files deleted (no thumbnail) */}
+                          {doc.attachmentCount === 0 && (!doc.attachments || doc.attachments.length === 0) && documentHistoryByDoc?.[doc.id] && (documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]).length > 0 && (
+                            <div className="mt-2 ml-8">
+                              <DocumentHistorySection
+                                history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
+                                companyId={visaApplication?.company_id}
+                                onViewDocument={(url, fileName) => setHistoryPreview({ url, name: fileName })}
+                                inline
+                              />
                             </div>
                           )}
                         </motion.div>
