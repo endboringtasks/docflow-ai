@@ -2535,11 +2535,11 @@ const VisaApplicationDetail = () => {
                               {/* Document History - inline on page for legacy files */}
                               {documentHistoryByDoc?.[doc.id] && (documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]).length > 0 && (
                                 <div className="mt-2">
-                                  <DocumentHistorySection
+                                   <DocumentHistorySection
                                     history={documentHistoryByDoc[doc.id] as DocumentHistoryEntry[]}
                                     companyId={visaApplication?.company_id}
-                                    
                                     onViewDocument={(url, fileName) => setHistoryPreview({ url, name: fileName })}
+                                    inline
                                   />
                                 </div>
                               )}
