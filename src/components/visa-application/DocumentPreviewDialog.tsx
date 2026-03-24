@@ -46,7 +46,7 @@ interface DocumentPreviewDialogProps {
     storageObjectPath?: string | null;
   } | null;
   onReviewUpdate: (docId: string, status: ReviewStatus, comment: string) => Promise<void>;
-  onRequestNewDocument: (docId: string, comment: string) => Promise<void>;
+  
   companyId?: string;
   documentHistory?: DocumentHistoryEntry[];
 }
