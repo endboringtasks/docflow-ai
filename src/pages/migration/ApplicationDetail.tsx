@@ -1748,12 +1748,8 @@ const VisaApplicationDetail = () => {
     const conditionalDisabled = documents.filter(d => d.requirementType === "conditional" && !d.isApplicable);
 
     if (reviewFilter === "all") return [...applicableDocuments, ...conditionalDisabled];
-    if (reviewFilter === "pending_client") return [
-      ...applicableDocuments.filter(d => !d.filePath),
-      ...conditionalDisabled,
-    ];
     return [
-      ...applicableDocuments.filter(d => d.filePath && d.reviewStatus === reviewFilter),
+      ...applicableDocuments.filter(d => d.reviewStatus === reviewFilter),
       ...conditionalDisabled,
     ];
   }, [documents, applicableDocuments, reviewFilter]);
