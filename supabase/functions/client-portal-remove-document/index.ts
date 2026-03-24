@@ -455,11 +455,12 @@ Deno.serve(async (req) => {
           console.error('Failed to remove legacy file from storage:', removeError)
         }
       } else if (docData.file_path && docData.file_path.startsWith('drive://') && docData.company_id) {
-        // Rename legacy Drive file too
+        // Delete legacy Drive file (CDR compliance)
         const driveFileId = docData.file_path.replace('drive://', '')
         const accessToken = await getValidAccessToken(supabase, docData.company_id)
         if (accessToken) {
-          await renameGoogleDriveFile(accessToken, driveFileId, `DELETED_legacy_file`)
+          console.log(`Deleting legacy Drive file ${driveFileId} (CDR compliance)`)
+          await deleteGoogleDriveFile(accessToken, driveFileId)
         }
       }
 
