@@ -183,6 +183,7 @@ Deno.serve(async (req) => {
           uploaded_at,
           uploaded_by,
           uploaded_by_client,
+          drive_app_folder_file_id,
           document_checklist_id,
           document_checklist!inner (
             id,
