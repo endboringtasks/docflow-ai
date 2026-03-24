@@ -1,10 +1,12 @@
 
 
-## Hide Download & Review Buttons for Deleted Documents
+## Use Collapsible "Previous Versions" in Applicant View
 
-**File: `src/components/visa-application/DocumentHistorySection.tsx`**
+The applicant view in `ApplicationDetail.tsx` currently passes `inline={true}` to `DocumentHistorySection`, which renders history entries flat without the collapsible wrapper. The client portal omits this prop, getting the collapsible "Previous Versions" UI with the badge count.
 
-Since deleted files no longer exist (per CDR compliance), the Download and Review buttons are non-functional for entries with `archived_reason === 'client_deleted'`. We'll conditionally hide them.
+### Change
 
-**Change:** Wrap the button container (lines 223-253) in a condition so it only renders when `entry.archived_reason !== 'client_deleted'`.
+**File: `src/pages/migration/ApplicationDetail.tsx`**
+
+Remove `inline={true}` from both `DocumentHistorySection` usages (lines 2493 and 2517) so the applicant view uses the same collapsible "Previous Versions" section as the client portal.
 
