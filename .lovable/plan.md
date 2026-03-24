@@ -1,18 +1,15 @@
 
 
-## Use Collapsible "Previous Versions" in Application View
+## Remove File Type Badges from Application View
 
 ### Problem
-The agent's application view shows document history inline (always expanded), while the client portal uses a collapsible "Previous Versions" section. The user wants consistency — both should use the collapsible style.
+The application view shows file type badges (PDF, Image, Word, etc.) next to document attachments, which the user wants removed for a cleaner look.
 
 ### Change
 
 **File: `src/pages/migration/ApplicationDetail.tsx`**
 
-Remove the `inline` prop from all three `DocumentHistorySection` usages (~lines 2532, 2556, 2569). This will make them render in the default collapsible mode with the "Previous Versions" header and badge, matching the client portal.
+1. **Remove the file type badge block** (~lines 2513-2520): Delete the `{attachment.file_type && (() => { ... })()}` block that renders the Badge with `getFileTypeBadge`.
 
-Three occurrences to update:
-1. Line 2532: multi-attachment history block
-2. Line 2556: legacy single-file history block  
-3. Line 2569: zero-attachment history block
+2. **Remove unused import** (~line 5): Remove `getFileTypeBadge` from the imports since it will no longer be used.
 
