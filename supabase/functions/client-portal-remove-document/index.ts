@@ -371,7 +371,7 @@ Deno.serve(async (req) => {
       // Get all attachments for this document
       const { data: attachments } = await supabase
         .from('document_attachments')
-        .select('id, file_path, file_name, file_type, file_size, uploaded_at, uploaded_by, uploaded_by_client')
+        .select('id, file_path, file_name, file_type, file_size, uploaded_at, uploaded_by, uploaded_by_client, drive_app_folder_file_id')
         .eq('document_checklist_id', doc_id)
 
       // Archive and delete all attachments
