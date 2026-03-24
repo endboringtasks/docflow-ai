@@ -2358,26 +2358,6 @@ const VisaApplicationDetail = () => {
                                 </Badge>
                               )}
                             </div>
-                            {/* Document Timeline */}
-                            {(doc.uploadedAt || doc.reviewedAt) && (
-                              <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-muted-foreground">
-                                {doc.uploadedAt && (
-                                  <span className="flex items-center gap-1">
-                                    <Calendar className="w-3 h-3" />
-                                    Uploaded {new Date(doc.uploadedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
-                                    {doc.uploadedByClientName && <span className="text-muted-foreground">by {doc.uploadedByClientName} (Client)</span>}
-                                    {!doc.uploadedByClientName && doc.uploadedByName && <span className="text-muted-foreground">by {doc.uploadedByName}</span>}
-                                  </span>
-                                )}
-                                {doc.reviewedAt && (
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    Reviewed {new Date(doc.reviewedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
-                                    {doc.reviewedByName && <span className="text-muted-foreground">by {doc.reviewedByName}</span>}
-                                  </span>
-                                )}
-                              </div>
-                            )}
                             <div className="flex items-center gap-2">
                               {/* File actions */}
                               {doc.attachmentCount > 0 && doc.attachments?.[0] && (
