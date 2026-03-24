@@ -1018,6 +1018,48 @@ const VisaApplicationDetail = () => {
     },
   });
 
+  // Real-time subscription for document checklist and attachment changes
+  useEffect(() => {
+    if (!visaApplicationId) return;
+
+    const channel = supabase
+      .channel(`doc-checklist-realtime-${visaApplicationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "document_checklist",
+          filter: `visa_application_id=eq.${visaApplicationId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
+          queryClient.invalidateQueries({ queryKey: ["document-history", visaApplicationId] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "document_attachments",
+        },
+        (payload) => {
+          // Only invalidate if the attachment belongs to a document in this application
+          const checklistId = (payload.new as any)?.document_checklist_id || (payload.old as any)?.document_checklist_id;
+          if (checklistId) {
+            queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
+            queryClient.invalidateQueries({ queryKey: ["document-history", visaApplicationId] });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [visaApplicationId, queryClient]);
+
 
   // Fetch application applicants for the custom document form
   const { data: applicationApplicants = [] } = useQuery({
