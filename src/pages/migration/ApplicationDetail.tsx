@@ -1053,6 +1053,20 @@ const VisaApplicationDetail = () => {
           }
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "document_attachment_history",
+        },
+        (payload) => {
+          const checklistId = (payload.new as any)?.document_checklist_id;
+          if (checklistId) {
+            queryClient.invalidateQueries({ queryKey: ["document-history", visaApplicationId] });
+          }
+        }
+      )
       .subscribe();
 
     return () => {
