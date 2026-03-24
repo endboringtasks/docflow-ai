@@ -2301,7 +2301,7 @@ const VisaApplicationDetail = () => {
                               ? "bg-blue-500/5 border-blue-500/20"
                               : doc.completed 
                               ? "bg-primary/5 border-primary/20" 
-                              : "bg-secondary/50 border-border/50"
+                              : "bg-background border-border/50 hover:border-border"
                           }`}
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
