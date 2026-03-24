@@ -46,7 +46,7 @@ interface DocumentPreviewDialogProps {
     storageObjectPath?: string | null;
   } | null;
   onReviewUpdate: (docId: string, status: ReviewStatus, comment: string) => Promise<void>;
-  onRequestNewDocument: (docId: string, comment: string) => Promise<void>;
+  
   companyId?: string;
   documentHistory?: DocumentHistoryEntry[];
 }
@@ -74,7 +74,7 @@ export function DocumentPreviewDialog({
   onOpenChange,
   document,
   onReviewUpdate,
-  onRequestNewDocument,
+  
   companyId,
   documentHistory = [],
 }: DocumentPreviewDialogProps) {
@@ -216,23 +216,6 @@ export function DocumentPreviewDialog({
     }
   };
 
-  const handleRequestNew = async () => {
-    if (!document || !comment.trim()) {
-      toast.error("Please add a comment explaining what document is needed");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await onRequestNewDocument(document.id, comment);
-      toast.success("Request sent to client");
-      onOpenChange(false);
-    } catch (error) {
-      toast.error("Failed to send request");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const getStatusBadge = (status: ReviewStatus) => {
     const config = {
@@ -441,20 +424,6 @@ export function DocumentPreviewDialog({
           {/* Action Buttons */}
           <div className="flex items-center justify-end gap-3 pt-2 border-t">
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRequestNew}
-                disabled={isSubmitting || !comment.trim()}
-                title={!comment.trim() ? "Add a comment first" : undefined}
-              >
-                {isSubmitting ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 mr-2" />
-                )}
-                Request Different Doc
-              </Button>
               <Button
                 variant="outline"
                 size="sm"
