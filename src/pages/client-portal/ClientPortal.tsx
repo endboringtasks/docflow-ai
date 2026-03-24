@@ -1152,16 +1152,9 @@ export default function ClientPortal() {
                                                   >
                                                     {/* Document Header */}
                                                     <div className="flex items-center gap-4 p-3">
-                                                      <div className="flex-shrink-0">
-                                                        {doc.is_completed ? (
-                                                          <CheckCircle2 className="w-5 h-5 text-green-600" />
-                                                        ) : (
-                                                          <Circle className="w-5 h-5 text-muted-foreground" />
-                                                        )}
-                                                      </div>
                                                       <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2 flex-wrap">
-                                                          <p className={`font-medium text-sm ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
+                                                          <p className="font-medium text-sm">
                                                             {doc.document_name.replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ").replace(/\s*\(Translation\)\s*/gi, "").trim()}
                                                           </p>
                                                           {/* Requirement Type Badge */}
