@@ -2873,7 +2873,7 @@ const VisaApplicationDetail = () => {
             storageObjectPath: previewDoc.attachments?.[0]?.storage_object_path || null,
           } : null}
           onReviewUpdate={handleReviewUpdate}
-          onRequestNewDocument={handleRequestNewDocument}
+          
           companyId={visaApplication?.company_id}
           documentHistory={previewDoc ? (documentHistoryByDoc?.[previewDoc.id] as DocumentHistoryEntry[] || []) : []}
         />
