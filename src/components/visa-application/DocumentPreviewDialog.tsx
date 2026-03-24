@@ -216,23 +216,6 @@ export function DocumentPreviewDialog({
     }
   };
 
-  const handleRequestNew = async () => {
-    if (!document || !comment.trim()) {
-      toast.error("Please add a comment explaining what document is needed");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await onRequestNewDocument(document.id, comment);
-      toast.success("Request sent to client");
-      onOpenChange(false);
-    } catch (error) {
-      toast.error("Failed to send request");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const getStatusBadge = (status: ReviewStatus) => {
     const config = {
