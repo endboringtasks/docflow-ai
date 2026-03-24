@@ -400,19 +400,22 @@ Deno.serve(async (req) => {
           console.log('Archived', attachments.length, 'attachments to history')
         }
 
-        // Rename Drive files with DELETED_ prefix
+        // Delete Drive files (CDR compliance)
         const driveAttachments = attachments.filter(a => a.file_path && a.file_path.startsWith('drive://'))
         if (driveAttachments.length > 0 && docData.company_id) {
           const accessToken = await getValidAccessToken(supabase, docData.company_id)
           if (accessToken) {
             for (const att of driveAttachments) {
               const driveFileId = att.file_path.replace('drive://', '')
-              const deletedName = `DELETED_${att.file_name}`
-              console.log(`Renaming deleted Drive file ${driveFileId} to ${deletedName}`)
-              await renameGoogleDriveFile(accessToken, driveFileId, deletedName)
+              console.log(`Deleting Drive file ${driveFileId} (CDR compliance)`)
+              await deleteGoogleDriveFile(accessToken, driveFileId)
+              if (att.drive_app_folder_file_id) {
+                console.log(`Deleting Drive app folder file ${att.drive_app_folder_file_id}`)
+                await deleteGoogleDriveFile(accessToken, att.drive_app_folder_file_id)
+              }
             }
           } else {
-            console.warn('No valid access token for renaming deleted Drive files, skipping rename')
+            console.warn('No valid access token for deleting Drive files, skipping delete')
           }
         }
 
