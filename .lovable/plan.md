@@ -1,24 +1,18 @@
 
 
-## Remove Circle Icons and Fix Document Name Color in Client Portal
+## Use Collapsible "Previous Versions" in Application View
 
 ### Problem
-The client portal shows circle/checkmark icons next to document names and turns completed document names green, which is inconsistent with the agent's application view.
+The agent's application view shows document history inline (always expanded), while the client portal uses a collapsible "Previous Versions" section. The user wants consistency — both should use the collapsible style.
 
-### Changes
+### Change
 
-**File: `src/pages/client-portal/ClientPortal.tsx`**
+**File: `src/pages/migration/ApplicationDetail.tsx`**
 
-1. **Remove the circle icon block** (~lines 1155-1161): Delete the `<div className="flex-shrink-0">` block containing `CheckCircle2` and `Circle` icons.
+Remove the `inline` prop from all three `DocumentHistorySection` usages (~lines 2532, 2556, 2569). This will make them render in the default collapsible mode with the "Previous Versions" header and badge, matching the client portal.
 
-2. **Remove green text color from document name** (~line 1164): Change:
-   ```typescript
-   <p className={`font-medium text-sm ${doc.is_completed ? "text-green-700 dark:text-green-400" : ""}`}>
-   ```
-   To:
-   ```typescript
-   <p className="font-medium text-sm">
-   ```
-
-These two changes align the client portal document rows with the agent's application view — no leading circle icons, and document names use the default foreground color regardless of completion status. The status badges (In Review, Approved, Rejected) already communicate the document state.
+Three occurrences to update:
+1. Line 2532: multi-attachment history block
+2. Line 2556: legacy single-file history block  
+3. Line 2569: zero-attachment history block
 
