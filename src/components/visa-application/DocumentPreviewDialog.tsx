@@ -74,7 +74,7 @@ export function DocumentPreviewDialog({
   onOpenChange,
   document,
   onReviewUpdate,
-  onRequestNewDocument,
+  
   companyId,
   documentHistory = [],
 }: DocumentPreviewDialogProps) {
