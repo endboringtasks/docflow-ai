@@ -1138,11 +1138,13 @@ export default function ClientPortal() {
                                                     className={`rounded-lg border transition-all ${
                                                       isRejected
                                                         ? "bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-800 border-2"
-                                                        : doc.is_completed 
-                                                          ? "bg-[#f4fbf6] dark:bg-slate-900/30 border-[#e8f0eb] dark:border-slate-700"
-                                                          : dragOverDocId === doc.id
-                                                            ? "bg-primary/10 border-primary border-dashed"
-                                                            : "bg-background border-border/50 hover:border-border"
+                                                        : doc.review_status === "in_review" && doc.attachment_count > 0
+                                                          ? "bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800"
+                                                          : (doc.review_status === "approved" && doc.attachment_count > 0) || doc.is_completed
+                                                            ? "bg-[#f4fbf6] dark:bg-slate-900/30 border-[#e8f0eb] dark:border-slate-700"
+                                                            : dragOverDocId === doc.id
+                                                              ? "bg-primary/10 border-primary border-dashed"
+                                                              : "bg-background border-border/50 hover:border-border"
                                                     }`}
                                                     onDragOver={(e) => handleDragOver(e, doc.id)}
                                                     onDragLeave={handleDragLeave}
