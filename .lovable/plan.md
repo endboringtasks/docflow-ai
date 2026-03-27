@@ -1,32 +1,21 @@
 
 
-## Fix Review Status Filter in Application Page
+## Remove "Document Checklist" Tab from Admin Reference Data
 
 ### Problem
-The filter logic at lines 1751-1758 is incorrect:
-- **"pending_client"** filter checks `!d.filePath` (no file) instead of `d.reviewStatus === "pending_client"`
-- **"rejected"** and **"in_review"** filters require `d.filePath` to be truthy AND matching status — so rejected documents whose files were deleted (filePath is null) get excluded
+The "Document Checklist" tab in the admin Reference Data page provides a way to associate documents with applications, but this is now handled exclusively via the "Application Checklist" tab. The redundant tab should be removed.
 
-### Root Cause
-The filter conflates "has a file" with review status, instead of relying on the `reviewStatus` field which already correctly reflects the document's state.
+### Changes
 
-### Fix
+**File: `src/pages/admin/ReferenceData.tsx`**
 
-**File: `src/pages/migration/ApplicationDetail.tsx` (~lines 1746-1758)**
+1. **Remove the tab trigger** (lines 3416-3419): Delete the `<TabsTrigger value="documents">` block for "Document Checklist".
 
-Replace the filter logic to use `reviewStatus` consistently:
+2. **Remove the tab content** (lines 3460-3462): Delete the `<TabsContent value="documents">` block that renders `<DocumentsTab />`.
 
-```typescript
-const filteredDocuments = useMemo(() => {
-  const conditionalDisabled = documents.filter(d => d.requirementType === "conditional" && !d.isApplicable);
+3. **Remove the `DocumentsTab` component/function**: Search for the `DocumentsTab` definition within the file (it's a large inline component ~lines 2400-2900) and remove it entirely.
 
-  if (reviewFilter === "all") return [...applicableDocuments, ...conditionalDisabled];
-  return [
-    ...applicableDocuments.filter(d => d.reviewStatus === reviewFilter),
-    ...conditionalDisabled,
-  ];
-}, [documents, applicableDocuments, reviewFilter]);
-```
+4. **Clean up unused imports**: Remove any imports that were only used by `DocumentsTab` (e.g., `CheckSquare` icon if unused elsewhere).
 
-This single change makes all filter options — Pending Client, Ready to Review, Approved, Rejected — work correctly by matching on the actual `reviewStatus` field.
+This leaves "Documents List" (master catalog for document identity) and "Application Checklist" (document-application rules) as the two document management tabs — a cleaner two-level hierarchy.
 
