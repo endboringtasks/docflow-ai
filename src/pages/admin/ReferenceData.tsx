@@ -129,7 +129,7 @@ interface TranslationCertificationType {
   country?: Country;
 }
 
-}
+
 
 // Countries Tab Component
 function CountriesTab() {
