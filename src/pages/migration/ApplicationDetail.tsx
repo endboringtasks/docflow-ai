@@ -790,8 +790,30 @@ const VisaApplicationDetail = () => {
           if (templatesError) throw templatesError;
 
           if (templates && templates.length > 0) {
+            // Fetch active applicant types for this application
+            const { data: activeApplicants } = await supabase
+              .from("application_applicants")
+              .select("applicant_type:applicant_types(name)")
+              .eq("visa_application_id", visaApplicationId);
+
+            const activeApplicantTypeNames = new Set(
+              (activeApplicants || [])
+                .map((a: any) => a.applicant_type?.name)
+                .filter(Boolean)
+            );
+
+            // Filter templates to only include those matching active applicant types
+            const filteredTemplates = templates.filter((template: any) => {
+              const typeName = template.applicant_type?.name;
+              return !typeName || activeApplicantTypeNames.has(typeName);
+            });
+
+            if (filteredTemplates.length === 0) {
+              console.log("No matching templates after applicant type filtering");
+            }
+
             // First pass: create all original documents (upsert for idempotency)
-            const documentsToInsert = templates.map((template: any) => {
+            const documentsToInsert = filteredTemplates.map((template: any) => {
               const category = template.category || "General";
               const required = !!template.is_required;
               const rawName = String(template.document_name || "").trim();
