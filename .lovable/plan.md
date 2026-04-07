@@ -1,39 +1,47 @@
 
 
-## Update Application Card Display
+## Filter Document Checklist by Actual Application Applicants
 
-### Summary
-Three changes to how application cards display across the app:
-1. Show visa subclass code after the flag: `🇦🇺 500 Student`
-2. Replace the "Subclass 500 - Student Visa" line with the subcategory name
-3. Add an application number in format `500-Student-b5dc8956` (visa_subclass + application_name + first 8 chars of UUID)
+### Problem
+When documents are initialized for an application (in `ApplicationDetail.tsx`), ALL templates linked to the visa type are inserted — including those with `applicant_type = "Partner"` or "Dependant" — regardless of whether such applicant types were actually added to the application via `application_applicants`. This causes partner/dependant documents to appear automatically whenever a partner exists on the client profile.
 
-### Changes
+### Root Cause
+The document initialization logic (around line 792) maps templates to checklist items without checking `application_applicants`. It blindly includes all templates, so if any template has `applicant_type = "Partner"`, partner documents appear even if no partner was added to this specific application.
 
-**File: `src/pages/migration/ApplicationDetail.tsx` (header area ~lines 1867-1883)**
+### Fix
 
-1. Change the title line from `🇦🇺 Student` to `🇦🇺 500 Student` — insert `visa_subclass` between flag and `application_name`
-2. Replace the "Subclass 500 - Student Visa" paragraph with the subcategory name (need to fetch subcategories data — currently not loaded in this component)
-3. Add application number line: `500-Student-b5dc8956` using `visa_subclass`, `application_name`, and first 8 chars of `id`
-4. Fetch `application_subcategories` in the existing data-loading query so subcategory name is available
+**File: `src/pages/migration/ApplicationDetail.tsx` (~lines 792-830)**
 
-**File: `src/pages/migration/ClientDetail.tsx` (~lines 773-792)**
+1. **Before inserting documents**, query `application_applicants` for this application to get the list of active applicant type names (e.g., "Primary", "Partner", "Dependant").
 
-1. Same title change: insert `visa_subclass` code between flag and `application_name`
-2. Replace the `visa_subclass` subtitle line with subcategory name (need to add `subcategory_id` to interface and fetch subcategories)
-3. Add application number below
-4. Update `VisaApplication` interface to include `subcategory_id`
-5. Fetch `application_subcategories` reference data
+2. **Filter templates**: Only include templates where:
+   - `applicant_type` is null (applies to everyone), OR
+   - `applicant_type.name` matches one of the active applicant types in the application
 
-**File: `src/pages/migration/Applications.tsx` (~lines 1140-1172)**
+3. Apply the same filtering to the **second initialization path** (the fallback around line 1238 if applicable).
 
-1. Same title change: insert `visa_subclass` between flag and name
-2. In the subtitle line, replace the `visa_subclass` text with subcategory name (already available via `getSubcategoryName`)
-3. Remove the existing subcategory Badge (now shown in subtitle instead)
-4. Add application number
+### Technical Detail
 
-### Application Number Format
-Computed client-side: `{visa_subclass}-{application_name}-{id.slice(0,8)}`
-Example: `500-Student-b5dc8956`
-No database changes needed — purely derived from existing fields.
+```typescript
+// Before document insertion, fetch active applicant types for this application
+const { data: activeApplicants } = await supabase
+  .from("application_applicants")
+  .select("applicant_type:applicant_types(name)")
+  .eq("visa_application_id", visaApplicationId);
+
+const activeApplicantTypeNames = new Set(
+  (activeApplicants || [])
+    .map(a => a.applicant_type?.name)
+    .filter(Boolean)
+);
+
+// Then filter templates before insertion:
+const filteredTemplates = templates.filter((template: any) => {
+  const typeName = template.applicant_type?.name;
+  // Include if no applicant type specified, or if the type is active on this application
+  return !typeName || activeApplicantTypeNames.has(typeName);
+});
+```
+
+This ensures that partner/dependant documents only appear when those applicant types have been explicitly added to the application — not just because they exist on the client profile.
 
