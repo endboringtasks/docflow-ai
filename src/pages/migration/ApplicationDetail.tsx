@@ -418,7 +418,21 @@ const VisaApplicationDetail = () => {
     },
   });
 
-  // Fetch translation certification types
+  // Fetch application subcategories
+  const { data: subcategories = [] } = useQuery({
+    queryKey: ["application-subcategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("application_subcategories")
+        .select("id, name, code, description, category_id, country_id")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+
   const { data: certificationTypes = [] } = useQuery({
     queryKey: ["translation-certification-types"],
     queryFn: async () => {
