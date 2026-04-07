@@ -1148,12 +1148,9 @@ const MigrationVisaApplications = () => {
                           {getCategoryName(application.category_id)}
                         </Badge>
                       )}
-                      {application.subcategory_id && (
-                        <Badge variant="outline">
-                          {getSubcategoryName(application.subcategory_id)}
-                        </Badge>
-                      )}
-                      <h3 className="font-semibold truncate">{application.application_name}</h3>
+                      <h3 className="font-semibold truncate">
+                        {application.visa_subclass ? `${application.visa_subclass} ` : ''}{application.application_name}
+                      </h3>
                       <Badge variant={getStatusColor(application.status)}>
                         {application.status}
                       </Badge>
@@ -1161,12 +1158,14 @@ const MigrationVisaApplications = () => {
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <User className="w-4 h-4" />
                       <span className="truncate">{application.client_name}</span>
-                      {application.visa_subclass && (
+                      {application.subcategory_id && getSubcategoryName(application.subcategory_id) && (
                         <>
                           <span>•</span>
-                          <span>{application.visa_subclass}</span>
+                          <span>{getSubcategoryName(application.subcategory_id)}</span>
                         </>
                       )}
+                      <span>•</span>
+                      <span className="font-mono text-xs">{application.visa_subclass || 'APP'}-{application.application_name}-{application.id.substring(0, 8)}</span>
                       <span>•</span>
                       <span>{formatDate(application.created_at)}</span>
                     </div>

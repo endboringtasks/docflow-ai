@@ -79,6 +79,7 @@ interface VisaApplication {
   visa_subclass: string | null;
   country_id: string | null;
   category_id: string | null;
+  subcategory_id: string | null;
   status: "draft" | "active" | "done";
   visa_application_folder_id: string | null;
   created_at: string;
@@ -781,13 +782,22 @@ const ClientDetail = () => {
                             {getCategoryName(application.category_id)}
                           </Badge>
                         )}
-                        <h3 className="font-semibold">{application.application_name}</h3>
+                        <h3 className="font-semibold">
+                          {application.visa_subclass ? `${application.visa_subclass} ` : ''}{application.application_name}
+                        </h3>
                         <Badge variant={getStatusColor(application.status)}>
                           {application.status}
                         </Badge>
                       </div>
+                      {application.subcategory_id && subcategories.length > 0 && (
+                        <p className="text-sm text-primary font-medium">
+                          {subcategories.find(s => s.id === application.subcategory_id)?.name}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground font-mono">
+                        {application.visa_subclass || 'APP'}-{application.application_name}-{application.id.substring(0, 8)}
+                      </p>
                       <p className="text-sm text-muted-foreground">
-                        {application.visa_subclass ? `${application.visa_subclass}` : "No code"} • 
                         Created {formatDate(application.created_at)}
                       </p>
                     </div>
