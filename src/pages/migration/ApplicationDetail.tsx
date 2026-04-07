@@ -418,7 +418,21 @@ const VisaApplicationDetail = () => {
     },
   });
 
-  // Fetch translation certification types
+  // Fetch application subcategories
+  const { data: subcategories = [] } = useQuery({
+    queryKey: ["application-subcategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("application_subcategories")
+        .select("id, name, code, description, category_id, country_id")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+
   const { data: certificationTypes = [] } = useQuery({
     queryKey: ["translation-certification-types"],
     queryFn: async () => {
@@ -1870,16 +1884,21 @@ const VisaApplicationDetail = () => {
                       {getCountryFlag(countries.find(c => c.id === visaApplication.country_id)?.code || '')}
                     </span>
                   )}
-                  <h1 className="text-2xl font-bold">{visaApplication.application_name}</h1>
+                  <h1 className="text-2xl font-bold">
+                    {visaApplication.visa_subclass ? `${visaApplication.visa_subclass} ` : ''}{visaApplication.application_name}
+                  </h1>
                   <Badge variant={getStatusColor(visaApplication.status)}>
                     {visaApplication.status}
                   </Badge>
                 </div>
-                {visaApplication.visa_subclass && (
+                {visaApplication.subcategory_id && subcategories.length > 0 && (
                   <p className="text-primary font-medium mb-1">
-                    Subclass {visaApplication.visa_subclass} - {visaSubclasses.find(v => v.value === visaApplication.visa_subclass)?.label.split('(')[0].trim()}
+                    {subcategories.find(s => s.id === visaApplication.subcategory_id)?.name}
                   </p>
                 )}
+                <p className="text-xs text-muted-foreground font-mono mb-1">
+                  {visaApplication.visa_subclass || 'APP'}-{visaApplication.application_name}-{visaApplication.id.substring(0, 8)}
+                </p>
                 <p className="text-sm text-muted-foreground">Created {formatDate(visaApplication.created_at)}</p>
               </div>
             </div>
