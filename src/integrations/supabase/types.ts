@@ -855,6 +855,7 @@ export type Database = {
           document_name: string
           file_path: string | null
           id: string
+          instructions: string | null
           is_applicable: boolean
           is_completed: boolean
           is_standard_for_client: boolean | null
@@ -887,6 +888,7 @@ export type Database = {
           document_name: string
           file_path?: string | null
           id?: string
+          instructions?: string | null
           is_applicable?: boolean
           is_completed?: boolean
           is_standard_for_client?: boolean | null
@@ -919,6 +921,7 @@ export type Database = {
           document_name?: string
           file_path?: string | null
           id?: string
+          instructions?: string | null
           is_applicable?: boolean
           is_completed?: boolean
           is_standard_for_client?: boolean | null
@@ -991,6 +994,7 @@ export type Database = {
           document_definition_id: string | null
           document_name: string
           id: string
+          instructions: string | null
           is_required: boolean | null
           is_standard_for_client: boolean | null
           max_files: number | null
@@ -1016,6 +1020,7 @@ export type Database = {
           document_definition_id?: string | null
           document_name: string
           id?: string
+          instructions?: string | null
           is_required?: boolean | null
           is_standard_for_client?: boolean | null
           max_files?: number | null
@@ -1041,6 +1046,7 @@ export type Database = {
           document_definition_id?: string | null
           document_name?: string
           id?: string
+          instructions?: string | null
           is_required?: boolean | null
           is_standard_for_client?: boolean | null
           max_files?: number | null
@@ -1909,6 +1915,7 @@ export type Database = {
           document_name: string
           file_path: string
           id: string
+          instructions: string
           is_applicable: boolean
           is_completed: boolean
           max_files: number
