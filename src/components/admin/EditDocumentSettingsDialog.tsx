@@ -39,6 +39,7 @@ interface DocumentTemplate {
   translation_certification_type_id: string | null;
   translation_notes: string | null;
   sort_order: number | null;
+  instructions: string | null;
 }
 
 interface EditDocumentSettingsDialogProps {
@@ -82,6 +83,7 @@ export function EditDocumentSettingsDialog({
   const [translationCertTypeId, setTranslationCertTypeId] = useState<string>("__none__");
   const [translationNotes, setTranslationNotes] = useState("");
   const [sortOrder, setSortOrder] = useState(0);
+  const [instructions, setInstructions] = useState("");
 
   useEffect(() => {
     if (template) {
@@ -96,6 +98,7 @@ export function EditDocumentSettingsDialog({
       setTranslationCertTypeId(template.translation_certification_type_id || "__none__");
       setTranslationNotes(template.translation_notes || "");
       setSortOrder(template.sort_order ?? 0);
+      setInstructions(template.instructions || "");
     }
   }, [template]);
 
@@ -142,6 +145,7 @@ export function EditDocumentSettingsDialog({
           translation_certification_type_id: requiresTranslation && translationCertTypeId !== "__none__" ? translationCertTypeId : null,
           translation_notes: requiresTranslation ? translationNotes || null : null,
           sort_order: sortOrder,
+          instructions: instructions || null,
         })
         .eq("id", template.id);
       if (error) throw error;
@@ -301,6 +305,20 @@ export function EditDocumentSettingsDialog({
               </p>
             </div>
           )}
+
+          {/* Instructions */}
+          <div className="space-y-2">
+            <Label>Description / Instructions</Label>
+            <Textarea
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="Specific instructions for this document in this application type..."
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground">
+              These instructions will be shown to clients alongside the document description
+            </p>
+          </div>
 
           {/* Translation toggle */}
           <div className="flex items-center gap-2">

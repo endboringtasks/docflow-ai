@@ -112,6 +112,7 @@ interface DocumentItem {
   is_completed: boolean;
   file_path: string | null;
   description: string | null;
+  instructions: string | null;
   category: string | null;
   applicant_type: string | null;
   min_files: number;
@@ -1243,12 +1244,14 @@ export default function ClientPortal() {
                                                         )}
                                                         
                                                         {!doc.is_completed && (() => {
-                                                          const cleaned = doc.description
+                                                          const cleanedDesc = doc.description
                                                             ?.replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ")
                                                             .trim();
-                                                          return cleaned ? (
+                                                          const instr = doc.instructions?.trim();
+                                                          const parts = [cleanedDesc, instr].filter(Boolean);
+                                                          return parts.length > 0 ? (
                                                             <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
-                                                              {cleaned}
+                                                              {parts.join("\n")}
                                                             </p>
                                                           ) : null;
                                                         })()}
