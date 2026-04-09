@@ -265,7 +265,7 @@ function ApplicationDetailView({
           `id, document_template_id,
            document_checklist_templates (
              id, document_name, category, applicant_type_id, requirement_type, description,
-             instructions, age_condition, applicability_condition, min_files, max_files,
+             age_condition, applicability_condition, min_files, max_files,
              requires_translation, translation_target_language,
              translation_certification_type_id, translation_notes, sort_order
            )`

@@ -772,7 +772,6 @@ const VisaApplicationDetail = () => {
                 document_name, 
                 category, 
                 description,
-                instructions,
                 age_condition,
                 is_required, 
                 sort_order,
@@ -840,7 +839,6 @@ const VisaApplicationDetail = () => {
                 requirement_type: template.requirement_type ?? "required",
                 applicability_condition: template.applicability_condition ?? null,
                 is_applicable: template.requirement_type === "conditional" ? false : true,
-                instructions: template.instructions || null,
               };
             });
 
@@ -1266,7 +1264,6 @@ const VisaApplicationDetail = () => {
               document_name, 
               category, 
               description,
-              instructions,
               age_condition,
               is_required, 
               sort_order,
@@ -1298,7 +1295,6 @@ const VisaApplicationDetail = () => {
                   document_name: formattedName,
                   category: template.category,
                   description: template.description,
-                  instructions: template.instructions || null,
                   applicant_type: template.applicant_type?.name || null,
                   age_condition: template.age_condition,
                   is_completed: false,

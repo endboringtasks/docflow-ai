@@ -1,44 +1,47 @@
 
 
-## Merge Document Description + Instructions in Client Portal
+## Filter Document Checklist by Actual Application Applicants
 
 ### Problem
-The client portal only shows the `description` field from `document_checklist`. The user wants it to display a **combination** of two fields:
-1. **"Description"** — from the master Document List (`document_definitions.description`)
-2. **"Description / Instructions"** — template-specific instructions set in the Application Checklist
+When documents are initialized for an application (in `ApplicationDetail.tsx`), ALL templates linked to the visa type are inserted — including those with `applicant_type = "Partner"` or "Dependant" — regardless of whether such applicant types were actually added to the application via `application_applicants`. This causes partner/dependant documents to appear automatically whenever a partner exists on the client profile.
 
-Currently `document_checklist_templates.description` is synced from `document_definitions.description` (they're the same). There is no separate instructions field.
+### Root Cause
+The document initialization logic (around line 792) maps templates to checklist items without checking `application_applicants`. It blindly includes all templates, so if any template has `applicant_type = "Partner"`, partner documents appear even if no partner was added to this specific application.
 
-### Solution
-Add a new `instructions` column to hold template-specific guidance, independent from the definition description. The client portal will merge both.
+### Fix
 
-### Changes
+**File: `src/pages/migration/ApplicationDetail.tsx` (~lines 792-830)**
 
-#### 1. Database Migration
-- Add `instructions TEXT` column to `document_checklist_templates`
-- Add `instructions TEXT` column to `document_checklist`
+1. **Before inserting documents**, query `application_applicants` for this application to get the list of active applicant type names (e.g., "Primary", "Partner", "Dependant").
 
-#### 2. `EditDocumentSettingsDialog.tsx` — Add instructions field
-- Add `instructions` state and input (Textarea) to the dialog, below the existing fields
-- Include `instructions` in the update mutation
-- Update the `DocumentTemplate` interface to include `instructions`
+2. **Filter templates**: Only include templates where:
+   - `applicant_type` is null (applies to everyone), OR
+   - `applicant_type.name` matches one of the active applicant types in the application
 
-#### 3. `ApplicationDetail.tsx` — Copy instructions during initialization
-- When creating checklist items from templates, set `instructions: template.instructions || null`
-- Ensure the definition description goes into `description` (existing behavior)
+3. Apply the same filtering to the **second initialization path** (the fallback around line 1238 if applicable).
 
-#### 4. `get_portal_documents` SQL function — Return instructions
-- Add `dc.instructions` to the SELECT list
+### Technical Detail
 
-#### 5. `ClientPortal.tsx` — Display merged text
-- Update `DocumentItem` interface to include `instructions`
-- In the description display area (~line 1245), merge both: show `description` followed by `instructions` (with a line break separator if both exist)
+```typescript
+// Before document insertion, fetch active applicant types for this application
+const { data: activeApplicants } = await supabase
+  .from("application_applicants")
+  .select("applicant_type:applicant_types(name)")
+  .eq("visa_application_id", visaApplicationId);
 
-#### 6. `ApplicationChecklistTab.tsx` — Show instructions in linked docs table
-- Display instructions column or indicator so admins can see which templates have instructions set
+const activeApplicantTypeNames = new Set(
+  (activeApplicants || [])
+    .map(a => a.applicant_type?.name)
+    .filter(Boolean)
+);
 
-### Technical Notes
-- The existing `sync_definition_description_to_all` function continues to sync `description` from definitions to templates/checklists (unchanged)
-- `instructions` is a completely independent field managed only at the template level
-- No data migration needed — the new field starts as NULL everywhere
+// Then filter templates before insertion:
+const filteredTemplates = templates.filter((template: any) => {
+  const typeName = template.applicant_type?.name;
+  // Include if no applicant type specified, or if the type is active on this application
+  return !typeName || activeApplicantTypeNames.has(typeName);
+});
+```
+
+This ensures that partner/dependant documents only appear when those applicant types have been explicitly added to the application — not just because they exist on the client profile.
 
