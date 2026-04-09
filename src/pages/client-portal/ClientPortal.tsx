@@ -1243,7 +1243,7 @@ export default function ClientPortal() {
                                                           </div>
                                                         )}
                                                         
-                                                        {!doc.is_completed && (() => {
+                                                        {(() => {
                                                           const cleanedDesc = doc.description
                                                             ?.replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ")
                                                             .trim();
