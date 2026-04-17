@@ -1,47 +1,21 @@
 
+The user wants a portable specification/prompt for the Feedback feature so they can recreate it in other projects. I have the two main components already (`FeedbackWidget.tsx` and `FeedbackDialog.tsx`) and the `beta_feedback` table schema with RLS policies. I'll generate a comprehensive markdown prompt file and save it to `/mnt/documents/` as a downloadable artifact.
 
-## Filter Document Checklist by Actual Application Applicants
+## Plan: Export Feedback Feature Prompt
 
-### Problem
-When documents are initialized for an application (in `ApplicationDetail.tsx`), ALL templates linked to the visa type are inserted — including those with `applicant_type = "Partner"` or "Dependant" — regardless of whether such applicant types were actually added to the application via `application_applicants`. This causes partner/dependant documents to appear automatically whenever a partner exists on the client profile.
+Generate a self-contained markdown specification file (`feedback-feature-prompt.md`) that another AI/developer can use to rebuild this feature from scratch in any React + Supabase project.
 
-### Root Cause
-The document initialization logic (around line 792) maps templates to checklist items without checking `application_applicants`. It blindly includes all templates, so if any template has `applicant_type = "Partner"`, partner documents appear even if no partner was added to this specific application.
+### Contents of the Prompt
+1. **Overview** — what the feature does (floating widget + dialog + admin review)
+2. **Database Schema** — full SQL for `beta_feedback` table including columns, defaults, RLS policies (user can submit/view own; platform admins can view/update/delete all)
+3. **Frontend Components**:
+   - `FeedbackWidget.tsx` — floating bottom-right button with pulse animation for first-time users, hides on public paths, requires auth
+   - `FeedbackDialog.tsx` — typed form (bug/feature/question/other) with title + description, captures `current_page` and `user_agent`
+4. **Dependencies** — react-hook-form, zod, framer-motion, lucide-react, shadcn/ui (Dialog, Form, RadioGroup, Textarea, Button, Tooltip)
+5. **Integration steps** — mount widget once in `App.tsx`, ensure `useAuth` hook exists, public paths config
+6. **Optional extensions** — admin panel to view/triage feedback, status workflow (new → in_progress → resolved), notifications
 
-### Fix
+### Deliverable
+Save to `/mnt/documents/feedback-feature-prompt.md` and emit a `<lov-artifact>` tag for download.
 
-**File: `src/pages/migration/ApplicationDetail.tsx` (~lines 792-830)**
-
-1. **Before inserting documents**, query `application_applicants` for this application to get the list of active applicant type names (e.g., "Primary", "Partner", "Dependant").
-
-2. **Filter templates**: Only include templates where:
-   - `applicant_type` is null (applies to everyone), OR
-   - `applicant_type.name` matches one of the active applicant types in the application
-
-3. Apply the same filtering to the **second initialization path** (the fallback around line 1238 if applicable).
-
-### Technical Detail
-
-```typescript
-// Before document insertion, fetch active applicant types for this application
-const { data: activeApplicants } = await supabase
-  .from("application_applicants")
-  .select("applicant_type:applicant_types(name)")
-  .eq("visa_application_id", visaApplicationId);
-
-const activeApplicantTypeNames = new Set(
-  (activeApplicants || [])
-    .map(a => a.applicant_type?.name)
-    .filter(Boolean)
-);
-
-// Then filter templates before insertion:
-const filteredTemplates = templates.filter((template: any) => {
-  const typeName = template.applicant_type?.name;
-  // Include if no applicant type specified, or if the type is active on this application
-  return !typeName || activeApplicantTypeNames.has(typeName);
-});
-```
-
-This ensures that partner/dependant documents only appear when those applicant types have been explicitly added to the application — not just because they exist on the client profile.
-
+No code changes to the project itself — purely a doc export task.
