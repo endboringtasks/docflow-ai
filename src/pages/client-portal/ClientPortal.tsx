@@ -1249,11 +1249,10 @@ export default function ClientPortal() {
                                                             ?.replace(/\s*\[[^\]]*:(?:required|optional)\]\s*/gi, " ")
                                                             .trim();
                                                           const cleanedInstructions = doc.instructions?.trim();
-                                                          const parts = [cleanedDesc, cleanedInstructions].filter(Boolean);
-                                                          const merged = parts.join("\n");
-                                                          return merged ? (
+                                                          const displayText = cleanedInstructions || cleanedDesc;
+                                                          return displayText ? (
                                                             <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
-                                                              {merged}
+                                                              {displayText}
                                                             </p>
                                                           ) : null;
                                                         })()}
