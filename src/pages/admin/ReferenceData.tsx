@@ -57,7 +57,6 @@ import {
   Layers,
   Users,
   Languages,
-  Settings2,
 } from "lucide-react";
 
 import AdminDocumentsListTab from "@/components/admin/AdminDocumentsListTab";
