@@ -2145,11 +2145,16 @@ export default function AdminReferenceData() {
               <Languages className="w-4 h-4" />
               Translation Certifications
             </TabsTrigger>
+            <TabsTrigger value="document-categories" className="gap-2">
+              <Tags className="w-4 h-4" />
+              Document Categories
+            </TabsTrigger>
             <TabsTrigger value="documents-list" className="gap-2">
               <FileText className="w-4 h-4" />
               Documents List
             </TabsTrigger>
             <TabsTrigger value="app-checklist" className="gap-2">
+
               <Layers className="w-4 h-4" />
               Application Checklist
             </TabsTrigger>
