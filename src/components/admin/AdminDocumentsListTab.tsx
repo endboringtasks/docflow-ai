@@ -67,11 +67,11 @@ interface Company {
   name: string;
 }
 
-const defaultCategories = [
-  "Identity", "Character", "Health", "Employment", "Skills",
-  "English", "Education", "Financial", "Relationship", "Sponsor",
-  "Insurance", "Nomination", "Other",
-];
+interface DocumentCategoryRow {
+  name: string;
+  sort_order: number;
+}
+
 
 export default function AdminDocumentsListTab() {
   const queryClient = useQueryClient();
@@ -118,19 +118,32 @@ export default function AdminDocumentsListTab() {
     },
   });
 
-  // Get unique categories
+  // Fetch managed global document categories
+  const { data: managedCategories = [] } = useQuery({
+    queryKey: ["admin-document-categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("document_categories")
+        .select("name, sort_order")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true });
+      if (error) throw error;
+      return data as DocumentCategoryRow[];
+    },
+  });
+
+  // Build the category list from the managed list, plus any value already used
+  // by existing documents (so legacy data stays filterable), preserving order.
   const categories = useMemo(() => {
-    const cats = new Set(definitions.map((d) => d.category));
-    defaultCategories.forEach((c) => cats.add(c));
-    return Array.from(cats).sort((a, b) => {
-      const ai = defaultCategories.indexOf(a);
-      const bi = defaultCategories.indexOf(b);
-      if (ai === -1 && bi === -1) return a.localeCompare(b);
-      if (ai === -1) return 1;
-      if (bi === -1) return -1;
-      return ai - bi;
-    });
-  }, [definitions]);
+    const ordered = managedCategories.map((c) => c.name);
+    const known = new Set(ordered);
+    const extras = Array.from(
+      new Set(definitions.map((d) => d.category).filter((c) => c && !known.has(c))),
+    ).sort((a, b) => a.localeCompare(b));
+    return [...ordered, ...extras];
+  }, [managedCategories, definitions]);
+
 
   // Filtered list
   const filtered = useMemo(() => {
@@ -162,7 +175,12 @@ export default function AdminDocumentsListTab() {
       // Auto-assign first company to satisfy DB constraint since documents are universal
       const firstCompany = companies[0];
       if (!firstCompany) throw new Error("No companies available");
-      
+
+      // Ensure the category exists in the managed global list
+      await supabase
+        .from("document_categories")
+        .upsert({ name: def.category }, { onConflict: "name", ignoreDuplicates: true });
+
       const { data, error } = await supabase
         .from("document_definitions")
         .insert({
@@ -178,6 +196,7 @@ export default function AdminDocumentsListTab() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-document-definitions"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-document-categories"] });
       setIsAddOpen(false);
       setNewDef({ category: "", document_name: "", description: "" });
       toast.success("Document added to catalog");
@@ -194,6 +213,11 @@ export default function AdminDocumentsListTab() {
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: async (def: DocumentDefinition) => {
+      // Ensure the (possibly custom) category exists in the managed global list
+      await supabase
+        .from("document_categories")
+        .upsert({ name: def.category }, { onConflict: "name", ignoreDuplicates: true });
+
       const { data, error } = await supabase
         .from("document_definitions")
         .update({
@@ -215,6 +239,7 @@ export default function AdminDocumentsListTab() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["admin-document-definitions"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-document-categories"] });
       setEditing(null);
       if (result.syncCount > 0) {
         toast.success("Document updated", {

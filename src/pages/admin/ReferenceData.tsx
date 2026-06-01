@@ -57,9 +57,11 @@ import {
   Layers,
   Users,
   Languages,
+  Tags,
 } from "lucide-react";
 
 import AdminDocumentsListTab from "@/components/admin/AdminDocumentsListTab";
+import DocumentCategoriesTab from "@/components/admin/DocumentCategoriesTab";
 import ApplicationChecklistTab from "@/components/admin/ApplicationChecklistTab";
 import { toast } from "sonner";
 import { getCountryFlag } from "@/lib/countryFlags";
@@ -2143,11 +2145,16 @@ export default function AdminReferenceData() {
               <Languages className="w-4 h-4" />
               Translation Certifications
             </TabsTrigger>
+            <TabsTrigger value="document-categories" className="gap-2">
+              <Tags className="w-4 h-4" />
+              Document Categories
+            </TabsTrigger>
             <TabsTrigger value="documents-list" className="gap-2">
               <FileText className="w-4 h-4" />
               Documents List
             </TabsTrigger>
             <TabsTrigger value="app-checklist" className="gap-2">
+
               <Layers className="w-4 h-4" />
               Application Checklist
             </TabsTrigger>
@@ -2180,9 +2187,14 @@ export default function AdminReferenceData() {
                 <TranslationCertificationsTab />
               </TabsContent>
 
+              <TabsContent value="document-categories" className="mt-0">
+                <DocumentCategoriesTab />
+              </TabsContent>
+
               <TabsContent value="documents-list" className="mt-0">
                 <AdminDocumentsListTab />
               </TabsContent>
+
 
 
               <TabsContent value="app-checklist" className="mt-0">
