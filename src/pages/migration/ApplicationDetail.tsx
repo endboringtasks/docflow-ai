@@ -318,6 +318,7 @@ const VisaApplicationDetail = () => {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isMergeOpen, setIsMergeOpen] = useState(false);
+  const [syncMode, setSyncMode] = useState<"checklist" | "description" | "both">("both");
   const [isAddDocOpen, setIsAddDocOpen] = useState(false);
   const [newDocForm, setNewDocForm] = useState({
     name: "",
