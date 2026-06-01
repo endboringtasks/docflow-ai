@@ -165,6 +165,7 @@ interface DbDocumentItem {
   company_id: string;
   document_name: string;
   category: string | null;
+  description: string | null;
   is_completed: boolean;
   file_path: string | null;
   review_status: string | null;
