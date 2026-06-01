@@ -33,7 +33,7 @@
     "dashboard": "Dashboard",
     "clients": "Clients",
     "applications": "Applications",
-    "documentChecklist": "Document Checklist",
+    "documentChecklist": "Application Checklist",
     "settings": "Settings",
     "billing": "Billing",
     "signOut": "Sign Out"
@@ -86,7 +86,7 @@
     "addFirst": "Add your first client to get started"
   },
   "documentChecklist": {
-    "title": "Document Checklist",
+    "title": "Application Checklist",
     "addDocument": "Add Document",
     "documentName": "Document Name",
     "category": "Category",
