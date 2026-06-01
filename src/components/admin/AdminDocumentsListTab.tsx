@@ -239,6 +239,7 @@ export default function AdminDocumentsListTab() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["admin-document-definitions"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-document-categories"] });
       setEditing(null);
       if (result.syncCount > 0) {
         toast.success("Document updated", {
