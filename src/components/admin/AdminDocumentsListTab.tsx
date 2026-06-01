@@ -213,6 +213,11 @@ export default function AdminDocumentsListTab() {
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: async (def: DocumentDefinition) => {
+      // Ensure the (possibly custom) category exists in the managed global list
+      await supabase
+        .from("document_categories")
+        .upsert({ name: def.category }, { onConflict: "name", ignoreDuplicates: true });
+
       const { data, error } = await supabase
         .from("document_definitions")
         .update({
