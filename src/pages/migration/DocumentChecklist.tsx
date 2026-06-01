@@ -695,25 +695,113 @@ const DocumentTemplates = () => {
     },
   });
 
-  // Update document mutation
+  // Update document mutation (copy-on-write for shared/global templates)
   const updateDocMutation = useMutation({
-    mutationFn: async (doc: { id: string; document_name: string; is_required: boolean; category: string; applicant_type_id: string | null; age_condition: string | null; description: string | null; requires_translation: boolean; oldDescription: string | null }) => {
-      const { data, error } = await supabase
-        .from("document_checklist_templates")
-        .update({
-          document_name: doc.document_name,
-          is_required: doc.is_required,
-          category: doc.category,
-          applicant_type_id: doc.applicant_type_id || null,
-          age_condition: doc.age_condition || null,
-          description: doc.description || null,
-          requires_translation: doc.requires_translation,
-        })
-        .eq("id", doc.id)
-        .select("*, applicant_type:applicant_types(*)")
-        .single();
-      
-      if (error) throw error;
+    mutationFn: async (doc: {
+      id: string;
+      company_id: string | null;
+      document_definition_id: string | null;
+      visa_type_id: string | null;
+      country_id: string | null;
+      sort_order: number;
+      document_name: string;
+      is_required: boolean;
+      category: string;
+      applicant_type_id: string | null;
+      age_condition: string | null;
+      description: string | null;
+      requires_translation: boolean;
+      oldDescription: string | null;
+    }) => {
+      if (!currentCompany?.id) throw new Error("No company selected");
+
+      const editedFields = {
+        document_name: doc.document_name,
+        is_required: doc.is_required,
+        category: doc.category,
+        applicant_type_id: doc.applicant_type_id || null,
+        age_condition: doc.age_condition || null,
+        description: doc.description || null,
+        requires_translation: doc.requires_translation,
+      };
+
+      let data: any = null;
+
+      if (doc.company_id === currentCompany.id) {
+        // Editing a row this company already owns — update directly.
+        const res = await supabase
+          .from("document_checklist_templates")
+          .update(editedFields)
+          .eq("id", doc.id)
+          .select("*, applicant_type:applicant_types(*)")
+          .maybeSingle();
+        if (res.error) throw res.error;
+        data = res.data;
+      } else {
+        // Editing a shared/global template — copy-on-write.
+        // Look for an existing company override first.
+        let overrideQuery = supabase
+          .from("document_checklist_templates")
+          .select("id")
+          .eq("company_id", currentCompany.id)
+          .eq("visa_type_id", doc.visa_type_id ?? selectedApplicationType);
+
+        if (doc.document_definition_id) {
+          overrideQuery = overrideQuery.eq("document_definition_id", doc.document_definition_id);
+        } else {
+          overrideQuery = overrideQuery
+            .eq("category", doc.category)
+            .eq("document_name", doc.document_name);
+        }
+
+        const { data: existing, error: existingError } = await overrideQuery.maybeSingle();
+        if (existingError && existingError.code !== "PGRST116") throw existingError;
+
+        if (existing?.id) {
+          const res = await supabase
+            .from("document_checklist_templates")
+            .update(editedFields)
+            .eq("id", existing.id)
+            .select("*, applicant_type:applicant_types(*)")
+            .maybeSingle();
+          if (res.error) throw res.error;
+          data = res.data;
+        } else {
+          // Insert a new company-specific copy carrying over the global template's fields.
+          const { data: source } = await supabase
+            .from("document_checklist_templates")
+            .select("*")
+            .eq("id", doc.id)
+            .maybeSingle();
+
+          const res = await supabase
+            .from("document_checklist_templates")
+            .insert({
+              company_id: currentCompany.id,
+              visa_type_id: doc.visa_type_id ?? selectedApplicationType,
+              country_id: doc.country_id ?? source?.country_id ?? null,
+              document_definition_id: doc.document_definition_id ?? source?.document_definition_id ?? null,
+              sort_order: doc.sort_order ?? source?.sort_order ?? 0,
+              instructions: source?.instructions ?? null,
+              applicability_condition: source?.applicability_condition ?? null,
+              requirement_type: source?.requirement_type ?? "required",
+              min_files: source?.min_files ?? 1,
+              max_files: source?.max_files ?? 1,
+              translation_target_language: source?.translation_target_language ?? "English",
+              translation_certification_type_id: source?.translation_certification_type_id ?? null,
+              translation_notes: source?.translation_notes ?? null,
+              ...editedFields,
+            })
+            .select("*, applicant_type:applicant_types(*)")
+            .maybeSingle();
+          if (res.error) throw res.error;
+          data = res.data;
+        }
+      }
+
+      if (!data) {
+        throw new Error("Update did not return a record. You may not have permission to edit this document.");
+      }
 
       // Sync description to existing application checklists if it changed
       const descriptionChanged = (doc.oldDescription ?? null) !== (doc.description ?? null);
