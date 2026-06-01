@@ -119,19 +119,32 @@ export default function DocumentsListTab() {
     return list;
   }, [definitions, filterCategory, search]);
 
-  // Get unique categories
+  // Fetch managed global document categories
+  const { data: managedCategories = [] } = useQuery({
+    queryKey: ["admin-document-categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("document_categories")
+        .select("name, sort_order")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true });
+      if (error) throw error;
+      return data as DocumentCategoryRow[];
+    },
+  });
+
+  // Build the category list from the managed list, plus any value already used
+  // by existing documents (so legacy data stays filterable), preserving order.
   const categories = useMemo(() => {
-    const cats = new Set(definitions.map((d) => d.category));
-    defaultCategories.forEach((c) => cats.add(c));
-    return Array.from(cats).sort((a, b) => {
-      const ai = defaultCategories.indexOf(a);
-      const bi = defaultCategories.indexOf(b);
-      if (ai === -1 && bi === -1) return a.localeCompare(b);
-      if (ai === -1) return 1;
-      if (bi === -1) return -1;
-      return ai - bi;
-    });
-  }, [definitions]);
+    const ordered = managedCategories.map((c) => c.name);
+    const known = new Set(ordered);
+    const extras = Array.from(
+      new Set(definitions.map((d) => d.category).filter((c) => c && !known.has(c))),
+    ).sort((a, b) => a.localeCompare(b));
+    return [...ordered, ...extras];
+  }, [managedCategories, definitions]);
+
 
   // Add mutation
   const addMutation = useMutation({
