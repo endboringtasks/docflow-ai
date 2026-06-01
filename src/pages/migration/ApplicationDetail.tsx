@@ -3082,15 +3082,53 @@ const VisaApplicationDetail = () => {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Merge Templates Confirmation */}
+        {/* Sync Application Checklist */}
         <AlertDialog open={isMergeOpen} onOpenChange={setIsMergeOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Merge Template Documents</AlertDialogTitle>
+              <AlertDialogTitle>Sync Application Checklist</AlertDialogTitle>
               <AlertDialogDescription>
-                This will add any missing documents from the configured templates to the checklist. Existing documents and uploaded files will be preserved.
+                Choose how to sync this checklist with the configured templates. Existing documents and uploaded files are always preserved.
               </AlertDialogDescription>
             </AlertDialogHeader>
+
+            <RadioGroup
+              value={syncMode}
+              onValueChange={(v) => setSyncMode(v as "checklist" | "description" | "both")}
+              className="gap-3 py-2"
+            >
+              <Label
+                htmlFor="sync-checklist"
+                className="flex items-start gap-3 rounded-md border border-border p-3 cursor-pointer hover:bg-muted/50"
+              >
+                <RadioGroupItem value="checklist" id="sync-checklist" className="mt-0.5" />
+                <span>
+                  <span className="font-medium">Sync Application Checklist</span>
+                  <span className="block text-sm text-muted-foreground">Add any missing documents from the templates.</span>
+                </span>
+              </Label>
+              <Label
+                htmlFor="sync-description"
+                className="flex items-start gap-3 rounded-md border border-border p-3 cursor-pointer hover:bg-muted/50"
+              >
+                <RadioGroupItem value="description" id="sync-description" className="mt-0.5" />
+                <span>
+                  <span className="font-medium">Sync Document Description</span>
+                  <span className="block text-sm text-muted-foreground">Update descriptions of existing documents to match the templates.</span>
+                </span>
+              </Label>
+              <Label
+                htmlFor="sync-both"
+                className="flex items-start gap-3 rounded-md border border-border p-3 cursor-pointer hover:bg-muted/50"
+              >
+                <RadioGroupItem value="both" id="sync-both" className="mt-0.5" />
+                <span>
+                  <span className="font-medium">Both</span>
+                  <span className="block text-sm text-muted-foreground">Add missing documents and update existing descriptions.</span>
+                </span>
+              </Label>
+            </RadioGroup>
+
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
@@ -3100,15 +3138,16 @@ const VisaApplicationDetail = () => {
                 {mergeTemplatesMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Merging...
+                    Syncing...
                   </>
                 ) : (
-                  "Merge"
+                  "Sync"
                 )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
 
         {/* Invite Client Dialog */}
         <InviteClientDialog
