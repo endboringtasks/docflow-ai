@@ -1377,7 +1377,9 @@ const VisaApplicationDetail = () => {
             if (!usedKeys.has(overrideKey(t))) templates.push(t);
           });
 
-          if (templates && templates.length > 0) {
+          resolvedTemplates = templates || [];
+
+          if (syncMode !== "description" && templates && templates.length > 0) {
             // Filter to only templates that don't already exist
             newDocs = templates
               .filter((template: any) => {
@@ -1411,7 +1413,7 @@ const VisaApplicationDetail = () => {
       }
 
       // Fallback to default docs if no templates found
-      if (newDocs.length === 0 && !visaTypeId) {
+      if (syncMode !== "description" && newDocs.length === 0 && !visaTypeId) {
         const defaultDocs = getDefaultDocuments(visaApplication.visa_subclass);
         newDocs = defaultDocs
           .filter(doc => !existingDocNames.has(doc.name.toLowerCase().trim()))
