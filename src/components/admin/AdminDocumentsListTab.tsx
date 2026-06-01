@@ -175,7 +175,12 @@ export default function AdminDocumentsListTab() {
       // Auto-assign first company to satisfy DB constraint since documents are universal
       const firstCompany = companies[0];
       if (!firstCompany) throw new Error("No companies available");
-      
+
+      // Ensure the category exists in the managed global list
+      await supabase
+        .from("document_categories")
+        .upsert({ name: def.category }, { onConflict: "name", ignoreDuplicates: true });
+
       const { data, error } = await supabase
         .from("document_definitions")
         .insert({
@@ -191,6 +196,7 @@ export default function AdminDocumentsListTab() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-document-definitions"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-document-categories"] });
       setIsAddOpen(false);
       setNewDef({ category: "", document_name: "", description: "" });
       toast.success("Document added to catalog");
