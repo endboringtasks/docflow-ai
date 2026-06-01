@@ -1385,8 +1385,8 @@ export default function ClientPortal() {
                                                                   </span>
                                                                 )}
                                                               </div>
-                                                              {/* Hide delete button for rejected documents */}
-                                                              {!isRejected ? (
+                                                              {/* Hide delete button for rejected or approved documents */}
+                                                              {!isRejected && !isApproved ? (
                                                                 <Button
                                                                   variant="ghost"
                                                                   size="sm"
