@@ -870,6 +870,11 @@ const DocumentTemplates = () => {
     if (!editingDoc || !editingDoc.document_name.trim()) return;
     updateDocMutation.mutate({
       id: editingDoc.id,
+      company_id: editingDoc.company_id ?? null,
+      document_definition_id: editingDoc.document_definition_id ?? null,
+      visa_type_id: editingDoc.visa_type_id ?? selectedApplicationType,
+      country_id: editingDoc.country_id ?? null,
+      sort_order: editingDoc.sort_order ?? 0,
       document_name: editingDoc.document_name.trim(),
       is_required: editingDoc.is_required,
       category: editingDoc.category,
