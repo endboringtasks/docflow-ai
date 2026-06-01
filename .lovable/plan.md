@@ -1,66 +1,60 @@
+# Rename "Merge Templates" → "Sync Application Checklist" + 3 Sync Options
+
 ## Goal
+On the Application Checklist tab (`src/pages/migration/ApplicationDetail.tsx`):
 
-Fix the "Cannot coerce the result to a single JSON object" error when a company user edits a document's description/instructions on the migration **Document Checklist** page. Implement **copy-on-write**: editing a shared/global document creates (or updates) a company-specific copy that only affects this company; the global catalog stays untouched.
+1. **Rename** the **Merge Templates** button to **Sync Application Checklist**.
+2. When clicked, open a dialog offering three sync modes:
+   - **Sync Application Checklist** — add missing template documents (current merge behavior).
+   - **Sync Document Description** — update descriptions of documents already in the checklist to match their current template descriptions (no rows added/removed).
+   - **Both** — run the merge, then sync descriptions.
 
-## Root cause
+## What changes (frontend only — one file)
 
-The documents shown on this page are **global templates** (`document_checklist_templates.company_id IS NULL`), linked to a visa type via `document_template_applications`. The RLS update policy only allows a company admin to modify rows where `company_id` is their own company. So updating a global template affects **0 rows**, and the `.select().single()` after the update throws the coerce error.
+### 1. Button (~line 2205-2217)
+- Label "Merge Templates" → "Sync Application Checklist".
+- Keep the icon and pending/spinner behavior.
 
-## Solution (frontend only — no DB migration)
+### 2. Dialog (`isMergeOpen` AlertDialog, ~line 3045)
+- Replace the single confirmation with a `RadioGroup` (`@/components/ui/radio-group`) showing the three options:
+  - "Sync Application Checklist (add missing documents)"
+  - "Sync Document Description (update existing descriptions)"
+  - "Both"
+- Default selection: **Both**.
+- Title: "Sync Application Checklist". Update description copy to explain each mode.
+- Keep Cancel; primary action button reads "Sync" and runs the selected mode.
 
-All changes are in `src/pages/migration/DocumentChecklist.tsx`.
+### 3. New state
+Add `syncMode` state (`"checklist" | "description" | "both"`) defaulting to `"both"`.
 
-### 1. Listing: merge global templates with company overrides
+### 4. Reuse the template fetch
+`mergeTemplatesMutation` already fetches resolved templates (global + company copy-on-write overrides) with `document_name`, `category`, `description`. Refactor so the same fetched list feeds both adding missing docs and syncing descriptions, then branch on `syncMode`.
 
-The templates query currently fetches only the global templates linked through the junction table. Extend it to also fetch the company's own templates for the same visa type:
+### 5. Sync-descriptions logic
+For each doc currently in `dbDocuments`, match to a template by comparing the parsed display name (`parseDocumentName(d.document_name).displayName`, lowercased/trimmed) against the template `document_name`. When matched and the description differs, update that checklist row's `description`. Skip translation rows (names containing "(Translation)").
 
 ```text
-- global = templates linked via document_template_applications (company_id NULL)
-- overrides = document_checklist_templates where company_id = currentCompany.id
-              AND visa_type_id = selectedApplicationType
-- merge: for each global template, if a company override matches it
-  (by document_definition_id when present, else by category + document_name),
-  show the override instead of the global row.
-- also include any override that has no matching global (company-added docs).
+for each existing checklist doc:
+  displayName = parseDocumentName(doc.document_name).displayName
+  template = templateMap[displayName]
+  if template && template.description !== doc.description:
+    update document_checklist set description = template.description where id = doc.id
 ```
 
-Each row carries its real `id` and `company_id` so the edit handler knows whether it is editing a global or a company-owned row.
+### 6. Result toast (by mode)
+- checklist → "Added N documents"
+- description → "Updated N descriptions"
+- both → "Added N documents · Updated M descriptions"
 
-### 2. Edit: copy-on-write in `updateDocMutation`
-
-Replace the single hard update with this logic:
-
-```text
-if (editing row.company_id === currentCompany.id):
-    UPDATE that row directly (works under RLS)
-else (global row, company_id is null):
-    look for an existing company override
-      (company_id = currentCompany, matching document_definition_id
-       or category + document_name, visa_type_id = selectedApplicationType)
-    if found  -> UPDATE that override
-    if not    -> INSERT a new company copy carrying over ALL fields from the
-                 global template (document_definition_id, visa_type_id,
-                 country_id, applicant_type_id, requirement/min/max, translation
-                 fields, sort_order, etc.) plus the edited
-                 category / document_name / description / instructions /
-                 age_condition / is_required / requires_translation
-```
-
-Use `.maybeSingle()` (not `.single()`) on the returning select and surface a clear toast if nothing comes back, per the single-query guidance.
-
-The existing description-sync RPC (`sync_template_description_to_checklists`, keyed on company_id + document_name + category) continues to work because the override row's `company_id` is the current company.
-
-### 3. New applications must respect overrides
-
-In `src/pages/migration/ApplicationDetail.tsx`, the two checklist-generation paths (around lines 757–791 and 1254–1266) build the document checklist from junction-linked global templates only. Apply the same merge as step 1: when a company override exists for a document, use the override's values (description, instructions, requirement, etc.) instead of the global template's, so the customization reaches real client applications.
+Invalidate `["document-checklist", visaApplicationId]` on success (already done).
 
 ## Out of scope
+- No database migration; descriptions are synced for the current application's `document_checklist` rows directly via client updates (same RLS the page already uses).
+- No change to the template-editor sync RPC (`sync_template_description_to_checklists`) on `DocumentChecklist.tsx`.
+- No change to how `document_name` is encoded/stored.
 
-- No database/RLS migration (company users already have insert/update rights on their own `company_id` templates).
-- No change to how global templates are managed by platform admins in the admin panel.
-- Removing/deleting global documents from a company checklist (separate concern).
-
-## Notes
-
-- There is no unique constraint on `(company_id, category, document_name)`, so the code explicitly checks for an existing override before inserting to avoid duplicates.
-- Matching key preference: `document_definition_id` first (most reliable), then `category + document_name`.
+## Verification
+Open an application's Application Checklist, click **Sync Application Checklist**, and for each option confirm:
+- Checklist mode adds only missing docs.
+- Description mode updates existing descriptions (a doc whose template description was edited shows new text) with no rows added.
+- Both performs add + update and the toast reports correct counts.

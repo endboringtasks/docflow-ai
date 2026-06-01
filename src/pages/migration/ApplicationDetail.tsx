@@ -72,6 +72,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -164,6 +165,7 @@ interface DbDocumentItem {
   company_id: string;
   document_name: string;
   category: string | null;
+  description: string | null;
   is_completed: boolean;
   file_path: string | null;
   review_status: string | null;
@@ -317,6 +319,7 @@ const VisaApplicationDetail = () => {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isMergeOpen, setIsMergeOpen] = useState(false);
+  const [syncMode, setSyncMode] = useState<"checklist" | "description" | "both">("both");
   const [isAddDocOpen, setIsAddDocOpen] = useState(false);
   const [newDocForm, setNewDocForm] = useState({
     name: "",
@@ -1300,6 +1303,7 @@ const VisaApplicationDetail = () => {
 
       const visaTypeId = matchingVisaType?.id;
       let newDocs: any[] = [];
+      let resolvedTemplates: any[] = [];
 
       if (visaTypeId) {
         const { data: linkedTemplates, error: linkedError } = await supabase
@@ -1374,7 +1378,9 @@ const VisaApplicationDetail = () => {
             if (!usedKeys.has(overrideKey(t))) templates.push(t);
           });
 
-          if (templates && templates.length > 0) {
+          resolvedTemplates = templates || [];
+
+          if (syncMode !== "description" && templates && templates.length > 0) {
             // Filter to only templates that don't already exist
             newDocs = templates
               .filter((template: any) => {
@@ -1408,7 +1414,7 @@ const VisaApplicationDetail = () => {
       }
 
       // Fallback to default docs if no templates found
-      if (newDocs.length === 0 && !visaTypeId) {
+      if (syncMode !== "description" && newDocs.length === 0 && !visaTypeId) {
         const defaultDocs = getDefaultDocuments(visaApplication.visa_subclass);
         newDocs = defaultDocs
           .filter(doc => !existingDocNames.has(doc.name.toLowerCase().trim()))
@@ -1421,32 +1427,66 @@ const VisaApplicationDetail = () => {
           }));
       }
 
-      if (newDocs.length === 0) {
-        return { added: 0, skipped: existingDocNames.size };
+      let added = 0;
+      if (newDocs.length > 0) {
+        const { error: insertError } = await supabase
+          .from("document_checklist")
+          .insert(newDocs);
+
+        if (insertError) throw insertError;
+        added = newDocs.length;
       }
 
-      const { error: insertError } = await supabase
-        .from("document_checklist")
-        .insert(newDocs);
+      // Sync descriptions of existing documents to match current templates
+      let updated = 0;
+      if (syncMode !== "checklist" && resolvedTemplates.length > 0) {
+        const templateByName = new Map<string, any>();
+        resolvedTemplates.forEach((t) => {
+          const key = String(t.document_name || "").trim().toLowerCase();
+          if (key) templateByName.set(key, t);
+        });
 
-      if (insertError) throw insertError;
-      return { added: newDocs.length, skipped: existingDocNames.size };
+        for (const doc of dbDocuments || []) {
+          if (/\(Translation\)/i.test(doc.document_name)) continue;
+          const displayName = parseDocumentName(doc.document_name).displayName.toLowerCase().trim();
+          const template = templateByName.get(displayName);
+          if (!template) continue;
+          const newDescription = template.description ?? null;
+          if (newDescription === (doc.description ?? null)) continue;
+
+          const { error: updateError } = await supabase
+            .from("document_checklist")
+            .update({ description: newDescription })
+            .eq("id", doc.id);
+          if (updateError) throw updateError;
+          updated += 1;
+        }
+      }
+
+      return { added, updated, skipped: existingDocNames.size, mode: syncMode };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
       setIsMergeOpen(false);
-      if (result.added > 0) {
-        toast.success(`Added ${result.added} new document${result.added > 1 ? "s" : ""}`, {
-          description: `${result.skipped} existing documents preserved`,
+
+      const parts: string[] = [];
+      if (result.mode !== "description") {
+        parts.push(`Added ${result.added} document${result.added !== 1 ? "s" : ""}`);
+      }
+      if (result.mode !== "checklist") {
+        parts.push(`Updated ${result.updated} description${result.updated !== 1 ? "s" : ""}`);
+      }
+
+      if (result.added === 0 && result.updated === 0) {
+        toast.info("Nothing to sync", {
+          description: "The checklist already matches the current templates",
         });
       } else {
-        toast.info("No new documents to add", {
-          description: "All template documents already exist in the checklist",
-        });
+        toast.success("Sync complete", { description: parts.join(" · ") });
       }
     },
     onError: (error) => {
-      toast.error("Failed to merge templates", { description: error instanceof Error ? error.message : "Please try again" });
+      toast.error("Failed to sync application checklist", { description: error instanceof Error ? error.message : "Please try again" });
     },
   });
 
@@ -2213,7 +2253,7 @@ const VisaApplicationDetail = () => {
                 ) : (
                   <Merge className="w-4 h-4 mr-2" />
                 )}
-                Merge Templates
+                Sync Application Checklist
               </Button>
             </div>
 
@@ -3042,15 +3082,53 @@ const VisaApplicationDetail = () => {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Merge Templates Confirmation */}
+        {/* Sync Application Checklist */}
         <AlertDialog open={isMergeOpen} onOpenChange={setIsMergeOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Merge Template Documents</AlertDialogTitle>
+              <AlertDialogTitle>Sync Application Checklist</AlertDialogTitle>
               <AlertDialogDescription>
-                This will add any missing documents from the configured templates to the checklist. Existing documents and uploaded files will be preserved.
+                Choose how to sync this checklist with the configured templates. Existing documents and uploaded files are always preserved.
               </AlertDialogDescription>
             </AlertDialogHeader>
+
+            <RadioGroup
+              value={syncMode}
+              onValueChange={(v) => setSyncMode(v as "checklist" | "description" | "both")}
+              className="gap-3 py-2"
+            >
+              <Label
+                htmlFor="sync-checklist"
+                className="flex items-start gap-3 rounded-md border border-border p-3 cursor-pointer hover:bg-muted/50"
+              >
+                <RadioGroupItem value="checklist" id="sync-checklist" className="mt-0.5" />
+                <span>
+                  <span className="font-medium">Sync Application Checklist</span>
+                  <span className="block text-sm text-muted-foreground">Add any missing documents from the templates.</span>
+                </span>
+              </Label>
+              <Label
+                htmlFor="sync-description"
+                className="flex items-start gap-3 rounded-md border border-border p-3 cursor-pointer hover:bg-muted/50"
+              >
+                <RadioGroupItem value="description" id="sync-description" className="mt-0.5" />
+                <span>
+                  <span className="font-medium">Sync Document Description</span>
+                  <span className="block text-sm text-muted-foreground">Update descriptions of existing documents to match the templates.</span>
+                </span>
+              </Label>
+              <Label
+                htmlFor="sync-both"
+                className="flex items-start gap-3 rounded-md border border-border p-3 cursor-pointer hover:bg-muted/50"
+              >
+                <RadioGroupItem value="both" id="sync-both" className="mt-0.5" />
+                <span>
+                  <span className="font-medium">Both</span>
+                  <span className="block text-sm text-muted-foreground">Add missing documents and update existing descriptions.</span>
+                </span>
+              </Label>
+            </RadioGroup>
+
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
@@ -3060,15 +3138,16 @@ const VisaApplicationDetail = () => {
                 {mergeTemplatesMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Merging...
+                    Syncing...
                   </>
                 ) : (
-                  "Merge"
+                  "Sync"
                 )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
 
         {/* Invite Client Dialog */}
         <InviteClientDialog
