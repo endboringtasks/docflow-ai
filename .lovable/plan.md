@@ -1,62 +1,44 @@
 ## Goal
 
-Today the document categories you see in the "All Categories" dropdown (Identity, Character, Health, Employment…) are **not a managed entity**. They live as free-text in the `category` column on each document, mixed with a hardcoded list in code. There's no way to rename or delete a category. We'll make document categories a proper **global, managed list** with add / rename / delete.
+Change how document guidance text is shown to clients in the Client Portal. Stop merging the two description fields into one block. Instead:
 
-## What will be built
+- If an **Application Checklist instruction** exists for a document → show **only** that instruction.
+- If the Application Checklist instruction is empty → fall back to and show the **global (master) description**.
 
-A new **"Document Categories"** tab in Reference Data (admin) where platform admins can:
+## Background
 
-- **Add** a category (name, optional sort order, active toggle).
-- **Edit / rename** a category — renaming re-labels every document that currently uses the old name so nothing is orphaned.
-- **Delete** a category — blocked with a clear message if any document still uses it (admin must reassign first), keeping the enterprise/compliance tone.
+Today, the client portal combines both fields into one paragraph:
 
-The Master Documents list dropdown and the "Add/Edit document" category picker will read from this managed list instead of the hardcoded array.
+```text
+[master/global description]
+[application-specific instruction]
+```
 
-## Where categories are used today (text columns)
+This happens in a single place — `src/pages/client-portal/ClientPortal.tsx` (around lines 1247–1259), where `cleanedDesc` (global description) and `cleanedInstructions` (Application Checklist instruction) are joined with a newline and rendered together.
 
-The `category` value appears as free text in three tables:
+No other view performs this merge, so only this one location needs to change. This is a frontend-only, presentation change — no database or business-logic changes.
 
-- `document_definitions.category` — the master catalog (the screenshot list)
-- `document_checklist_templates.category` — application templates
-- `document_checklist.category` — per-application checklist items
+## Change
 
-A rename must update all three so labels stay consistent across the app.
+In `ClientPortal.tsx`, replace the merge logic so it picks one value instead of joining both:
 
-## Technical plan
+```text
+- clean the global description (strip the [type:required/optional] tags) → cleanedDesc
+- clean the instruction → cleanedInstructions
+- displayText = cleanedInstructions (if non-empty) else cleanedDesc
+- render displayText in the same <p> styling as today (only when non-empty and the doc is not completed)
+```
 
-### 1. Database (migration)
+Behaviour after change:
 
-Create a global `document_categories` table (no `company_id` — shared across all companies):
+| Application Checklist instruction | Global description | Shown to client |
+|---|---|---|
+| Has text | (any) | Instruction only |
+| Empty | Has text | Global description |
+| Empty | Empty | Nothing (as today) |
 
-````text
-document_categories
-  id           uuid pk
-  name         text  (unique, the label shown everywhere)
-  sort_order   integer default 0
-  is_active    boolean default true
-  created_at / updated_at
-````
+## Out of scope
 
-- GRANTs: `SELECT` to anon + authenticated; full to service_role.
-- RLS: everyone can read (`true`); only `is_platform_admin(auth.uid())` can insert/update/delete (mirrors `countries` / `applicant_types`).
-- Seed it with the current default categories plus any distinct `category` values already present in `document_definitions`.
-
-A rename helper (security-definer function or a single transactional update) will update `document_definitions`, `document_checklist_templates`, and `document_checklist` rows where `category = old_name` to the new name. A delete guard checks those same tables and refuses deletion when references remain.
-
-### 2. Admin UI
-
-- Add a **"Document Categories"** tab to `src/pages/admin/ReferenceData.tsx` (new component, e.g. `DocumentCategoriesTab.tsx`), following the existing tab pattern (table + Add dialog + Edit dialog + delete AlertDialog + `useTableSort`).
-- Columns: Sort Order, Name, Status, Actions (edit / delete).
-- Add/Edit dialog: name, sort order, active toggle.
-- Delete: confirmation; if the category is still in use, show how many documents use it and block until reassigned.
-
-### 3. Wire the document picker to the managed list
-
-- In `src/components/admin/AdminDocumentsListTab.tsx`, replace the hardcoded `defaultCategories` array and the "derive from existing definitions" logic with a query of active `document_categories` (ordered by sort_order, then name).
-- Keep the "custom category" entry option, but creating a brand-new custom name will also insert it into `document_categories` so it becomes managed going forward.
-
-## Notes
-
-- Global scope as requested — one shared category list for all companies.
-- Additive and backward-compatible: existing free-text values are migrated into the table, so nothing breaks.
-- After the migration runs, the Supabase types file regenerates before the UI code is wired up.
+- No changes to how descriptions/instructions are stored or edited (admin tabs unchanged).
+- No database migration.
+- No changes to other views.
