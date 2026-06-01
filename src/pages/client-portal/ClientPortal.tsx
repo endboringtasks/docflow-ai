@@ -1412,7 +1412,7 @@ export default function ClientPortal() {
                                                                       </div>
                                                                     </TooltipTrigger>
                                                                     <TooltipContent>
-                                                                      <p className="text-xs">Upload a replacement to resolve</p>
+                                                                      <p className="text-xs">{isApproved ? "Approved documents can't be deleted" : "Upload a replacement to resolve"}</p>
                                                                     </TooltipContent>
                                                                   </Tooltip>
                                                                 </TooltipProvider>
