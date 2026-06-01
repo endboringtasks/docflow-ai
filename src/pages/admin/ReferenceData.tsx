@@ -2187,9 +2187,14 @@ export default function AdminReferenceData() {
                 <TranslationCertificationsTab />
               </TabsContent>
 
+              <TabsContent value="document-categories" className="mt-0">
+                <DocumentCategoriesTab />
+              </TabsContent>
+
               <TabsContent value="documents-list" className="mt-0">
                 <AdminDocumentsListTab />
               </TabsContent>
+
 
 
               <TabsContent value="app-checklist" className="mt-0">
