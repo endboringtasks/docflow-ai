@@ -1126,6 +1126,7 @@ export default function ClientPortal() {
                                                 const needsAttention = doc.review_status === 'pending_client' || doc.review_status === 'rejected';
                                                 const isPendingClient = doc.review_status === 'pending_client';
                                                 const isRejected = doc.review_status === 'rejected';
+                                                const isApproved = doc.review_status === 'approved';
                                                 
                                                 // Allow uploads for rejected documents regardless of max_files limit
                                                 // (rejected attachments will be archived when replacement is uploaded)
@@ -1384,8 +1385,8 @@ export default function ClientPortal() {
                                                                   </span>
                                                                 )}
                                                               </div>
-                                                              {/* Hide delete button for rejected documents */}
-                                                              {!isRejected ? (
+                                                              {/* Hide delete button for rejected or approved documents */}
+                                                              {!isRejected && !isApproved ? (
                                                                 <Button
                                                                   variant="ghost"
                                                                   size="sm"
@@ -1411,7 +1412,7 @@ export default function ClientPortal() {
                                                                       </div>
                                                                     </TooltipTrigger>
                                                                     <TooltipContent>
-                                                                      <p className="text-xs">Upload a replacement to resolve</p>
+                                                                      <p className="text-xs">{isApproved ? "Approved documents can't be deleted" : "Upload a replacement to resolve"}</p>
                                                                     </TooltipContent>
                                                                   </Tooltip>
                                                                 </TooltipProvider>
