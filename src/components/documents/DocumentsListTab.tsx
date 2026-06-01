@@ -62,11 +62,11 @@ interface DocumentDefinition {
   created_at: string;
 }
 
-const defaultCategories = [
-  "Identity", "Character", "Health", "Employment", "Skills",
-  "English", "Education", "Financial", "Relationship", "Sponsor",
-  "Insurance", "Nomination", "Other",
-];
+interface DocumentCategoryRow {
+  name: string;
+  sort_order: number;
+}
+
 
 export default function DocumentsListTab() {
   const queryClient = useQueryClient();
