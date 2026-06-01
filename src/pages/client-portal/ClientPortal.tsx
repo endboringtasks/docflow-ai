@@ -1126,6 +1126,7 @@ export default function ClientPortal() {
                                                 const needsAttention = doc.review_status === 'pending_client' || doc.review_status === 'rejected';
                                                 const isPendingClient = doc.review_status === 'pending_client';
                                                 const isRejected = doc.review_status === 'rejected';
+                                                const isApproved = doc.review_status === 'approved';
                                                 
                                                 // Allow uploads for rejected documents regardless of max_files limit
                                                 // (rejected attachments will be archived when replacement is uploaded)
