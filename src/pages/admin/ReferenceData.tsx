@@ -57,9 +57,11 @@ import {
   Layers,
   Users,
   Languages,
+  Tags,
 } from "lucide-react";
 
 import AdminDocumentsListTab from "@/components/admin/AdminDocumentsListTab";
+import DocumentCategoriesTab from "@/components/admin/DocumentCategoriesTab";
 import ApplicationChecklistTab from "@/components/admin/ApplicationChecklistTab";
 import { toast } from "sonner";
 import { getCountryFlag } from "@/lib/countryFlags";
