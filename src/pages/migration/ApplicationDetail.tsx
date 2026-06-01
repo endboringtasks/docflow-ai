@@ -1426,32 +1426,66 @@ const VisaApplicationDetail = () => {
           }));
       }
 
-      if (newDocs.length === 0) {
-        return { added: 0, skipped: existingDocNames.size };
+      let added = 0;
+      if (newDocs.length > 0) {
+        const { error: insertError } = await supabase
+          .from("document_checklist")
+          .insert(newDocs);
+
+        if (insertError) throw insertError;
+        added = newDocs.length;
       }
 
-      const { error: insertError } = await supabase
-        .from("document_checklist")
-        .insert(newDocs);
+      // Sync descriptions of existing documents to match current templates
+      let updated = 0;
+      if (syncMode !== "checklist" && resolvedTemplates.length > 0) {
+        const templateByName = new Map<string, any>();
+        resolvedTemplates.forEach((t) => {
+          const key = String(t.document_name || "").trim().toLowerCase();
+          if (key) templateByName.set(key, t);
+        });
 
-      if (insertError) throw insertError;
-      return { added: newDocs.length, skipped: existingDocNames.size };
+        for (const doc of dbDocuments || []) {
+          if (/\(Translation\)/i.test(doc.document_name)) continue;
+          const displayName = parseDocumentName(doc.document_name).displayName.toLowerCase().trim();
+          const template = templateByName.get(displayName);
+          if (!template) continue;
+          const newDescription = template.description ?? null;
+          if (newDescription === (doc.description ?? null)) continue;
+
+          const { error: updateError } = await supabase
+            .from("document_checklist")
+            .update({ description: newDescription })
+            .eq("id", doc.id);
+          if (updateError) throw updateError;
+          updated += 1;
+        }
+      }
+
+      return { added, updated, skipped: existingDocNames.size, mode: syncMode };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["document-checklist", visaApplicationId] });
       setIsMergeOpen(false);
-      if (result.added > 0) {
-        toast.success(`Added ${result.added} new document${result.added > 1 ? "s" : ""}`, {
-          description: `${result.skipped} existing documents preserved`,
+
+      const parts: string[] = [];
+      if (result.mode !== "description") {
+        parts.push(`Added ${result.added} document${result.added !== 1 ? "s" : ""}`);
+      }
+      if (result.mode !== "checklist") {
+        parts.push(`Updated ${result.updated} description${result.updated !== 1 ? "s" : ""}`);
+      }
+
+      if (result.added === 0 && result.updated === 0) {
+        toast.info("Nothing to sync", {
+          description: "The checklist already matches the current templates",
         });
       } else {
-        toast.info("No new documents to add", {
-          description: "All template documents already exist in the checklist",
-        });
+        toast.success("Sync complete", { description: parts.join(" · ") });
       }
     },
     onError: (error) => {
-      toast.error("Failed to merge templates", { description: error instanceof Error ? error.message : "Please try again" });
+      toast.error("Failed to sync application checklist", { description: error instanceof Error ? error.message : "Please try again" });
     },
   });
 
