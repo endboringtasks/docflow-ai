@@ -1302,6 +1302,7 @@ const VisaApplicationDetail = () => {
 
       const visaTypeId = matchingVisaType?.id;
       let newDocs: any[] = [];
+      let resolvedTemplates: any[] = [];
 
       if (visaTypeId) {
         const { data: linkedTemplates, error: linkedError } = await supabase
