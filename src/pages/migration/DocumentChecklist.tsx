@@ -92,6 +92,7 @@ interface DocumentDefinition {
 
 interface DocumentTemplate {
   id: string;
+  company_id: string | null;
   visa_type_id: string | null;
   visa_subclass: string | null;
   category: string;
@@ -102,7 +103,15 @@ interface DocumentTemplate {
   applicant_type_id: string | null;
   age_condition: string | null;
   description: string | null;
+  instructions?: string | null;
   requires_translation: boolean;
+  translation_target_language?: string | null;
+  translation_certification_type_id?: string | null;
+  translation_notes?: string | null;
+  requirement_type?: string | null;
+  applicability_condition?: string | null;
+  min_files?: number | null;
+  max_files?: number | null;
   applicant_type?: ApplicantType | null;
   document_definition_id?: string | null;
 }
