@@ -92,6 +92,7 @@ interface DocumentDefinition {
 
 interface DocumentTemplate {
   id: string;
+  company_id: string | null;
   visa_type_id: string | null;
   visa_subclass: string | null;
   category: string;
@@ -102,7 +103,15 @@ interface DocumentTemplate {
   applicant_type_id: string | null;
   age_condition: string | null;
   description: string | null;
+  instructions?: string | null;
   requires_translation: boolean;
+  translation_target_language?: string | null;
+  translation_certification_type_id?: string | null;
+  translation_notes?: string | null;
+  requirement_type?: string | null;
+  applicability_condition?: string | null;
+  min_files?: number | null;
+  max_files?: number | null;
   applicant_type?: ApplicantType | null;
   document_definition_id?: string | null;
 }
@@ -412,37 +421,86 @@ const DocumentTemplates = () => {
     },
   });
 
-  // Fetch templates for selected application type via junction table
+  // Fetch templates for selected application type via junction table,
+  // merged with this company's own overrides (copy-on-write).
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["document-templates", currentCompany?.id, selectedApplicationType],
     queryFn: async () => {
       if (!selectedApplicationType) return [];
-      
-      // First get template IDs linked to this application type via junction table
+
+      // 1. Global templates linked to this application type via junction table
       const { data: linkedTemplates, error: linkError } = await supabase
         .from("document_template_applications")
         .select("document_template_id")
         .eq("visa_type_id", selectedApplicationType);
-      
+
       if (linkError) throw linkError;
-      
+
       const templateIds = linkedTemplates?.map(t => t.document_template_id) || [];
-      
-      if (templateIds.length === 0) return [];
-      
-      // Fetch the actual templates with applicant type
-      const { data, error } = await supabase
-        .from("document_checklist_templates")
-        .select("*, applicant_type:applicant_types(*)")
-        .in("id", templateIds)
-        .order("category", { ascending: true })
-        .order("sort_order", { ascending: true });
-      
-      if (error) throw error;
-      return data as DocumentTemplate[];
+
+      let globalTemplates: DocumentTemplate[] = [];
+      if (templateIds.length > 0) {
+        const { data, error } = await supabase
+          .from("document_checklist_templates")
+          .select("*, applicant_type:applicant_types(*)")
+          .in("id", templateIds)
+          .order("category", { ascending: true })
+          .order("sort_order", { ascending: true });
+        if (error) throw error;
+        globalTemplates = (data || []) as DocumentTemplate[];
+      }
+
+      // 2. This company's own templates (overrides + company-added) for this app type
+      let companyTemplates: DocumentTemplate[] = [];
+      if (currentCompany?.id) {
+        const { data, error } = await supabase
+          .from("document_checklist_templates")
+          .select("*, applicant_type:applicant_types(*)")
+          .eq("company_id", currentCompany.id)
+          .eq("visa_type_id", selectedApplicationType)
+          .order("category", { ascending: true })
+          .order("sort_order", { ascending: true });
+        if (error) throw error;
+        companyTemplates = (data || []) as DocumentTemplate[];
+      }
+
+      // 3. Merge: prefer a company override over the matching global template.
+      const overrideKey = (t: DocumentTemplate) =>
+        t.document_definition_id
+          ? `def:${t.document_definition_id}`
+          : `name:${t.category}|${t.document_name}`;
+
+      const overrideMap = new Map<string, DocumentTemplate>();
+      companyTemplates.forEach((t) => overrideMap.set(overrideKey(t), t));
+
+      const usedOverrideKeys = new Set<string>();
+      const merged: DocumentTemplate[] = globalTemplates.map((g) => {
+        const key = overrideKey(g);
+        const override = overrideMap.get(key);
+        if (override) {
+          usedOverrideKeys.add(key);
+          return override;
+        }
+        return g;
+      });
+
+      // Include company templates with no matching global (company-added docs)
+      companyTemplates.forEach((t) => {
+        if (!usedOverrideKeys.has(overrideKey(t))) {
+          merged.push(t);
+        }
+      });
+
+      return merged
+        .sort((a, b) =>
+          a.category === b.category
+            ? a.sort_order - b.sort_order
+            : a.category.localeCompare(b.category)
+        );
     },
     enabled: !!selectedApplicationType,
   });
+
 
   // Filter templates by search name
   const filteredTemplates = useMemo(() => {
@@ -637,25 +695,113 @@ const DocumentTemplates = () => {
     },
   });
 
-  // Update document mutation
+  // Update document mutation (copy-on-write for shared/global templates)
   const updateDocMutation = useMutation({
-    mutationFn: async (doc: { id: string; document_name: string; is_required: boolean; category: string; applicant_type_id: string | null; age_condition: string | null; description: string | null; requires_translation: boolean; oldDescription: string | null }) => {
-      const { data, error } = await supabase
-        .from("document_checklist_templates")
-        .update({
-          document_name: doc.document_name,
-          is_required: doc.is_required,
-          category: doc.category,
-          applicant_type_id: doc.applicant_type_id || null,
-          age_condition: doc.age_condition || null,
-          description: doc.description || null,
-          requires_translation: doc.requires_translation,
-        })
-        .eq("id", doc.id)
-        .select("*, applicant_type:applicant_types(*)")
-        .single();
-      
-      if (error) throw error;
+    mutationFn: async (doc: {
+      id: string;
+      company_id: string | null;
+      document_definition_id: string | null;
+      visa_type_id: string | null;
+      country_id: string | null;
+      sort_order: number;
+      document_name: string;
+      is_required: boolean;
+      category: string;
+      applicant_type_id: string | null;
+      age_condition: string | null;
+      description: string | null;
+      requires_translation: boolean;
+      oldDescription: string | null;
+    }) => {
+      if (!currentCompany?.id) throw new Error("No company selected");
+
+      const editedFields = {
+        document_name: doc.document_name,
+        is_required: doc.is_required,
+        category: doc.category,
+        applicant_type_id: doc.applicant_type_id || null,
+        age_condition: doc.age_condition || null,
+        description: doc.description || null,
+        requires_translation: doc.requires_translation,
+      };
+
+      let data: any = null;
+
+      if (doc.company_id === currentCompany.id) {
+        // Editing a row this company already owns — update directly.
+        const res = await supabase
+          .from("document_checklist_templates")
+          .update(editedFields)
+          .eq("id", doc.id)
+          .select("*, applicant_type:applicant_types(*)")
+          .maybeSingle();
+        if (res.error) throw res.error;
+        data = res.data;
+      } else {
+        // Editing a shared/global template — copy-on-write.
+        // Look for an existing company override first.
+        let overrideQuery = supabase
+          .from("document_checklist_templates")
+          .select("id")
+          .eq("company_id", currentCompany.id)
+          .eq("visa_type_id", doc.visa_type_id ?? selectedApplicationType);
+
+        if (doc.document_definition_id) {
+          overrideQuery = overrideQuery.eq("document_definition_id", doc.document_definition_id);
+        } else {
+          overrideQuery = overrideQuery
+            .eq("category", doc.category)
+            .eq("document_name", doc.document_name);
+        }
+
+        const { data: existing, error: existingError } = await overrideQuery.maybeSingle();
+        if (existingError && existingError.code !== "PGRST116") throw existingError;
+
+        if (existing?.id) {
+          const res = await supabase
+            .from("document_checklist_templates")
+            .update(editedFields)
+            .eq("id", existing.id)
+            .select("*, applicant_type:applicant_types(*)")
+            .maybeSingle();
+          if (res.error) throw res.error;
+          data = res.data;
+        } else {
+          // Insert a new company-specific copy carrying over the global template's fields.
+          const { data: source } = await supabase
+            .from("document_checklist_templates")
+            .select("*")
+            .eq("id", doc.id)
+            .maybeSingle();
+
+          const res = await supabase
+            .from("document_checklist_templates")
+            .insert({
+              company_id: currentCompany.id,
+              visa_type_id: doc.visa_type_id ?? selectedApplicationType,
+              country_id: doc.country_id ?? source?.country_id ?? null,
+              document_definition_id: doc.document_definition_id ?? source?.document_definition_id ?? null,
+              sort_order: doc.sort_order ?? source?.sort_order ?? 0,
+              instructions: source?.instructions ?? null,
+              applicability_condition: source?.applicability_condition ?? null,
+              requirement_type: source?.requirement_type ?? "required",
+              min_files: source?.min_files ?? 1,
+              max_files: source?.max_files ?? 1,
+              translation_target_language: source?.translation_target_language ?? "English",
+              translation_certification_type_id: source?.translation_certification_type_id ?? null,
+              translation_notes: source?.translation_notes ?? null,
+              ...editedFields,
+            })
+            .select("*, applicant_type:applicant_types(*)")
+            .maybeSingle();
+          if (res.error) throw res.error;
+          data = res.data;
+        }
+      }
+
+      if (!data) {
+        throw new Error("Update did not return a record. You may not have permission to edit this document.");
+      }
 
       // Sync description to existing application checklists if it changed
       const descriptionChanged = (doc.oldDescription ?? null) !== (doc.description ?? null);
@@ -724,6 +870,11 @@ const DocumentTemplates = () => {
     if (!editingDoc || !editingDoc.document_name.trim()) return;
     updateDocMutation.mutate({
       id: editingDoc.id,
+      company_id: editingDoc.company_id ?? null,
+      document_definition_id: editingDoc.document_definition_id ?? null,
+      visa_type_id: editingDoc.visa_type_id ?? selectedApplicationType,
+      country_id: editingDoc.country_id ?? null,
+      sort_order: editingDoc.sort_order ?? 0,
       document_name: editingDoc.document_name.trim(),
       is_required: editingDoc.is_required,
       category: editingDoc.category,
