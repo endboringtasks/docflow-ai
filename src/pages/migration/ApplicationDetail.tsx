@@ -2527,6 +2527,45 @@ const VisaApplicationDetail = () => {
                               )}
                             </div>
                           </div>
+                          {/* Audit trail: who uploaded / who reviewed */}
+                          {doc.attachmentCount > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              {(doc.uploadedByClientName || doc.uploadedByName) && (
+                                <span className="flex items-center gap-1">
+                                  <Upload className="w-3 h-3" />
+                                  Uploaded by{" "}
+                                  {doc.uploadedByClientName ? (
+                                    <span>{doc.uploadedByClientName} (Client)</span>
+                                  ) : (
+                                    <span>{doc.uploadedByName}</span>
+                                  )}
+                                  {doc.uploadedAt && (
+                                    <span>· {format(new Date(doc.uploadedAt), "MMM d, yyyy 'at' h:mm a")}</span>
+                                  )}
+                                </span>
+                              )}
+                              {doc.reviewStatus === "approved" && (
+                                <span className="flex items-center gap-1 text-green-600">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  Approved
+                                  {doc.reviewedByName && <span>by {doc.reviewedByName}</span>}
+                                  {doc.reviewedAt && (
+                                    <span>· {format(new Date(doc.reviewedAt), "MMM d, yyyy 'at' h:mm a")}</span>
+                                  )}
+                                </span>
+                              )}
+                              {doc.reviewStatus === "rejected" && (
+                                <span className="flex items-center gap-1 text-destructive">
+                                  <XCircle className="w-3 h-3" />
+                                  Rejected
+                                  {doc.reviewedByName && <span>by {doc.reviewedByName}</span>}
+                                  {doc.reviewedAt && (
+                                    <span>· {format(new Date(doc.reviewedAt), "MMM d, yyyy 'at' h:mm a")}</span>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           {/* Attachments list */}
                           {doc.attachments && doc.attachments.length > 0 && (
                             <div className="mt-2 ml-8 space-y-2">
