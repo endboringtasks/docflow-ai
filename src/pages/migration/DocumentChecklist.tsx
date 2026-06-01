@@ -791,7 +791,7 @@ const DocumentTemplates = () => {
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Document Checklist</h1>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Application Checklist</h1>
             <p className="text-muted-foreground mt-1">
               Manage your document catalog and configure checklists per application type
             </p>
@@ -801,7 +801,7 @@ const DocumentTemplates = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="documents-list">Documents List</TabsTrigger>
-            <TabsTrigger value="checklist">Document Checklist</TabsTrigger>
+            <TabsTrigger value="checklist">Application Checklist</TabsTrigger>
           </TabsList>
 
           <TabsContent value="documents-list" className="mt-6">

@@ -2097,7 +2097,7 @@ const VisaApplicationDetail = () => {
         {/* Tabs */}
         <Tabs defaultValue="documents" className="space-y-6">
           <TabsList className="bg-secondary">
-            <TabsTrigger value="documents">Document Checklist</TabsTrigger>
+            <TabsTrigger value="documents">Application Checklist</TabsTrigger>
             <TabsTrigger value="status">Status & Timeline</TabsTrigger>
             <TabsTrigger value="forms">Online Forms</TabsTrigger>
           </TabsList>

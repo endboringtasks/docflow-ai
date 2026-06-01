@@ -32,7 +32,7 @@ const nicheConfig = {
       { label: "Dashboard", href: "/app/migration/dashboard", icon: LayoutDashboard },
       { label: "Clients", href: "/app/migration/clients", icon: Users },
       { label: "Applications", href: "/app/migration/applications", icon: FileText },
-      { label: "Document Checklist", href: "/app/migration/document-checklist", icon: FileCheck },
+      { label: "Application Checklist", href: "/app/migration/document-checklist", icon: FileCheck },
     ],
   },
   audit: {
