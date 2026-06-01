@@ -1314,7 +1314,7 @@ const VisaApplicationDetail = () => {
           .filter(Boolean);
 
         if (templateIds.length > 0) {
-          const { data: templates, error: templatesError } = await supabase
+          const { data: globalTemplatesRaw, error: templatesError } = await supabase
             .from("document_checklist_templates")
             .select(`
               document_name, 
@@ -1324,12 +1324,55 @@ const VisaApplicationDetail = () => {
               age_condition,
               is_required, 
               sort_order,
+              document_definition_id,
               applicant_type:applicant_types(name)
             `)
             .in("id", templateIds)
             .order("sort_order");
 
           if (templatesError) throw templatesError;
+
+          // Merge company-specific overrides (copy-on-write) over global templates
+          const { data: companyOverrides, error: overridesError } = await supabase
+            .from("document_checklist_templates")
+            .select(`
+              document_name, 
+              category, 
+              description,
+              instructions,
+              age_condition,
+              is_required, 
+              sort_order,
+              document_definition_id,
+              applicant_type:applicant_types(name)
+            `)
+            .eq("company_id", visaApplication.company_id)
+            .eq("visa_type_id", visaTypeId)
+            .order("sort_order");
+
+          if (overridesError) throw overridesError;
+
+          const overrideKey = (t: any) =>
+            t.document_definition_id
+              ? `def:${t.document_definition_id}`
+              : `name:${t.category}|${t.document_name}`;
+
+          const overrideMap = new Map<string, any>();
+          (companyOverrides || []).forEach((t) => overrideMap.set(overrideKey(t), t));
+
+          const usedKeys = new Set<string>();
+          const templates: any[] = (globalTemplatesRaw || []).map((g) => {
+            const key = overrideKey(g);
+            const override = overrideMap.get(key);
+            if (override) {
+              usedKeys.add(key);
+              return override;
+            }
+            return g;
+          });
+          (companyOverrides || []).forEach((t) => {
+            if (!usedKeys.has(overrideKey(t))) templates.push(t);
+          });
 
           if (templates && templates.length > 0) {
             // Filter to only templates that don't already exist
