@@ -421,37 +421,86 @@ const DocumentTemplates = () => {
     },
   });
 
-  // Fetch templates for selected application type via junction table
+  // Fetch templates for selected application type via junction table,
+  // merged with this company's own overrides (copy-on-write).
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["document-templates", currentCompany?.id, selectedApplicationType],
     queryFn: async () => {
       if (!selectedApplicationType) return [];
-      
-      // First get template IDs linked to this application type via junction table
+
+      // 1. Global templates linked to this application type via junction table
       const { data: linkedTemplates, error: linkError } = await supabase
         .from("document_template_applications")
         .select("document_template_id")
         .eq("visa_type_id", selectedApplicationType);
-      
+
       if (linkError) throw linkError;
-      
+
       const templateIds = linkedTemplates?.map(t => t.document_template_id) || [];
-      
-      if (templateIds.length === 0) return [];
-      
-      // Fetch the actual templates with applicant type
-      const { data, error } = await supabase
-        .from("document_checklist_templates")
-        .select("*, applicant_type:applicant_types(*)")
-        .in("id", templateIds)
-        .order("category", { ascending: true })
-        .order("sort_order", { ascending: true });
-      
-      if (error) throw error;
-      return data as DocumentTemplate[];
+
+      let globalTemplates: DocumentTemplate[] = [];
+      if (templateIds.length > 0) {
+        const { data, error } = await supabase
+          .from("document_checklist_templates")
+          .select("*, applicant_type:applicant_types(*)")
+          .in("id", templateIds)
+          .order("category", { ascending: true })
+          .order("sort_order", { ascending: true });
+        if (error) throw error;
+        globalTemplates = (data || []) as DocumentTemplate[];
+      }
+
+      // 2. This company's own templates (overrides + company-added) for this app type
+      let companyTemplates: DocumentTemplate[] = [];
+      if (currentCompany?.id) {
+        const { data, error } = await supabase
+          .from("document_checklist_templates")
+          .select("*, applicant_type:applicant_types(*)")
+          .eq("company_id", currentCompany.id)
+          .eq("visa_type_id", selectedApplicationType)
+          .order("category", { ascending: true })
+          .order("sort_order", { ascending: true });
+        if (error) throw error;
+        companyTemplates = (data || []) as DocumentTemplate[];
+      }
+
+      // 3. Merge: prefer a company override over the matching global template.
+      const overrideKey = (t: DocumentTemplate) =>
+        t.document_definition_id
+          ? `def:${t.document_definition_id}`
+          : `name:${t.category}|${t.document_name}`;
+
+      const overrideMap = new Map<string, DocumentTemplate>();
+      companyTemplates.forEach((t) => overrideMap.set(overrideKey(t), t));
+
+      const usedOverrideKeys = new Set<string>();
+      const merged: DocumentTemplate[] = globalTemplates.map((g) => {
+        const key = overrideKey(g);
+        const override = overrideMap.get(key);
+        if (override) {
+          usedOverrideKeys.add(key);
+          return override;
+        }
+        return g;
+      });
+
+      // Include company templates with no matching global (company-added docs)
+      companyTemplates.forEach((t) => {
+        if (!usedOverrideKeys.has(overrideKey(t))) {
+          merged.push(t);
+        }
+      });
+
+      return merged
+        .sort((a, b) =>
+          a.category === b.category
+            ? a.sort_order - b.sort_order
+            : a.category.localeCompare(b.category)
+        );
     },
     enabled: !!selectedApplicationType,
   });
+
 
   // Filter templates by search name
   const filteredTemplates = useMemo(() => {
