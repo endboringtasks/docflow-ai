@@ -2140,10 +2140,6 @@ export default function AdminReferenceData() {
               <Users className="w-4 h-4" />
               Applicant Types
             </TabsTrigger>
-            <TabsTrigger value="category-applicant-rules" className="gap-2">
-              <Settings2 className="w-4 h-4" />
-              Category Rules
-            </TabsTrigger>
             <TabsTrigger value="translation-certs" className="gap-2">
               <Languages className="w-4 h-4" />
               Translation Certifications
@@ -2180,9 +2176,6 @@ export default function AdminReferenceData() {
                 <ApplicantTypesTab />
               </TabsContent>
 
-              <TabsContent value="category-applicant-rules" className="mt-0">
-                <CategoryApplicantRulesTab />
-              </TabsContent>
 
               <TabsContent value="translation-certs" className="mt-0">
                 <TranslationCertificationsTab />
