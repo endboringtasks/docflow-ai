@@ -2253,7 +2253,7 @@ const VisaApplicationDetail = () => {
                 ) : (
                   <Merge className="w-4 h-4 mr-2" />
                 )}
-                Merge Templates
+                Sync Application Checklist
               </Button>
             </div>
 
