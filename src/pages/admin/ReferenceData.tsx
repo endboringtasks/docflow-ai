@@ -59,7 +59,7 @@ import {
   Languages,
   Settings2,
 } from "lucide-react";
-import { CategoryApplicantRulesTab } from "@/components/admin/CategoryApplicantRulesTab";
+
 import AdminDocumentsListTab from "@/components/admin/AdminDocumentsListTab";
 import ApplicationChecklistTab from "@/components/admin/ApplicationChecklistTab";
 import { toast } from "sonner";
