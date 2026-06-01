@@ -843,6 +843,33 @@ export type Database = {
           },
         ]
       }
+      document_categories: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       document_checklist: {
         Row: {
           age_condition: string | null
@@ -1837,6 +1864,10 @@ export type Database = {
         }[]
       }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      count_document_category_usage: {
+        Args: { p_name: string }
+        Returns: number
+      }
       get_client_by_id: {
         Args: { p_client_id: string }
         Returns: {
@@ -1974,6 +2005,10 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: { _user_id: string }; Returns: boolean }
+      rename_document_category: {
+        Args: { p_new_name: string; p_old_name: string }
+        Returns: number
+      }
       shares_company_with: {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
