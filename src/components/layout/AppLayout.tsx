@@ -6,6 +6,7 @@ import {
   Users, 
   FileText, 
   FileCheck,
+  FileSearch,
   CreditCard, 
   Settings, 
   LogOut, 
