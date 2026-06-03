@@ -31,6 +31,9 @@ import MigrationClientDetail from "./pages/migration/ClientDetail";
 import MigrationApplications from "./pages/migration/Applications";
 import ApplicationDetail from "./pages/migration/ApplicationDetail";
 import MigrationDocumentChecklist from "./pages/migration/DocumentChecklist";
+import ReverseEngineerProjects from "./pages/reverse-engineer/Projects";
+import ReverseEngineerWizard from "./pages/reverse-engineer/Wizard";
+import ReverseEngineerDeliverables from "./pages/reverse-engineer/Deliverables";
 import AuditDashboard from "./pages/audit/Dashboard";
 import HRDashboard from "./pages/hr/Dashboard";
 import Billing from "./pages/Billing";
@@ -99,6 +102,25 @@ const App = () => (
                   <MigrationDocumentChecklist />
                 </ProtectedRoute>
               } />
+
+              {/* Protected: Reverse Engineer */}
+              <Route path="/app/reverse-engineer" element={
+                <ProtectedRoute>
+                  <ReverseEngineerProjects />
+                </ProtectedRoute>
+              } />
+              <Route path="/app/reverse-engineer/:projectId/wizard" element={
+                <ProtectedRoute>
+                  <ReverseEngineerWizard />
+                </ProtectedRoute>
+              } />
+              <Route path="/app/reverse-engineer/:projectId/deliverables" element={
+                <ProtectedRoute>
+                  <ReverseEngineerDeliverables />
+                </ProtectedRoute>
+              } />
+              
+
               
               {/* Protected: Audit Niche (Stubs) */}
               <Route path="/app/audit/dashboard" element={

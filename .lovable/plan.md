@@ -1,60 +1,66 @@
-# Rename "Merge Templates" → "Sync Application Checklist" + 3 Sync Options
+# Docflow Reverse Engineer — Phase 1
 
-## Goal
-On the Application Checklist tab (`src/pages/migration/ApplicationDetail.tsx`):
+A new section inside the existing app that lets a company member capture an existing product's structure through a guided wizard and assemble structured Markdown deliverables (DDD / BDD / Tech Specs / Docs). Phase 1 is **template-only** (no AI yet) and scoped **per company** (existing RLS model). A seeded "Docflow AI" demo project is included so it works immediately.
 
-1. **Rename** the **Merge Templates** button to **Sync Application Checklist**.
-2. When clicked, open a dialog offering three sync modes:
-   - **Sync Application Checklist** — add missing template documents (current merge behavior).
-   - **Sync Document Description** — update descriptions of documents already in the checklist to match their current template descriptions (no rows added/removed).
-   - **Both** — run the merge, then sync descriptions.
+## Scope of Phase 1
+- Database schema + RLS for projects and all intake entities
+- Reusable app shell + sidebar entry for the new section
+- Projects list + create
+- 6-step intake wizard (Steps 0–5) with progress tracking
+- Deliverables area with tabs, template-assembled Markdown, per-section editing
+- Single-file and per-deliverable Markdown export
+- Seed demo project
 
-## What changes (frontend only — one file)
+Deferred to later phases: AI generation/regeneration, Notion-ready export polish, screenshot uploads, SQL import parsing, versioned deliverable history UI.
 
-### 1. Button (~line 2205-2217)
-- Label "Merge Templates" → "Sync Application Checklist".
-- Keep the icon and pending/spinner behavior.
-
-### 2. Dialog (`isMergeOpen` AlertDialog, ~line 3045)
-- Replace the single confirmation with a `RadioGroup` (`@/components/ui/radio-group`) showing the three options:
-  - "Sync Application Checklist (add missing documents)"
-  - "Sync Document Description (update existing descriptions)"
-  - "Both"
-- Default selection: **Both**.
-- Title: "Sync Application Checklist". Update description copy to explain each mode.
-- Keep Cancel; primary action button reads "Sync" and runs the selected mode.
-
-### 3. New state
-Add `syncMode` state (`"checklist" | "description" | "both"`) defaulting to `"both"`.
-
-### 4. Reuse the template fetch
-`mergeTemplatesMutation` already fetches resolved templates (global + company copy-on-write overrides) with `document_name`, `category`, `description`. Refactor so the same fetched list feeds both adding missing docs and syncing descriptions, then branch on `syncMode`.
-
-### 5. Sync-descriptions logic
-For each doc currently in `dbDocuments`, match to a template by comparing the parsed display name (`parseDocumentName(d.document_name).displayName`, lowercased/trimmed) against the template `document_name`. When matched and the description differs, update that checklist row's `description`. Skip translation rows (names containing "(Translation)").
-
+## Routes
 ```text
-for each existing checklist doc:
-  displayName = parseDocumentName(doc.document_name).displayName
-  template = templateMap[displayName]
-  if template && template.description !== doc.description:
-    update document_checklist set description = template.description where id = doc.id
+/app/reverse-engineer                      → Projects list
+/app/reverse-engineer/:projectId/wizard    → Wizard (steps 0–5)
+/app/reverse-engineer/:projectId/deliverables → Deliverables tabs + export
 ```
+Added to `App.tsx` under `ProtectedRoute`, and a sidebar link in `AppLayout`.
 
-### 6. Result toast (by mode)
-- checklist → "Added N documents"
-- description → "Updated N descriptions"
-- both → "Added N documents · Updated M descriptions"
+## Wizard steps
+- **Step 0 – Project setup**: name, product URL, description, industry, audience, output toggles (DDD/BDD/Tech/Docs), output format (Markdown / Notion-ready).
+- **Step 1 – Roles & permissions**: add/edit roles with permission lists; paste-to-import.
+- **Step 2 – Journeys**: 5–10 journeys, each with trigger, preconditions, main steps, variations, errors/edge cases.
+- **Step 3 – Domain discovery**: nouns (tagged Entity / Value Object / Aggregate / External), verbs/commands, policies/rules, states, artifacts, external systems.
+- **Step 4 – Data & source-of-truth**: data objects + system of record + sync rules; paste schema text (stored raw for now).
+- **Step 5 – Synthesis**: choose deliverable sets, generate → assembles Markdown from intake into deliverable rows, navigates to Deliverables.
 
-Invalidate `["document-checklist", visaApplicationId]` on success (already done).
+Each step autosaves to Supabase. A progress bar reflects completed steps.
 
-## Out of scope
-- No database migration; descriptions are synced for the current application's `document_checklist` rows directly via client updates (same RLS the page already uses).
-- No change to the template-editor sync RPC (`sync_template_description_to_checklists`) on `DocumentChecklist.tsx`.
-- No change to how `document_name` is encoded/stored.
+## Deliverables area
+Tabs: **DDD**, **BDD**, **Tech Specs**, **Docs**. Each contains the sections listed in the brief, rendered as editable Markdown (textarea + preview). Every generated section appends an **Assumptions** and **Open Questions** block. Buttons: "Export all", "Export this deliverable". Editing persists to the deliverable row.
 
-## Verification
-Open an application's Application Checklist, click **Sync Application Checklist**, and for each option confirm:
-- Checklist mode adds only missing docs.
-- Description mode updates existing descriptions (a doc whose template description was edited shows new text) with no rows added.
-- Both performs add + update and the toast reports correct counts.
+## Technical details
+
+### Database (new tables, all `company_id`-scoped, RLS via `is_company_member` / `is_company_admin_or_owner`)
+- `re_projects` — name, product_url, description, industry, audience, output_config (jsonb), output_format, created_by
+- `re_roles` — project_id, name, permissions (text[]), sort_order
+- `re_journeys` — project_id, title, trigger, preconditions, main_steps, variations, errors, sort_order
+- `re_domain_terms` — project_id, kind (noun/verb/policy/state/artifact/external_system), term, definition, classification (entity/value_object/aggregate/external), sort_order
+- `re_data_objects` — project_id, name, system_of_record, sync_rules, notes
+- `re_external_systems` — project_id, name, purpose, direction
+- `re_deliverables` — project_id, category (ddd/bdd/tech/docs), section_key, title, content_md, version, assumptions, open_questions
+
+Each table: full GRANTs (`authenticated`, `service_role`), RLS (members read/write within their company; mutations restricted to members like existing tables), and `updated_at` triggers. `company_id` non-nullable; `created_by` set to `auth.uid()` on insert.
+
+### Frontend
+- `ReverseEngineerLayout` wrapper reusing the existing sidebar shell pattern (or extend `AppLayout` niche items with a Reverse Engineer link).
+- React Query hooks per table (`useReProjects`, etc.) following existing Supabase client usage.
+- Wizard built with existing shadcn components (Tabs/RadioGroup/Input/Textarea/Progress/Card).
+- Template assembly: pure TS helpers in `src/lib/reverseEngineer/templates.ts` that map intake rows → Markdown strings per section, including consistent terminology, status names, Assumptions and Open Questions.
+- Export: client-side blob download of concatenated or per-deliverable Markdown.
+
+### Seed demo project
+Inserted via the data-insert tool after migration (not a schema migration): a "Docflow AI" project with sample roles (Admin/Staff/Client), journeys (client upload, staff validation, submit application), domain terms (Case/Application, Client, Document, Checklist, Requirement, Validation, Status), data objects, and external systems (Drive, email).
+
+## Build order
+1. Migration: create the 7 tables with GRANTs, RLS, triggers.
+2. Seed demo project data.
+3. Routes + sidebar entry + projects list/create.
+4. Wizard steps 0–5 with autosave.
+5. Template assembly + Deliverables tabs + editing.
+6. Export (single file + per deliverable).

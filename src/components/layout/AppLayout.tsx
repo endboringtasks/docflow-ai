@@ -6,6 +6,7 @@ import {
   Users, 
   FileText, 
   FileCheck,
+  FileSearch,
   CreditCard, 
   Settings, 
   LogOut, 
@@ -33,6 +34,7 @@ const nicheConfig = {
       { label: "Clients", href: "/app/migration/clients", icon: Users },
       { label: "Applications", href: "/app/migration/applications", icon: FileText },
       { label: "Application Checklist", href: "/app/migration/document-checklist", icon: FileCheck },
+      { label: "Reverse Engineer", href: "/app/reverse-engineer", icon: FileSearch },
     ],
   },
   audit: {
@@ -42,6 +44,7 @@ const nicheConfig = {
       { label: "Dashboard", href: "/app/audit/dashboard", icon: LayoutDashboard },
       { label: "Clients", href: "/app/audit/clients", icon: Users },
       { label: "Engagements", href: "/app/audit/engagements", icon: FileText },
+      { label: "Reverse Engineer", href: "/app/reverse-engineer", icon: FileSearch },
     ],
   },
   hr: {
@@ -51,6 +54,7 @@ const nicheConfig = {
       { label: "Dashboard", href: "/app/hr/dashboard", icon: LayoutDashboard },
       { label: "Employees", href: "/app/hr/employees", icon: Users },
       { label: "Cases", href: "/app/hr/cases", icon: FileText },
+      { label: "Reverse Engineer", href: "/app/reverse-engineer", icon: FileSearch },
     ],
   },
 };
