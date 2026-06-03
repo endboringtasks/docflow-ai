@@ -1497,6 +1497,291 @@ export type Database = {
         }
         Relationships: []
       }
+      re_data_objects: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          project_id: string
+          sort_order: number
+          sync_rules: string | null
+          system_of_record: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          project_id: string
+          sort_order?: number
+          sync_rules?: string | null
+          system_of_record?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          project_id?: string
+          sort_order?: number
+          sync_rules?: string | null
+          system_of_record?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      re_deliverables: {
+        Row: {
+          assumptions: string | null
+          category: string
+          company_id: string
+          content_md: string
+          created_at: string
+          id: string
+          open_questions: string | null
+          project_id: string
+          section_key: string
+          sort_order: number
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          assumptions?: string | null
+          category: string
+          company_id: string
+          content_md?: string
+          created_at?: string
+          id?: string
+          open_questions?: string | null
+          project_id: string
+          section_key: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          assumptions?: string | null
+          category?: string
+          company_id?: string
+          content_md?: string
+          created_at?: string
+          id?: string
+          open_questions?: string | null
+          project_id?: string
+          section_key?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      re_domain_terms: {
+        Row: {
+          classification: string | null
+          company_id: string
+          created_at: string
+          definition: string | null
+          id: string
+          kind: string
+          project_id: string
+          sort_order: number
+          term: string
+          updated_at: string
+        }
+        Insert: {
+          classification?: string | null
+          company_id: string
+          created_at?: string
+          definition?: string | null
+          id?: string
+          kind?: string
+          project_id: string
+          sort_order?: number
+          term: string
+          updated_at?: string
+        }
+        Update: {
+          classification?: string | null
+          company_id?: string
+          created_at?: string
+          definition?: string | null
+          id?: string
+          kind?: string
+          project_id?: string
+          sort_order?: number
+          term?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      re_external_systems: {
+        Row: {
+          company_id: string
+          created_at: string
+          direction: string | null
+          id: string
+          name: string
+          project_id: string
+          purpose: string | null
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          direction?: string | null
+          id?: string
+          name: string
+          project_id: string
+          purpose?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          direction?: string | null
+          id?: string
+          name?: string
+          project_id?: string
+          purpose?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      re_journeys: {
+        Row: {
+          company_id: string
+          created_at: string
+          errors: string | null
+          id: string
+          main_steps: string | null
+          preconditions: string | null
+          project_id: string
+          sort_order: number
+          title: string
+          trigger: string | null
+          updated_at: string
+          variations: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          errors?: string | null
+          id?: string
+          main_steps?: string | null
+          preconditions?: string | null
+          project_id: string
+          sort_order?: number
+          title: string
+          trigger?: string | null
+          updated_at?: string
+          variations?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          errors?: string | null
+          id?: string
+          main_steps?: string | null
+          preconditions?: string | null
+          project_id?: string
+          sort_order?: number
+          title?: string
+          trigger?: string | null
+          updated_at?: string
+          variations?: string | null
+        }
+        Relationships: []
+      }
+      re_projects: {
+        Row: {
+          audience: string | null
+          company_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          industry: string | null
+          name: string
+          output_config: Json
+          output_format: string
+          product_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          audience?: string | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          industry?: string | null
+          name: string
+          output_config?: Json
+          output_format?: string
+          product_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          audience?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          industry?: string | null
+          name?: string
+          output_config?: Json
+          output_format?: string
+          product_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      re_roles: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+          permissions: string[]
+          project_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+          permissions?: string[]
+          project_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          permissions?: string[]
+          project_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       team_invitations: {
         Row: {
           company_id: string
