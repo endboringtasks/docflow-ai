@@ -102,6 +102,25 @@ const App = () => (
                   <MigrationDocumentChecklist />
                 </ProtectedRoute>
               } />
+
+              {/* Protected: Reverse Engineer */}
+              <Route path="/app/reverse-engineer" element={
+                <ProtectedRoute>
+                  <ReverseEngineerProjects />
+                </ProtectedRoute>
+              } />
+              <Route path="/app/reverse-engineer/:projectId/wizard" element={
+                <ProtectedRoute>
+                  <ReverseEngineerWizard />
+                </ProtectedRoute>
+              } />
+              <Route path="/app/reverse-engineer/:projectId/deliverables" element={
+                <ProtectedRoute>
+                  <ReverseEngineerDeliverables />
+                </ProtectedRoute>
+              } />
+              
+
               
               {/* Protected: Audit Niche (Stubs) */}
               <Route path="/app/audit/dashboard" element={
