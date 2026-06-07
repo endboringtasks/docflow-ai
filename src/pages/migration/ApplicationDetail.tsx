@@ -2262,7 +2262,7 @@ const VisaApplicationDetail = () => {
 
         {/* Portal Access Links Section */}
         {visaApplication && (
-          <PortalAccessSection visaApplicationId={visaApplication.id} userId={user?.id} />
+          <PortalAccessSection visaApplicationId={visaApplication.id} userId={user?.id} applicantNames={applicantNamesById} />
         )}
 
         {/* Application Timeline Section */}
