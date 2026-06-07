@@ -149,17 +149,55 @@ export function TeamMembers() {
 
     if (!currentCompany || !user) return;
 
+    const normalizedEmail = inviteEmail.toLowerCase().trim();
+
+    // Block inviting someone who is already an active team member
+    const alreadyMember = members.some(
+      (m) => (m.profile?.email || "").toLowerCase() === normalizedEmail
+    );
+    if (alreadyMember) {
+      setEmailError("This person is already a team member");
+      return;
+    }
+
     setIsInviting(true);
 
     try {
-      const { error } = await supabase
+      // Check for an existing invitation row for this company + email
+      const { data: existing, error: existingError } = await supabase
         .from("team_invitations")
-        .insert({
+        .select("id, status")
+        .eq("company_id", currentCompany.id)
+        .eq("email", normalizedEmail)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+
+      if (existing?.status === "pending") {
+        toast.error("This email has already been invited");
+        return;
+      }
+
+      let error;
+      if (existing) {
+        // Re-activate a previously cancelled/accepted invitation
+        ({ error } = await supabase
+          .from("team_invitations")
+          .update({
+            role: inviteRole,
+            invited_by: user.id,
+            status: "pending",
+            created_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id));
+      } else {
+        ({ error } = await supabase.from("team_invitations").insert({
           company_id: currentCompany.id,
-          email: inviteEmail.toLowerCase().trim(),
+          email: normalizedEmail,
           role: inviteRole,
           invited_by: user.id,
-        });
+        }));
+      }
 
       if (error) {
         if (error.code === "23505") {
