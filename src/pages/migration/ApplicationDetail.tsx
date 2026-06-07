@@ -2080,7 +2080,7 @@ const VisaApplicationDetail = () => {
                         disabled={isDriveMismatch}
                       >
                         <Mail className="w-4 h-4 mr-2" />
-                        Invite Client
+                        Generate Client Portal Link
                       </Button>
                     </span>
                   </TooltipTrigger>
