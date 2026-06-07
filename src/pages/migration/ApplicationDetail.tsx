@@ -3200,7 +3200,7 @@ const VisaApplicationDetail = () => {
           }}
           visaApplicationId={visaApplicationId!}
           clientId={visaApplication.client_id}
-          clientEmail={client?.email || null}
+          applicants={inviteApplicants}
           companyId={visaApplication.company_id}
           applicationName={visaApplication.application_name}
         />
