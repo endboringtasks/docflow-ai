@@ -464,7 +464,9 @@ export const ApplicantsSection = ({
                       </span>
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {format(new Date(applicant.created_at), "dd MMM yyyy")}
+                        {applicant.created_at && !isNaN(new Date(applicant.created_at).getTime())
+                          ? format(new Date(applicant.created_at), "dd MMM yyyy")
+                          : "—"}
                       </span>
                     </div>
                   </div>
