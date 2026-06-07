@@ -126,6 +126,9 @@ export function PortalAccessSection({ visaApplicationId, userId, applicantNames 
         <div className="space-y-3">
           {records.map((record) => {
             const state = getLinkState(record);
+            const applicantLabel = record.application_applicant_id
+              ? applicantNames?.[record.application_applicant_id]
+              : undefined;
             return (
               <div
                 key={record.id}
@@ -136,6 +139,9 @@ export function PortalAccessSection({ visaApplicationId, userId, applicantNames 
                     <span className="font-medium">{record.email}</span>
                     {renderStatusBadge(state)}
                   </div>
+                  {applicantLabel && (
+                    <p className="text-xs font-medium text-muted-foreground">{applicantLabel}</p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     Created {format(new Date(record.created_at), "PP")} · Expires{" "}
                     {format(new Date(record.token_expires_at), "PP")}
