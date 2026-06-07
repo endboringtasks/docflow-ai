@@ -122,7 +122,8 @@ export function InviteClientDialog({
       // Generate the link
       const portalLink = `${window.location.origin}/client-portal?token=${token}`;
       setGeneratedLink(portalLink);
-      
+      setGeneratedExpiry(expiresAt.toISOString());
+
       toast.success("Access link generated successfully");
     } catch (err) {
       console.error("Failed to generate link:", err);
