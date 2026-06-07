@@ -510,7 +510,7 @@ const MigrationVisaApplications = () => {
           await supabase.from("application_applicants").insert(applicantRecords);
           await supabase.from("application_timeline").insert({
             visa_application_id: data.id,
-            company_id: data.company_id,
+            company_id: data.company_id ?? currentCompany?.id,
             event_type: "applicant_added",
             entity_type: "applicant",
             actor_id: user?.id ?? null,
