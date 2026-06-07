@@ -260,7 +260,7 @@ export function TeamMembers() {
     try {
       const { error } = await supabase
         .from("team_invitations")
-        .delete()
+        .update({ status: "cancelled" })
         .eq("id", invitationId);
 
       if (error) throw error;
