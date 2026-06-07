@@ -47,7 +47,7 @@ const getLinkState = (record: PortalAccessRecord): LinkState => {
   return "active";
 };
 
-export function PortalAccessSection({ visaApplicationId, userId }: PortalAccessSectionProps) {
+export function PortalAccessSection({ visaApplicationId, userId, applicantNames }: PortalAccessSectionProps) {
   const queryClient = useQueryClient();
   const [revokeTarget, setRevokeTarget] = useState<PortalAccessRecord | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
@@ -58,7 +58,7 @@ export function PortalAccessSection({ visaApplicationId, userId }: PortalAccessS
       const { data, error } = await supabase
         .from("client_portal_access")
         .select(
-          "id, email, status, token_expires_at, is_submitted, revoked_at, revoked_reason, created_at, last_accessed_at",
+          "id, email, status, token_expires_at, is_submitted, revoked_at, revoked_reason, created_at, last_accessed_at, application_applicant_id",
         )
         .eq("visa_application_id", visaApplicationId)
         .order("created_at", { ascending: false });
