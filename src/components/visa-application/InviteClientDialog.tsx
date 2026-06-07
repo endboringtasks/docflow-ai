@@ -167,20 +167,55 @@ export function InviteClientDialog({
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="client-email">Client Email</Label>
+            <Label htmlFor="client-email">
+              Client Email <span className="text-destructive">*</span>
+            </Label>
             <Input
               id="client-email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
+              }}
               placeholder="client@email.com"
               disabled={!!generatedLink}
+              aria-invalid={!!errors.email}
             />
+            {errors.email && (
+              <p className="text-sm font-medium text-destructive">{errors.email}</p>
+            )}
           </div>
+
+          {!generatedLink && (
+            <div className="space-y-2">
+              <Label htmlFor="expiry-date">
+                Expiration Date <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="expiry-date"
+                type="date"
+                min={getTodayString()}
+                value={expiryDate}
+                onChange={(e) => {
+                  setExpiryDate(e.target.value);
+                  if (errors.expiryDate) setErrors((prev) => ({ ...prev, expiryDate: undefined }));
+                }}
+                aria-invalid={!!errors.expiryDate}
+              />
+              {errors.expiryDate && (
+                <p className="text-sm font-medium text-destructive">{errors.expiryDate}</p>
+              )}
+            </div>
+          )}
 
           {generatedLink ? (
             <div className="space-y-3">
-              <Label>Access Link (expires in 30 days)</Label>
+              <Label>
+                Access Link
+                {generatedExpiry &&
+                  ` (expires ${new Date(generatedExpiry).toLocaleDateString()})`}
+              </Label>
               <div className="flex gap-2">
                 <Input
                   value={generatedLink}
