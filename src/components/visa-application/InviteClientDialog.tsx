@@ -10,18 +10,32 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Mail, Copy, CheckCircle2 } from "lucide-react";
+
+export interface InviteApplicant {
+  id: string;
+  displayName: string;
+  applicantType: string | null;
+  email: string | null;
+}
 
 interface InviteClientDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   visaApplicationId: string;
   clientId: string;
-  clientEmail: string | null;
   companyId: string;
   applicationName: string;
+  applicants: InviteApplicant[];
 }
 
 // Local date (YYYY-MM-DD) for use as the min attribute and validation baseline
@@ -36,21 +50,36 @@ export function InviteClientDialog({
   onOpenChange,
   visaApplicationId,
   clientId,
-  clientEmail,
   companyId,
   applicationName,
+  applicants,
 }: InviteClientDialogProps) {
-  const [email, setEmail] = useState(clientEmail || "");
+  const [applicantId, setApplicantId] = useState("");
+  const [email, setEmail] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
-  const [errors, setErrors] = useState<{ email?: string; expiryDate?: string }>({});
+  const [errors, setErrors] = useState<{ applicant?: string; email?: string; expiryDate?: string }>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [generatedExpiry, setGeneratedExpiry] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const handleApplicantChange = (value: string) => {
+    setApplicantId(value);
+    setErrors((prev) => ({ ...prev, applicant: undefined }));
+    const selected = applicants.find((a) => a.id === value);
+    if (selected?.email) {
+      setEmail(selected.email);
+      setErrors((prev) => ({ ...prev, email: undefined }));
+    }
+  };
+
   const validate = () => {
-    const newErrors: { email?: string; expiryDate?: string } = {};
+    const newErrors: { applicant?: string; email?: string; expiryDate?: string } = {};
     const trimmedEmail = email.trim();
+
+    if (!applicantId) {
+      newErrors.applicant = "Please select an applicant";
+    }
 
     if (!trimmedEmail) {
       newErrors.email = "Client email is required";
@@ -81,47 +110,39 @@ export function InviteClientDialog({
       // Expire at the end of the chosen day (local time)
       const expiresAt = new Date(`${expiryDate}T23:59:59`);
 
-      // Check if there's an existing access record for this visa application
-      const { data: existing } = await supabase
+      // Block creating a new link if this applicant already has an active one
+      const { data: activeLinks, error: checkError } = await supabase
         .from("client_portal_access")
         .select("id")
         .eq("visa_application_id", visaApplicationId)
-        .eq("client_id", clientId)
-        .single();
+        .eq("application_applicant_id", applicantId)
+        .eq("status", "active")
+        .gt("token_expires_at", new Date().toISOString());
 
-      if (existing) {
-        // Update existing record
-        const { error } = await supabase
-          .from("client_portal_access")
-          .update({
-            email,
-            access_token: token,
-            token_expires_at: expiresAt.toISOString(),
-            is_submitted: false,
-            submitted_at: null,
-            status: "active",
-            revoked_at: null,
-            revoked_by: null,
-            revoked_reason: null,
-          })
-          .eq("id", existing.id);
+      if (checkError) throw checkError;
 
-        if (error) throw error;
-      } else {
-        // Create new record
-        const { error } = await supabase
-          .from("client_portal_access")
-          .insert({
-            visa_application_id: visaApplicationId,
-            client_id: clientId,
-            company_id: companyId,
-            email,
-            access_token: token,
-            token_expires_at: expiresAt.toISOString(),
-          });
-
-        if (error) throw error;
+      if (activeLinks && activeLinks.length > 0) {
+        toast.error(
+          "An active link already exists for this applicant. Revoke it before creating a new one.",
+        );
+        setIsGenerating(false);
+        return;
       }
+
+      // Always create a new record so each applicant has an independent link
+      const { error } = await supabase
+        .from("client_portal_access")
+        .insert({
+          visa_application_id: visaApplicationId,
+          client_id: clientId,
+          application_applicant_id: applicantId,
+          company_id: companyId,
+          email,
+          access_token: token,
+          token_expires_at: expiresAt.toISOString(),
+        });
+
+      if (error) throw error;
 
       // Generate the link
       const portalLink = `${window.location.origin}/client-portal?token=${token}`;
@@ -139,7 +160,7 @@ export function InviteClientDialog({
 
   const copyToClipboard = async () => {
     if (!generatedLink) return;
-    
+
     try {
       await navigator.clipboard.writeText(generatedLink);
       setCopied(true);
@@ -153,6 +174,8 @@ export function InviteClientDialog({
   const handleClose = () => {
     setGeneratedLink(null);
     setGeneratedExpiry(null);
+    setApplicantId("");
+    setEmail("");
     setExpiryDate("");
     setErrors({});
     setCopied(false);
@@ -165,11 +188,35 @@ export function InviteClientDialog({
         <DialogHeader>
           <DialogTitle>Invite Client to Portal</DialogTitle>
           <DialogDescription>
-            Generate an access link for the client to view and upload documents for "{applicationName}".
+            Generate an access link for an applicant to view and upload documents for "{applicationName}".
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {!generatedLink && (
+            <div className="space-y-2">
+              <Label htmlFor="applicant">
+                Applicant <span className="text-destructive">*</span>
+              </Label>
+              <Select value={applicantId} onValueChange={handleApplicantChange}>
+                <SelectTrigger id="applicant" aria-invalid={!!errors.applicant}>
+                  <SelectValue placeholder="Select an applicant" />
+                </SelectTrigger>
+                <SelectContent>
+                  {applicants.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.displayName}
+                      {a.applicantType ? ` — ${a.applicantType}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.applicant && (
+                <p className="text-sm font-medium text-destructive">{errors.applicant}</p>
+              )}
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="client-email">
               Client Email <span className="text-destructive">*</span>
@@ -226,8 +273,8 @@ export function InviteClientDialog({
                   readOnly
                   className="text-xs font-mono"
                 />
-                <Button 
-                  size="icon" 
+                <Button
+                  size="icon"
                   variant="outline"
                   onClick={copyToClipboard}
                 >
@@ -244,7 +291,7 @@ export function InviteClientDialog({
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              The client will receive a link to access their portal where they can fill out forms and upload documents.
+              The applicant will receive a link to access their portal where they can fill out forms and upload documents.
             </p>
           )}
         </div>
