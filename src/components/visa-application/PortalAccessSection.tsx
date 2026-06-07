@@ -29,13 +29,11 @@ interface PortalAccessRecord {
   revoked_reason: string | null;
   created_at: string;
   last_accessed_at: string | null;
-  application_applicant_id: string | null;
 }
 
 interface PortalAccessSectionProps {
   visaApplicationId: string;
   userId: string | undefined;
-  applicantNames?: Record<string, string>;
 }
 
 type LinkState = "revoked" | "expired" | "submitted" | "active";
@@ -47,7 +45,7 @@ const getLinkState = (record: PortalAccessRecord): LinkState => {
   return "active";
 };
 
-export function PortalAccessSection({ visaApplicationId, userId, applicantNames }: PortalAccessSectionProps) {
+export function PortalAccessSection({ visaApplicationId, userId }: PortalAccessSectionProps) {
   const queryClient = useQueryClient();
   const [revokeTarget, setRevokeTarget] = useState<PortalAccessRecord | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
@@ -58,7 +56,7 @@ export function PortalAccessSection({ visaApplicationId, userId, applicantNames 
       const { data, error } = await supabase
         .from("client_portal_access")
         .select(
-          "id, email, status, token_expires_at, is_submitted, revoked_at, revoked_reason, created_at, last_accessed_at, application_applicant_id",
+          "id, email, status, token_expires_at, is_submitted, revoked_at, revoked_reason, created_at, last_accessed_at",
         )
         .eq("visa_application_id", visaApplicationId)
         .order("created_at", { ascending: false });
@@ -126,9 +124,6 @@ export function PortalAccessSection({ visaApplicationId, userId, applicantNames 
         <div className="space-y-3">
           {records.map((record) => {
             const state = getLinkState(record);
-            const applicantLabel = record.application_applicant_id
-              ? applicantNames?.[record.application_applicant_id]
-              : undefined;
             return (
               <div
                 key={record.id}
@@ -139,9 +134,6 @@ export function PortalAccessSection({ visaApplicationId, userId, applicantNames 
                     <span className="font-medium">{record.email}</span>
                     {renderStatusBadge(state)}
                   </div>
-                  {applicantLabel && (
-                    <p className="text-xs font-medium text-muted-foreground">{applicantLabel}</p>
-                  )}
                   <p className="text-xs text-muted-foreground">
                     Created {format(new Date(record.created_at), "PP")} · Expires{" "}
                     {format(new Date(record.token_expires_at), "PP")}

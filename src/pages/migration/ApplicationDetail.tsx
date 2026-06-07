@@ -1215,7 +1215,6 @@ const VisaApplicationDetail = () => {
         
         return {
           id: applicant.id,
-          is_primary: applicant.is_primary,
           applicant_type: applicant.applicant_type,
           displayName: displayName || applicant.applicant_type?.name || "Unknown",
         };
@@ -1235,30 +1234,6 @@ const VisaApplicationDetail = () => {
     });
     return mapping;
   }, [applicationApplicants]);
-
-  // Applicants list for the portal invite dialog (with default email for the primary applicant)
-  const inviteApplicants = useMemo(
-    () =>
-      applicationApplicants.map((a) => ({
-        id: a.id,
-        displayName: a.displayName,
-        applicantType: a.applicant_type?.name ?? null,
-        email: a.is_primary ? client?.email ?? null : null,
-      })),
-    [applicationApplicants, client?.email],
-  );
-
-  // Map of application_applicant_id -> label for the portal access list
-  const applicantNamesById = useMemo(() => {
-    const mapping: Record<string, string> = {};
-    applicationApplicants.forEach((a) => {
-      const typeName = a.applicant_type?.name;
-      mapping[a.id] = typeName ? `${a.displayName} — ${typeName}` : a.displayName;
-    });
-    return mapping;
-  }, [applicationApplicants]);
-
-
 
   const defaultDocCategories = [
     "Identity Documents", "Character Documents", "Health & Medical", 
@@ -2262,7 +2237,7 @@ const VisaApplicationDetail = () => {
 
         {/* Portal Access Links Section */}
         {visaApplication && (
-          <PortalAccessSection visaApplicationId={visaApplication.id} userId={user?.id} applicantNames={applicantNamesById} />
+          <PortalAccessSection visaApplicationId={visaApplication.id} userId={user?.id} />
         )}
 
         {/* Application Timeline Section */}
@@ -3200,7 +3175,7 @@ const VisaApplicationDetail = () => {
           }}
           visaApplicationId={visaApplicationId!}
           clientId={visaApplication.client_id}
-          applicants={inviteApplicants}
+          clientEmail={client?.email || null}
           companyId={visaApplication.company_id}
           applicationName={visaApplication.application_name}
         />

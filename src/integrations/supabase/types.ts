@@ -466,7 +466,6 @@ export type Database = {
       client_portal_access: {
         Row: {
           access_token: string
-          application_applicant_id: string | null
           client_id: string
           company_id: string
           created_at: string
@@ -485,7 +484,6 @@ export type Database = {
         }
         Insert: {
           access_token: string
-          application_applicant_id?: string | null
           client_id: string
           company_id: string
           created_at?: string
@@ -504,7 +502,6 @@ export type Database = {
         }
         Update: {
           access_token?: string
-          application_applicant_id?: string | null
           client_id?: string
           company_id?: string
           created_at?: string
