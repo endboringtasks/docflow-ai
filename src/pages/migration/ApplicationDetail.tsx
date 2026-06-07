@@ -3167,7 +3167,12 @@ const VisaApplicationDetail = () => {
         {/* Invite Client Dialog */}
         <InviteClientDialog
           open={isInviteOpen}
-          onOpenChange={setIsInviteOpen}
+          onOpenChange={(open) => {
+            setIsInviteOpen(open);
+            if (!open) {
+              queryClient.invalidateQueries({ queryKey: ["portal-access", visaApplicationId] });
+            }
+          }}
           visaApplicationId={visaApplicationId!}
           clientId={visaApplication.client_id}
           clientEmail={client?.email || null}
