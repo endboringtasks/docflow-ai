@@ -99,6 +99,10 @@ export function InviteClientDialog({
             token_expires_at: expiresAt.toISOString(),
             is_submitted: false,
             submitted_at: null,
+            status: "active",
+            revoked_at: null,
+            revoked_by: null,
+            revoked_reason: null,
           })
           .eq("id", existing.id);
 
