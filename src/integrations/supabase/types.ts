@@ -46,6 +46,9 @@ export type Database = {
           applicant_type_id: string
           client_id: string
           created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           is_primary: boolean
           related_applicant_id: string | null
@@ -56,6 +59,9 @@ export type Database = {
           applicant_type_id: string
           client_id: string
           created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           is_primary?: boolean
           related_applicant_id?: string | null
@@ -66,6 +72,9 @@ export type Database = {
           applicant_type_id?: string
           client_id?: string
           created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           is_primary?: boolean
           related_applicant_id?: string | null
@@ -193,6 +202,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      application_timeline: {
+        Row: {
+          actor_id: string | null
+          company_id: string
+          created_at: string
+          description: string | null
+          entity_id: string | null
+          entity_type: string | null
+          event_type: string
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          visa_application_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          company_id: string
+          created_at?: string
+          description?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          event_type: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          visa_application_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          event_type?: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          visa_application_id?: string
+        }
+        Relationships: []
       }
       automation_events: {
         Row: {
@@ -875,6 +926,7 @@ export type Database = {
           age_condition: string | null
           applicability_condition: string | null
           applicant_type: string | null
+          application_applicant_id: string | null
           category: string | null
           company_id: string
           created_at: string
@@ -908,6 +960,7 @@ export type Database = {
           age_condition?: string | null
           applicability_condition?: string | null
           applicant_type?: string | null
+          application_applicant_id?: string | null
           category?: string | null
           company_id: string
           created_at?: string
@@ -941,6 +994,7 @@ export type Database = {
           age_condition?: string | null
           applicability_condition?: string | null
           applicant_type?: string | null
+          application_applicant_id?: string | null
           category?: string | null
           company_id?: string
           created_at?: string
