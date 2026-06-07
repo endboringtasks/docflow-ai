@@ -1172,8 +1172,10 @@ const VisaApplicationDetail = () => {
 
 
   // Fetch application applicants for the custom document form
+  // NOTE: distinct query key from ApplicantsSection — the two queries return
+  // different shapes and must not share a React Query cache entry.
   const { data: applicationApplicants = [] } = useQuery({
-    queryKey: ["application-applicants", visaApplicationId],
+    queryKey: ["application-applicants-form", visaApplicationId],
     queryFn: async () => {
       // Fetch application applicants with their types
       const { data: applicantData, error: applicantError } = await supabase
