@@ -82,6 +82,7 @@ import { InviteClientDialog } from "@/components/visa-application/InviteClientDi
 import { DocumentPreviewDialog, ReviewStatus } from "@/components/visa-application/DocumentPreviewDialog";
 import { DocumentHistorySection, DocumentHistoryEntry } from "@/components/visa-application/DocumentHistorySection";
 import { ApplicantsSection } from "@/components/visa-application/ApplicantsSection";
+import { PortalAccessSection } from "@/components/visa-application/PortalAccessSection";
 import { ApplicationTimelineSection } from "@/components/visa-application/ApplicationTimelineSection";
 import { useAuth } from "@/hooks/useAuth";
 import { getCountryFlag } from "@/lib/countryFlags";
@@ -2234,6 +2235,11 @@ const VisaApplicationDetail = () => {
           />
         )}
 
+        {/* Portal Access Links Section */}
+        {visaApplication && (
+          <PortalAccessSection visaApplicationId={visaApplication.id} userId={user?.id} />
+        )}
+
         {/* Application Timeline Section */}
         {visaApplication && (
           <ApplicationTimelineSection visaApplicationId={visaApplication.id} />
@@ -3161,7 +3167,12 @@ const VisaApplicationDetail = () => {
         {/* Invite Client Dialog */}
         <InviteClientDialog
           open={isInviteOpen}
-          onOpenChange={setIsInviteOpen}
+          onOpenChange={(open) => {
+            setIsInviteOpen(open);
+            if (!open) {
+              queryClient.invalidateQueries({ queryKey: ["portal-access", visaApplicationId] });
+            }
+          }}
           visaApplicationId={visaApplicationId!}
           clientId={visaApplication.client_id}
           clientEmail={client?.email || null}

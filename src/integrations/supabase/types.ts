@@ -473,6 +473,10 @@ export type Database = {
           id: string
           is_submitted: boolean
           last_accessed_at: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          revoked_reason: string | null
+          status: string
           submitted_at: string | null
           token_expires_at: string
           updated_at: string
@@ -487,6 +491,10 @@ export type Database = {
           id?: string
           is_submitted?: boolean
           last_accessed_at?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          revoked_reason?: string | null
+          status?: string
           submitted_at?: string | null
           token_expires_at: string
           updated_at?: string
@@ -501,6 +509,10 @@ export type Database = {
           id?: string
           is_submitted?: boolean
           last_accessed_at?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          revoked_reason?: string | null
+          status?: string
           submitted_at?: string | null
           token_expires_at?: string
           updated_at?: string

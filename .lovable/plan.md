@@ -1,31 +1,47 @@
-## DOC-35 — Generate Client Portal Link
+## DOC-86 — Revoke Client Portal Access Links
 
-### Context
-Most of this story is already implemented:
-- `InviteClientDialog.tsx` opens from the application detail page, generates a unique token, creates/updates a `client_portal_access` record linked to the application, and displays the link with a copy button (AC1 partial, AC3, AC4, AC5).
-- `ClientPortal.tsx` validates the token via the `validate_portal_access_token` RPC, which only returns rows where `token_expires_at > now()`, so expired links are denied and valid links grant access (AC6, AC7) — no change needed.
+### Goal
+Let agents see all portal access links for an application and revoke active ones. Revoking is a soft state change (never a hard delete) that immediately stops the link from working and shows an access-denied message in the portal.
 
-### The gap
-The dialog hardcodes expiry to 30 days. The spec requires the user to **enter an expiration date** that is **mandatory** and **today or in the future**, plus proper validation errors (AC1, AC2, and the related business rules). This is the only missing piece.
+### Database changes (migration)
 
-### Changes (frontend only)
+Add soft-revoke columns to `client_portal_access`:
+- `status` text NOT NULL DEFAULT `'active'` (values: `active`, `revoked`)
+- `revoked_at` timestamptz NULL
+- `revoked_by` uuid NULL
+- `revoked_reason` text NULL
 
-**`src/components/visa-application/InviteClientDialog.tsx`**
-1. Add an `expiresAt` state plus an `errors` state object.
-2. Add an "Expiration Date" field using the existing `<input type="date">` pattern (as in `AddRelatedApplicantDialog`), with `min` set to today's date so past dates can't be picked. Label it as required.
-3. Replace the single `toast.error` with inline field validation in `generateAccessLink`:
-   - Email: required + basic email format → show error under the field.
-   - Expiration date: required, and must be today or a future date → show error under the field.
-   - If any error, set `errors` and return without generating.
-4. Use the chosen date (end-of-day) for `token_expires_at` instead of the hardcoded +30 days.
-5. Update the success display label from "expires in 30 days" to show the actual selected expiry date.
-6. Reset the new state in `handleClose`.
+Update token-validation database functions so a revoked link stops working everywhere. Each currently filters only on `token_expires_at > now()`; add `AND cpa.status <> 'revoked'`:
+- `validate_portal_access_token` (primary gate — portal bails here)
+- `get_portal_visa_application_details`
+- `get_portal_client_details`
+- `get_portal_documents`
+- `get_document_attachments`
+- `update_portal_access_timestamp`
+- `submit_portal_access`
+
+No new RLS policies needed — existing "Company members can update portal access" policy already allows the revoke UPDATE. (Note: the table has no DELETE policy, reinforcing soft-delete only.)
+
+### Frontend changes
+
+**`src/pages/migration/ApplicationDetail.tsx`**
+1. Add a query to fetch `client_portal_access` rows for `visaApplicationId` (id, email, status, token_expires_at, is_submitted, revoked_at, revoked_reason, created_at, last_accessed_at), ordered newest first.
+2. Render a new "Portal Access Links" card/section listing each record with: email, created date, expiry date, and a status badge (Active / Expired / Submitted / Revoked). Expired = `token_expires_at < now()`; Revoked = `status === 'revoked'`.
+3. For records that are still **active** (not revoked, not expired), show a "Revoke" button.
+4. Clicking Revoke opens an `AlertDialog` confirmation (reuse the existing AlertDialog imports) with an optional revocation reason `Textarea`.
+5. On confirm, run a mutation: `update client_portal_access set status='revoked', revoked_at=now(), revoked_by=auth user id, revoked_reason=<reason or null>` where id matches; then invalidate the portal-access query and toast success.
+6. Invalidate this query after a new link is generated too (so the list refreshes after InviteClientDialog runs).
+
+**`src/pages/client-portal/ClientPortal.tsx`**
+- No structural change required: when a revoked token is opened, `validate_portal_access_token` returns no rows, so the existing error path sets "Invalid or expired access link. Please contact your agent for a new link." To make the message clearer for revoked links, optionally add a lightweight check — but since revoked tokens are indistinguishable from expired ones via the secured RPC, the existing access-denied screen already satisfies "show an access denied message." Keep the existing behavior.
 
 ### Verification
-- Open the dialog from the application detail page, leave fields blank, click Generate Link → inline validation errors appear; no record created.
-- Confirm a past date cannot be selected/submitted.
-- Enter a valid email + future date → unique token generated, `client_portal_access` row created/updated with the chosen `token_expires_at`, link shown with copy button.
-- Open the generated link in the portal → access granted; an expired record is denied (already covered by the RPC).
+- Generate a link, confirm it appears in the new Portal Access Links list as Active.
+- Open the link in the portal → access granted.
+- Revoke it (with confirmation + optional reason) → row updates to `status='revoked'`, `revoked_at`/`revoked_by` set, record still present (no delete).
+- Reload the portal link → access denied screen shown.
+- List shows the link as Revoked with the Revoke action gone.
 
 ### Notes
-No database, RLS, or edge-function changes are required — the schema (`client_portal_access` with `access_token`, `token_expires_at`, `is_submitted`) and access validation already support this story.
+- Revoke is soft only; the row is retained for audit.
+- `revoked_by` is set from the authenticated agent's user id client-side.
