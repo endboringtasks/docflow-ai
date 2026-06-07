@@ -1,47 +1,24 @@
-## DOC-86 — Revoke Client Portal Access Links
+## Fix: Regenerated portal link inherits revoked status
 
-### Goal
-Let agents see all portal access links for an application and revoke active ones. Revoking is a soft state change (never a hard delete) that immediately stops the link from working and shows an access-denied message in the portal.
+### Problem
+`InviteClientDialog` reuses (updates) the existing `client_portal_access` row for an application+client when generating a new link. After a link is revoked, regenerating sets a new `access_token` and `token_expires_at`, but leaves `status = 'revoked'` (plus `revoked_at`/`revoked_by`/`revoked_reason`). Since `validate_portal_access_token` and the other portal RPCs filter out revoked rows, the brand-new link is treated as invalid and the client sees an "expired/invalid" access message.
 
-### Database changes (migration)
+Confirmed in DB: the affected record has a future expiry but `status = 'revoked'`.
 
-Add soft-revoke columns to `client_portal_access`:
-- `status` text NOT NULL DEFAULT `'active'` (values: `active`, `revoked`)
-- `revoked_at` timestamptz NULL
-- `revoked_by` uuid NULL
-- `revoked_reason` text NULL
+### Fix (frontend only)
+In `src/components/visa-application/InviteClientDialog.tsx`, the existing-record update branch (`generateAccessLink`) must reset the revoke fields so a regenerated link is active again:
+- `status: 'active'`
+- `revoked_at: null`
+- `revoked_by: null`
+- `revoked_reason: null`
 
-Update token-validation database functions so a revoked link stops working everywhere. Each currently filters only on `token_expires_at > now()`; add `AND cpa.status <> 'revoked'`:
-- `validate_portal_access_token` (primary gate — portal bails here)
-- `get_portal_visa_application_details`
-- `get_portal_client_details`
-- `get_portal_documents`
-- `get_document_attachments`
-- `update_portal_access_timestamp`
-- `submit_portal_access`
-
-No new RLS policies needed — existing "Company members can update portal access" policy already allows the revoke UPDATE. (Note: the table has no DELETE policy, reinforcing soft-delete only.)
-
-### Frontend changes
-
-**`src/pages/migration/ApplicationDetail.tsx`**
-1. Add a query to fetch `client_portal_access` rows for `visaApplicationId` (id, email, status, token_expires_at, is_submitted, revoked_at, revoked_reason, created_at, last_accessed_at), ordered newest first.
-2. Render a new "Portal Access Links" card/section listing each record with: email, created date, expiry date, and a status badge (Active / Expired / Submitted / Revoked). Expired = `token_expires_at < now()`; Revoked = `status === 'revoked'`.
-3. For records that are still **active** (not revoked, not expired), show a "Revoke" button.
-4. Clicking Revoke opens an `AlertDialog` confirmation (reuse the existing AlertDialog imports) with an optional revocation reason `Textarea`.
-5. On confirm, run a mutation: `update client_portal_access set status='revoked', revoked_at=now(), revoked_by=auth user id, revoked_reason=<reason or null>` where id matches; then invalidate the portal-access query and toast success.
-6. Invalidate this query after a new link is generated too (so the list refreshes after InviteClientDialog runs).
-
-**`src/pages/client-portal/ClientPortal.tsx`**
-- No structural change required: when a revoked token is opened, `validate_portal_access_token` returns no rows, so the existing error path sets "Invalid or expired access link. Please contact your agent for a new link." To make the message clearer for revoked links, optionally add a lightweight check — but since revoked tokens are indistinguishable from expired ones via the secured RPC, the existing access-denied screen already satisfies "show an access denied message." Keep the existing behavior.
+(in addition to the token/expiry/is_submitted/submitted_at fields it already updates).
 
 ### Verification
-- Generate a link, confirm it appears in the new Portal Access Links list as Active.
-- Open the link in the portal → access granted.
-- Revoke it (with confirmation + optional reason) → row updates to `status='revoked'`, `revoked_at`/`revoked_by` set, record still present (no delete).
-- Reload the portal link → access denied screen shown.
-- List shows the link as Revoked with the Revoke action gone.
+- Revoke a link → record `status = 'revoked'`.
+- Generate a new link for the same application/client → record flips back to `status = 'active'` with the new token/expiry; revoke fields cleared.
+- Open the new link → portal grants access (no longer "expired").
+- The Portal Access Links list on Application Detail shows the link as Active again.
 
 ### Notes
-- Revoke is soft only; the row is retained for audit.
-- `revoked_by` is set from the authenticated agent's user id client-side.
+No database or RPC changes needed — this is purely the regenerate path failing to clear revoke state.
