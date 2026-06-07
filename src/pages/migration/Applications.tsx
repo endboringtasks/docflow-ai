@@ -483,6 +483,7 @@ const MigrationVisaApplications = () => {
             applicant_type_id: primaryRule.applicant_type_id,
             is_primary: true,
             sort_order: 0,
+            created_by: user?.id ?? null,
           });
         }
 
@@ -498,6 +499,7 @@ const MigrationVisaApplications = () => {
                   is_primary: false,
                   sort_order: (index + 1) * 10 + clientIndex,
                   related_applicant_id: relatedApplicantId, // ID from related_applicants JSONB
+                  created_by: user?.id ?? null,
                 });
               }
             });
@@ -506,10 +508,20 @@ const MigrationVisaApplications = () => {
 
         if (applicantRecords.length > 0) {
           await supabase.from("application_applicants").insert(applicantRecords);
+          await supabase.from("application_timeline").insert({
+            visa_application_id: data.id,
+            company_id: data.company_id,
+            event_type: "applicant_added",
+            entity_type: "applicant",
+            actor_id: user?.id ?? null,
+            description: `Application created with ${applicantRecords.length} applicant(s), including the Primary Applicant`,
+            new_values: { applicant_count: applicantRecords.length } as never,
+          });
         }
       } catch (applicantError) {
         console.error("Failed to insert applicants:", applicantError);
       }
+
 
       queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
