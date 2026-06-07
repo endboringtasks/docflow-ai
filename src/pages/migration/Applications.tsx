@@ -124,6 +124,7 @@ const MigrationVisaApplications = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentCompany } = useCompany();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "active" | "done">("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
