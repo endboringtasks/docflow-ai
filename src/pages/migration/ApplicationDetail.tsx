@@ -1236,6 +1236,30 @@ const VisaApplicationDetail = () => {
     return mapping;
   }, [applicationApplicants]);
 
+  // Applicants list for the portal invite dialog (with default email for the primary applicant)
+  const inviteApplicants = useMemo(
+    () =>
+      applicationApplicants.map((a) => ({
+        id: a.id,
+        displayName: a.displayName,
+        applicantType: a.applicant_type?.name ?? null,
+        email: a.is_primary ? client?.email ?? null : null,
+      })),
+    [applicationApplicants, client?.email],
+  );
+
+  // Map of application_applicant_id -> label for the portal access list
+  const applicantNamesById = useMemo(() => {
+    const mapping: Record<string, string> = {};
+    applicationApplicants.forEach((a) => {
+      const typeName = a.applicant_type?.name;
+      mapping[a.id] = typeName ? `${a.displayName} — ${typeName}` : a.displayName;
+    });
+    return mapping;
+  }, [applicationApplicants]);
+
+
+
   const defaultDocCategories = [
     "Identity Documents", "Character Documents", "Health & Medical", 
     "Employment Records", "Skills Assessment", "English Proficiency", 
