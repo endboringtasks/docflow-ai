@@ -82,6 +82,7 @@ import { InviteClientDialog } from "@/components/visa-application/InviteClientDi
 import { DocumentPreviewDialog, ReviewStatus } from "@/components/visa-application/DocumentPreviewDialog";
 import { DocumentHistorySection, DocumentHistoryEntry } from "@/components/visa-application/DocumentHistorySection";
 import { ApplicantsSection } from "@/components/visa-application/ApplicantsSection";
+import { ApplicationTimelineSection } from "@/components/visa-application/ApplicationTimelineSection";
 import { useAuth } from "@/hooks/useAuth";
 import { getCountryFlag } from "@/lib/countryFlags";
 
