@@ -2235,6 +2235,11 @@ const VisaApplicationDetail = () => {
           />
         )}
 
+        {/* Portal Access Links Section */}
+        {visaApplication && (
+          <PortalAccessSection visaApplicationId={visaApplication.id} userId={user?.id} />
+        )}
+
         {/* Application Timeline Section */}
         {visaApplication && (
           <ApplicationTimelineSection visaApplicationId={visaApplication.id} />
