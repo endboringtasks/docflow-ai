@@ -369,14 +369,36 @@ export function TeamMembers() {
                   </div>
                 </div>
                 {canManageTeam && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleCancelInvitation(invitation.id)}
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Cancel invitation?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will cancel the pending invitation for {invitation.email}.
+                          They will no longer be able to join using it. You can re-invite
+                          them later if needed.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Keep invitation</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleCancelInvitation(invitation.id)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Cancel invitation
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 )}
               </div>
             ))}
