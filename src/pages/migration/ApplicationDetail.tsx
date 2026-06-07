@@ -1215,6 +1215,7 @@ const VisaApplicationDetail = () => {
         
         return {
           id: applicant.id,
+          is_primary: applicant.is_primary,
           applicant_type: applicant.applicant_type,
           displayName: displayName || applicant.applicant_type?.name || "Unknown",
         };
