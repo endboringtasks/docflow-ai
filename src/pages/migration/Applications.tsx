@@ -57,6 +57,7 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { useFolderStatusRealtime } from "@/hooks/useFolderStatusRealtime";
 import { getCountryFlag } from "@/lib/countryFlags";
 import { ApplicantSelector, type ApplicantSelection } from "@/components/visa-application/ApplicantSelector";
@@ -124,6 +125,7 @@ const MigrationVisaApplications = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentCompany } = useCompany();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "active" | "done">("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -481,6 +483,7 @@ const MigrationVisaApplications = () => {
             applicant_type_id: primaryRule.applicant_type_id,
             is_primary: true,
             sort_order: 0,
+            created_by: user?.id ?? null,
           });
         }
 
@@ -496,6 +499,7 @@ const MigrationVisaApplications = () => {
                   is_primary: false,
                   sort_order: (index + 1) * 10 + clientIndex,
                   related_applicant_id: relatedApplicantId, // ID from related_applicants JSONB
+                  created_by: user?.id ?? null,
                 });
               }
             });
@@ -504,10 +508,20 @@ const MigrationVisaApplications = () => {
 
         if (applicantRecords.length > 0) {
           await supabase.from("application_applicants").insert(applicantRecords);
+          await supabase.from("application_timeline").insert({
+            visa_application_id: data.id,
+            company_id: data.company_id ?? currentCompany?.id,
+            event_type: "applicant_added",
+            entity_type: "applicant",
+            actor_id: user?.id ?? null,
+            description: `Application created with ${applicantRecords.length} applicant(s), including the Primary Applicant`,
+            new_values: { applicant_count: applicantRecords.length } as never,
+          });
         }
       } catch (applicantError) {
         console.error("Failed to insert applicants:", applicantError);
       }
+
 
       queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -19,7 +30,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, User, Users, X, Loader2 } from "lucide-react";
+import { Plus, User, Users, X, Loader2, FileText, Calendar, AlertCircle } from "lucide-react";
+import { format } from "date-fns";
 import { toast } from "sonner";
 
 interface RelatedApplicant {
@@ -43,8 +55,10 @@ interface ApplicationApplicant {
   is_primary: boolean;
   sort_order: number;
   related_applicant_id: string | null;
+  created_at: string;
   applicant_type: ApplicantType;
   displayName: string;
+  documentCount: number;
 }
 
 interface CategoryApplicantRule {
@@ -75,9 +89,11 @@ export const ApplicantsSection = ({
   primaryClientId,
 }: ApplicantsSectionProps) => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedTypeId, setSelectedTypeId] = useState("");
   const [selectedRelatedApplicantId, setSelectedRelatedApplicantId] = useState("");
+  const [removeTarget, setRemoveTarget] = useState<ApplicationApplicant | null>(null);
 
   // Fetch primary client's related applicants from JSONB
   const { data: primaryClientData } = useQuery({
@@ -95,7 +111,7 @@ export const ApplicantsSection = ({
     enabled: !!primaryClientId,
   });
 
-  const relatedApplicants = Array.isArray(primaryClientData?.related_applicants) 
+  const relatedApplicants = Array.isArray(primaryClientData?.related_applicants)
     ? (primaryClientData.related_applicants as unknown as RelatedApplicant[])
     : [];
 
@@ -107,43 +123,58 @@ export const ApplicantsSection = ({
     return `${primaryClientData.first_name || ""} ${primaryClientData.last_name || ""}`.trim() || "Primary Applicant";
   };
 
-  // Fetch application applicants
+  // Fetch application applicants (excluding soft-deleted) with per-applicant document counts
   const { data: applicationApplicants = [], isLoading: isLoadingApplicants } = useQuery({
     queryKey: ["application-applicants", visaApplicationId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("application_applicants")
         .select(`
-          id, 
-          client_id, 
+          id,
+          client_id,
           applicant_type_id,
           is_primary,
           sort_order,
           related_applicant_id,
+          created_at,
           applicant_type:applicant_types(id, code, name)
         `)
         .eq("visa_application_id", visaApplicationId)
+        .is("deleted_at", null)
         .order("sort_order");
       if (error) throw error;
-      
-      // Transform to include display names
-      return (data || []).map(applicant => {
+
+      const applicantIds = (data || []).map((a) => a.id);
+      const countByApplicant: Record<string, number> = {};
+      if (applicantIds.length > 0) {
+        const { data: docs } = await supabase
+          .from("document_checklist")
+          .select("application_applicant_id")
+          .in("application_applicant_id", applicantIds);
+        (docs || []).forEach((d) => {
+          if (d.application_applicant_id) {
+            countByApplicant[d.application_applicant_id] =
+              (countByApplicant[d.application_applicant_id] || 0) + 1;
+          }
+        });
+      }
+
+      return (data || []).map((applicant) => {
         let displayName = "";
-        
         if (applicant.is_primary) {
           displayName = getPrimaryClientName();
         } else if (applicant.related_applicant_id) {
           const relatedPerson = relatedApplicants.find(
-            ra => ra.id === applicant.related_applicant_id
+            (ra) => ra.id === applicant.related_applicant_id
           );
           if (relatedPerson) {
             displayName = `${relatedPerson.first_name || ""} ${relatedPerson.last_name || ""}`.trim();
           }
         }
-        
         return {
           ...applicant,
           displayName: displayName || applicant.applicant_type?.name || "Unknown",
+          documentCount: countByApplicant[applicant.id] || 0,
         } as ApplicationApplicant;
       });
     },
@@ -161,124 +192,186 @@ export const ApplicantsSection = ({
         .eq("category_id", categoryId)
         .order("sort_order");
       if (error) throw error;
-      
+
       const rules = data as (CategoryApplicantRule & { subcategory_id: string | null })[];
-
-      // Merge rules: fallback first, then override with specific subcategory rules
       const rulesByType = new Map<string, (typeof rules)[0]>();
-
-      // Add fallback rules (subcategory_id = null)
       rules
-        .filter(r => r.subcategory_id === null)
-        .forEach(r => rulesByType.set(r.applicant_type_id, r));
-
-      // Override with specific subcategory rules
+        .filter((r) => r.subcategory_id === null)
+        .forEach((r) => rulesByType.set(r.applicant_type_id, r));
       rules
-        .filter(r => r.subcategory_id === subcategoryId)
-        .forEach(r => rulesByType.set(r.applicant_type_id, r));
-
-      // Return merged rules sorted by sort_order
-      return Array.from(rulesByType.values())
-        .sort((a, b) => a.sort_order - b.sort_order);
+        .filter((r) => r.subcategory_id === subcategoryId)
+        .forEach((r) => rulesByType.set(r.applicant_type_id, r));
+      return Array.from(rulesByType.values()).sort((a, b) => a.sort_order - b.sort_order);
     },
     enabled: !!categoryId,
   });
 
-  // Get available applicant types (types that can still be added)
-  const availableApplicantTypes = categoryRules.filter(rule => {
-    // Skip primary type (can't add more primary applicants)
+  // Available applicant types (types that can still be added)
+  const availableApplicantTypes = categoryRules.filter((rule) => {
     if (rule.applicant_type?.code === "primary") return false;
-    
-    // Count existing applicants of this type
     const existingCount = applicationApplicants.filter(
-      a => a.applicant_type_id === rule.applicant_type_id
+      (a) => a.applicant_type_id === rule.applicant_type_id
     ).length;
-    
-    // Check if max count reached
     if (rule.max_count !== null && existingCount >= rule.max_count) return false;
-    
     return true;
   });
 
-  // Get available related applicants for a specific type
   const getAvailableRelatedApplicants = () => {
     if (!selectedTypeId) return [];
-    
-    const rule = categoryRules.find(r => r.applicant_type_id === selectedTypeId);
+    const rule = categoryRules.find((r) => r.applicant_type_id === selectedTypeId);
     if (!rule) return [];
-    
-    // Map applicant type code to related_applicants type
     const typeMapping: Record<string, string> = {
       partner: "partner",
       dependant: "dependant",
       witness: "witness",
     };
-    
     const typeCode = rule.applicant_type?.code?.toLowerCase() || "";
     const matchingType = typeMapping[typeCode];
     if (!matchingType) return [];
-    
-    // Filter related applicants by type
-    const applicantsOfType = relatedApplicants.filter(a => a.type === matchingType);
-    
-    // Exclude already added ones
+    const applicantsOfType = relatedApplicants.filter((a) => a.type === matchingType);
     const existingIds = applicationApplicants
-      .filter(a => a.applicant_type_id === selectedTypeId)
-      .map(a => a.related_applicant_id);
-    
-    return applicantsOfType.filter(a => !existingIds.includes(a.id));
+      .filter((a) => a.applicant_type_id === selectedTypeId)
+      .map((a) => a.related_applicant_id);
+    return applicantsOfType.filter((a) => !existingIds.includes(a.id));
+  };
+
+  const writeTimeline = async (
+    eventType: string,
+    entityId: string | null,
+    description: string,
+    oldValues: Record<string, unknown> | null,
+    newValues: Record<string, unknown> | null
+  ) => {
+    await supabase.from("application_timeline").insert({
+      visa_application_id: visaApplicationId,
+      company_id: companyId,
+      event_type: eventType,
+      entity_type: "applicant",
+      entity_id: entityId,
+      actor_id: user?.id ?? null,
+      description,
+      old_values: oldValues as never,
+      new_values: newValues as never,
+    });
   };
 
   // Add applicant mutation
   const addApplicantMutation = useMutation({
-    mutationFn: async ({ relatedApplicantId, applicantTypeId }: { 
-      relatedApplicantId: string; 
+    mutationFn: async ({
+      relatedApplicantId,
+      applicantTypeId,
+    }: {
+      relatedApplicantId: string;
       applicantTypeId: string;
     }) => {
-      const { error } = await supabase
+      const typeName =
+        categoryRules.find((r) => r.applicant_type_id === applicantTypeId)?.applicant_type?.name ||
+        "Applicant";
+      const person = relatedApplicants.find((p) => p.id === relatedApplicantId);
+      const personName = person
+        ? `${person.first_name || ""} ${person.last_name || ""}`.trim()
+        : typeName;
+
+      const { data: inserted, error } = await supabase
         .from("application_applicants")
         .insert({
           visa_application_id: visaApplicationId,
-          client_id: primaryClientId, // Always references primary client
+          client_id: primaryClientId,
           applicant_type_id: applicantTypeId,
           is_primary: false,
           sort_order: (applicationApplicants.length + 1) * 10,
-          related_applicant_id: relatedApplicantId, // Reference to JSONB entry
-        });
+          related_applicant_id: relatedApplicantId,
+          created_by: user?.id ?? null,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
+
+      await writeTimeline(
+        "applicant_added",
+        inserted.id,
+        `Added ${personName} as ${typeName}`,
+        null,
+        { name: personName, applicant_type: typeName }
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["application-applicants", visaApplicationId] });
+      queryClient.invalidateQueries({ queryKey: ["application-timeline", visaApplicationId] });
       setIsAddOpen(false);
       setSelectedTypeId("");
       setSelectedRelatedApplicantId("");
       toast.success("Applicant added");
     },
-    onError: (error) => {
-      toast.error("Failed to add applicant", { description: error.message });
+    onError: (error: { message?: string }) => {
+      const msg = error?.message || "";
+      if (msg.includes("uniq_app_primary_applicant")) {
+        toast.error("This application already has a Primary Applicant.");
+      } else if (msg.includes("uniq_app_applicant_type")) {
+        toast.error("This application already has this applicant type.");
+      } else if (msg.includes("uniq_app_related_person")) {
+        toast.error("This client is already added to this application.");
+      } else {
+        toast.error("Failed to add applicant", { description: msg });
+      }
     },
   });
 
-  // Remove applicant mutation
+  // Remove applicant mutation (soft delete + guard)
   const removeApplicantMutation = useMutation({
-    mutationFn: async (applicantId: string) => {
+    mutationFn: async (applicant: ApplicationApplicant) => {
+      const typeName = applicant.applicant_type?.name || "Applicant";
+
+      if (applicant.documentCount > 0) {
+        await writeTimeline(
+          "applicant_remove_blocked",
+          applicant.id,
+          `Blocked removal of ${applicant.displayName} (${typeName}) — ${applicant.documentCount} document(s) attached`,
+          { name: applicant.displayName, applicant_type: typeName, document_count: applicant.documentCount },
+          null
+        );
+        throw new Error("DOCUMENTS_ATTACHED");
+      }
+
       const { error } = await supabase
         .from("application_applicants")
-        .delete()
-        .eq("id", applicantId);
+        .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id ?? null })
+        .eq("id", applicant.id);
       if (error) throw error;
+
+      await writeTimeline(
+        "applicant_removed",
+        applicant.id,
+        `Removed ${applicant.displayName} (${typeName})`,
+        { name: applicant.displayName, applicant_type: typeName },
+        null
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["application-applicants", visaApplicationId] });
+      queryClient.invalidateQueries({ queryKey: ["application-timeline", visaApplicationId] });
+      setRemoveTarget(null);
       toast.success("Applicant removed");
     },
-    onError: (error) => {
-      toast.error("Failed to remove applicant", { description: error.message });
+    onError: (error: { message?: string }) => {
+      if (error?.message === "DOCUMENTS_ATTACHED") {
+        queryClient.invalidateQueries({ queryKey: ["application-timeline", visaApplicationId] });
+        toast.error("This applicant cannot be removed because documents are attached.");
+        return;
+      }
+      toast.error("Failed to remove applicant", { description: error?.message });
     },
   });
 
   const handleAddApplicant = () => {
-    if (!selectedRelatedApplicantId || !selectedTypeId) return;
+    if (!selectedTypeId) {
+      toast.error("Please select an applicant type.");
+      return;
+    }
+    if (!selectedRelatedApplicantId) {
+      toast.error("Please select a client.");
+      return;
+    }
     addApplicantMutation.mutate({
       relatedApplicantId: selectedRelatedApplicantId,
       applicantTypeId: selectedTypeId,
@@ -305,6 +398,22 @@ export const ApplicantsSection = ({
 
   const availableForSelectedType = getAvailableRelatedApplicants();
 
+  // Group & order: Primary -> Partner -> Dependants (dependants by created_at)
+  const rank = (a: ApplicationApplicant) => {
+    const code = a.applicant_type?.code?.toLowerCase();
+    if (a.is_primary || code === "primary") return 0;
+    if (code === "partner") return 1;
+    if (code === "dependant") return 2;
+    return 3;
+  };
+  const orderedApplicants = [...applicationApplicants].sort((a, b) => {
+    const r = rank(a) - rank(b);
+    if (r !== 0) return r;
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  });
+
+  const removeHasDocuments = (removeTarget?.documentCount ?? 0) > 0;
+
   return (
     <>
       <Card>
@@ -328,12 +437,10 @@ export const ApplicantsSection = ({
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {applicationApplicants.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">
-              No applicants added yet.
-            </p>
+          {orderedApplicants.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">No applicants added yet.</p>
           ) : (
-            applicationApplicants.map((applicant) => (
+            orderedApplicants.map((applicant) => (
               <div
                 key={applicant.id}
                 className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border border-border"
@@ -341,10 +448,8 @@ export const ApplicantsSection = ({
                 <div className="flex items-center gap-3">
                   <User className="w-4 h-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium">
-                      {applicant.displayName}
-                    </p>
-                    <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium">{applicant.displayName}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs text-muted-foreground">
                         {applicant.applicant_type?.name || "Unknown Type"}
                       </span>
@@ -353,6 +458,14 @@ export const ApplicantsSection = ({
                           Primary
                         </Badge>
                       )}
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <FileText className="w-3 h-3" />
+                        {applicant.documentCount} doc{applicant.documentCount === 1 ? "" : "s"}
+                      </span>
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {format(new Date(applicant.created_at), "dd MMM yyyy")}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -361,7 +474,7 @@ export const ApplicantsSection = ({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeApplicantMutation.mutate(applicant.id)}
+                    onClick={() => setRemoveTarget(applicant)}
                     disabled={removeApplicantMutation.isPending}
                   >
                     <X className="w-4 h-4" />
@@ -404,7 +517,7 @@ export const ApplicantsSection = ({
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <Label>Person</Label>
               <Select
@@ -424,7 +537,11 @@ export const ApplicantsSection = ({
                   ))}
                   {availableForSelectedType.length === 0 && selectedTypeId && (
                     <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                      No available {categoryRules.find(r => r.applicant_type_id === selectedTypeId)?.applicant_type?.name?.toLowerCase() || "persons"} in client's profile
+                      No available{" "}
+                      {categoryRules
+                        .find((r) => r.applicant_type_id === selectedTypeId)
+                        ?.applicant_type?.name?.toLowerCase() || "persons"}{" "}
+                      in client's profile
                     </div>
                   )}
                 </SelectContent>
@@ -437,7 +554,9 @@ export const ApplicantsSection = ({
             </Button>
             <Button
               onClick={handleAddApplicant}
-              disabled={!selectedRelatedApplicantId || !selectedTypeId || addApplicantMutation.isPending}
+              disabled={
+                !selectedRelatedApplicantId || !selectedTypeId || addApplicantMutation.isPending
+              }
             >
               {addApplicantMutation.isPending ? (
                 <>
@@ -451,6 +570,43 @@ export const ApplicantsSection = ({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Remove Applicant Confirmation */}
+      <AlertDialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {removeHasDocuments ? "Cannot remove applicant" : "Remove applicant"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {removeHasDocuments ? (
+                <span className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 mt-0.5 text-destructive shrink-0" />
+                  This applicant cannot be removed because documents are attached. Please remove or
+                  reassign the documents first.
+                </span>
+              ) : (
+                "Are you sure you want to remove this applicant from the application?"
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            {!removeHasDocuments && (
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (removeTarget) removeApplicantMutation.mutate(removeTarget);
+                }}
+                disabled={removeApplicantMutation.isPending}
+              >
+                {removeApplicantMutation.isPending ? "Removing..." : "Remove"}
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
