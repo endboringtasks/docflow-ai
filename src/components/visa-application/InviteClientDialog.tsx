@@ -2,8 +2,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -14,10 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Mail, Copy, CheckCircle2, CalendarIcon } from "lucide-react";
-import { format, startOfDay, addDays } from "date-fns";
-import { cn } from "@/lib/utils";
-import { z } from "zod";
+import { Loader2, Mail, Copy, CheckCircle2 } from "lucide-react";
 
 interface InviteClientDialogProps {
   open: boolean;
@@ -29,13 +24,6 @@ interface InviteClientDialogProps {
   applicationName: string;
 }
 
-const emailSchema = z
-  .string()
-  .trim()
-  .min(1, { message: "Email is required" })
-  .email({ message: "Enter a valid email address" })
-  .max(255, { message: "Email must be less than 255 characters" });
-
 export function InviteClientDialog({
   open,
   onOpenChange,
@@ -46,32 +34,13 @@ export function InviteClientDialog({
   applicationName,
 }: InviteClientDialogProps) {
   const [email, setEmail] = useState(clientEmail || "");
-  const [expiresAt, setExpiresAt] = useState<Date | undefined>(addDays(new Date(), 30));
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; expiresAt?: string }>({});
-
-  const validate = () => {
-    const newErrors: { email?: string; expiresAt?: string } = {};
-
-    const emailResult = emailSchema.safeParse(email);
-    if (!emailResult.success) {
-      newErrors.email = emailResult.error.issues[0].message;
-    }
-
-    if (!expiresAt) {
-      newErrors.expiresAt = "Expiration date is required";
-    } else if (startOfDay(expiresAt) < startOfDay(new Date())) {
-      newErrors.expiresAt = "Expiration date must be in the future";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
 
   const generateAccessLink = async () => {
-    if (!validate() || !expiresAt) {
+    if (!email) {
+      toast.error("Please enter an email address");
       return;
     }
 
@@ -79,10 +48,10 @@ export function InviteClientDialog({
     try {
       // Generate a secure random token
       const token = crypto.randomUUID() + "-" + crypto.randomUUID();
-
-      // Use the end of the selected day as the expiry moment
-      const expiry = new Date(expiresAt);
-      expiry.setHours(23, 59, 59, 999);
+      
+      // Set expiry to 30 days from now
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
 
       // Check if there's an existing access record for this visa application
       const { data: existing } = await supabase
@@ -97,9 +66,9 @@ export function InviteClientDialog({
         const { error } = await supabase
           .from("client_portal_access")
           .update({
-            email: email.trim(),
+            email,
             access_token: token,
-            token_expires_at: expiry.toISOString(),
+            token_expires_at: expiresAt.toISOString(),
             is_submitted: false,
             submitted_at: null,
           })
@@ -114,9 +83,9 @@ export function InviteClientDialog({
             visa_application_id: visaApplicationId,
             client_id: clientId,
             company_id: companyId,
-            email: email.trim(),
+            email,
             access_token: token,
-            token_expires_at: expiry.toISOString(),
+            token_expires_at: expiresAt.toISOString(),
           });
 
         if (error) throw error;
@@ -125,7 +94,7 @@ export function InviteClientDialog({
       // Generate the link
       const portalLink = `${window.location.origin}/client-portal?token=${token}`;
       setGeneratedLink(portalLink);
-
+      
       toast.success("Access link generated successfully");
     } catch (err) {
       console.error("Failed to generate link:", err);
@@ -137,7 +106,7 @@ export function InviteClientDialog({
 
   const copyToClipboard = async () => {
     if (!generatedLink) return;
-
+    
     try {
       await navigator.clipboard.writeText(generatedLink);
       setCopied(true);
@@ -151,7 +120,6 @@ export function InviteClientDialog({
   const handleClose = () => {
     setGeneratedLink(null);
     setCopied(false);
-    setErrors({});
     onOpenChange(false);
   };
 
@@ -159,7 +127,7 @@ export function InviteClientDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Generate Client Portal Link</DialogTitle>
+          <DialogTitle>Invite Client to Portal</DialogTitle>
           <DialogDescription>
             Generate an access link for the client to view and upload documents for "{applicationName}".
           </DialogDescription>
@@ -172,70 +140,23 @@ export function InviteClientDialog({
               id="client-email"
               type="email"
               value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
-              }}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="client@email.com"
               disabled={!!generatedLink}
-              aria-invalid={!!errors.email}
             />
-            {errors.email && (
-              <p className="text-sm text-destructive">{errors.email}</p>
-            )}
           </div>
-
-          {!generatedLink && (
-            <div className="space-y-2">
-              <Label htmlFor="expires-at">Expiration Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="expires-at"
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !expiresAt && "text-muted-foreground"
-                    )}
-                    aria-invalid={!!errors.expiresAt}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {expiresAt ? format(expiresAt, "PPP") : <span>Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={expiresAt}
-                    onSelect={(date) => {
-                      setExpiresAt(date);
-                      if (errors.expiresAt) setErrors((prev) => ({ ...prev, expiresAt: undefined }));
-                    }}
-                    disabled={(date) => startOfDay(date) < startOfDay(new Date())}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-              {errors.expiresAt && (
-                <p className="text-sm text-destructive">{errors.expiresAt}</p>
-              )}
-            </div>
-          )}
 
           {generatedLink ? (
             <div className="space-y-3">
-              <Label>
-                Access Link (expires {expiresAt ? format(expiresAt, "PPP") : ""})
-              </Label>
+              <Label>Access Link (expires in 30 days)</Label>
               <div className="flex gap-2">
                 <Input
                   value={generatedLink}
                   readOnly
                   className="text-xs font-mono"
                 />
-                <Button
-                  size="icon"
+                <Button 
+                  size="icon" 
                   variant="outline"
                   onClick={copyToClipboard}
                 >
