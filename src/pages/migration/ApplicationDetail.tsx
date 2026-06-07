@@ -2231,6 +2231,12 @@ const VisaApplicationDetail = () => {
           />
         )}
 
+        {/* Application Timeline Section */}
+        {visaApplication && (
+          <ApplicationTimelineSection visaApplicationId={visaApplication.id} />
+        )}
+
+
         {/* Tabs */}
         <Tabs defaultValue="documents" className="space-y-6">
           <TabsList className="bg-secondary">
