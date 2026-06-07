@@ -24,6 +24,13 @@ interface InviteClientDialogProps {
   applicationName: string;
 }
 
+// Local date (YYYY-MM-DD) for use as the min attribute and validation baseline
+const getTodayString = () => {
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  return new Date(now.getTime() - offset * 60 * 1000).toISOString().split("T")[0];
+};
+
 export function InviteClientDialog({
   open,
   onOpenChange,
@@ -34,13 +41,35 @@ export function InviteClientDialog({
   applicationName,
 }: InviteClientDialogProps) {
   const [email, setEmail] = useState(clientEmail || "");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [errors, setErrors] = useState<{ email?: string; expiryDate?: string }>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
+  const [generatedExpiry, setGeneratedExpiry] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const validate = () => {
+    const newErrors: { email?: string; expiryDate?: string } = {};
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      newErrors.email = "Client email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+
+    if (!expiryDate) {
+      newErrors.expiryDate = "Expiration date is required";
+    } else if (expiryDate < getTodayString()) {
+      newErrors.expiryDate = "Expiration date must be today or a future date";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const generateAccessLink = async () => {
-    if (!email) {
-      toast.error("Please enter an email address");
+    if (!validate()) {
       return;
     }
 
@@ -48,10 +77,9 @@ export function InviteClientDialog({
     try {
       // Generate a secure random token
       const token = crypto.randomUUID() + "-" + crypto.randomUUID();
-      
-      // Set expiry to 30 days from now
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
+
+      // Expire at the end of the chosen day (local time)
+      const expiresAt = new Date(`${expiryDate}T23:59:59`);
 
       // Check if there's an existing access record for this visa application
       const { data: existing } = await supabase
@@ -94,7 +122,8 @@ export function InviteClientDialog({
       // Generate the link
       const portalLink = `${window.location.origin}/client-portal?token=${token}`;
       setGeneratedLink(portalLink);
-      
+      setGeneratedExpiry(expiresAt.toISOString());
+
       toast.success("Access link generated successfully");
     } catch (err) {
       console.error("Failed to generate link:", err);
@@ -119,6 +148,9 @@ export function InviteClientDialog({
 
   const handleClose = () => {
     setGeneratedLink(null);
+    setGeneratedExpiry(null);
+    setExpiryDate("");
+    setErrors({});
     setCopied(false);
     onOpenChange(false);
   };
@@ -135,20 +167,55 @@ export function InviteClientDialog({
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="client-email">Client Email</Label>
+            <Label htmlFor="client-email">
+              Client Email <span className="text-destructive">*</span>
+            </Label>
             <Input
               id="client-email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
+              }}
               placeholder="client@email.com"
               disabled={!!generatedLink}
+              aria-invalid={!!errors.email}
             />
+            {errors.email && (
+              <p className="text-sm font-medium text-destructive">{errors.email}</p>
+            )}
           </div>
+
+          {!generatedLink && (
+            <div className="space-y-2">
+              <Label htmlFor="expiry-date">
+                Expiration Date <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="expiry-date"
+                type="date"
+                min={getTodayString()}
+                value={expiryDate}
+                onChange={(e) => {
+                  setExpiryDate(e.target.value);
+                  if (errors.expiryDate) setErrors((prev) => ({ ...prev, expiryDate: undefined }));
+                }}
+                aria-invalid={!!errors.expiryDate}
+              />
+              {errors.expiryDate && (
+                <p className="text-sm font-medium text-destructive">{errors.expiryDate}</p>
+              )}
+            </div>
+          )}
 
           {generatedLink ? (
             <div className="space-y-3">
-              <Label>Access Link (expires in 30 days)</Label>
+              <Label>
+                Access Link
+                {generatedExpiry &&
+                  ` (expires ${new Date(generatedExpiry).toLocaleDateString()})`}
+              </Label>
               <div className="flex gap-2">
                 <Input
                   value={generatedLink}

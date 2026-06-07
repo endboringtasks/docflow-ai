@@ -1,30 +1,31 @@
-## Problem
+## DOC-35 — Generate Client Portal Link
 
-Opening an application detail page (e.g. `/app/migration/applications/...`) renders a blank page when logged in.
+### Context
+Most of this story is already implemented:
+- `InviteClientDialog.tsx` opens from the application detail page, generates a unique token, creates/updates a `client_portal_access` record linked to the application, and displays the link with a copy button (AC1 partial, AC3, AC4, AC5).
+- `ClientPortal.tsx` validates the token via the `validate_portal_access_token` RPC, which only returns rows where `token_expires_at > now()`, so expired links are denied and valid links grant access (AC6, AC7) — no change needed.
 
-## Root cause
+### The gap
+The dialog hardcodes expiry to 30 days. The spec requires the user to **enter an expiration date** that is **mandatory** and **today or in the future**, plus proper validation errors (AC1, AC2, and the related business rules). This is the only missing piece.
 
-Two `useQuery` hooks use the **same query key** `["application-applicants", visaApplicationId]` but return **different data shapes**:
+### Changes (frontend only)
 
-- `src/pages/migration/ApplicationDetail.tsx` (~line 1176) — returns `{ id, applicant_type, displayName }` only (used to build the custom-document form).
-- `src/components/visa-application/ApplicantsSection.tsx` (~line 128) — expects `created_at`, `sort_order`, `is_primary`, `documentCount`, etc.
+**`src/components/visa-application/InviteClientDialog.tsx`**
+1. Add an `expiresAt` state plus an `errors` state object.
+2. Add an "Expiration Date" field using the existing `<input type="date">` pattern (as in `AddRelatedApplicantDialog`), with `min` set to today's date so past dates can't be picked. Label it as required.
+3. Replace the single `toast.error` with inline field validation in `generateAccessLink`:
+   - Email: required + basic email format → show error under the field.
+   - Expiration date: required, and must be today or a future date → show error under the field.
+   - If any error, set `errors` and return without generating.
+4. Use the chosen date (end-of-day) for `token_expires_at` instead of the hardcoded +30 days.
+5. Update the success display label from "expires in 30 days" to show the actual selected expiry date.
+6. Reset the new state in `handleClose`.
 
-React Query keeps one cache entry per key, so the two components can share the wrong shape. When `ApplicantsSection` receives the slim shape, `format(new Date(applicant.created_at), "dd MMM yyyy")` evaluates `new Date(undefined)` → Invalid Date → date-fns throws `RangeError: Invalid time value`, which crashes the entire React tree to a blank page. This only manifests when logged in (data actually loads), so the unauthenticated preview (which redirects to auth) masks it.
+### Verification
+- Open the dialog from the application detail page, leave fields blank, click Generate Link → inline validation errors appear; no record created.
+- Confirm a past date cannot be selected/submitted.
+- Enter a valid email + future date → unique token generated, `client_portal_access` row created/updated with the chosen `token_expires_at`, link shown with copy button.
+- Open the generated link in the portal → access granted; an expired record is denied (already covered by the RPC).
 
-## Fix
-
-Give the two queries distinct keys so they no longer collide.
-
-1. In `ApplicationDetail.tsx`, change the form-helper query key from `["application-applicants", visaApplicationId]` to a distinct key such as `["application-applicants-form", visaApplicationId]`. This query feeds `applicantTypeToName` / the custom-document form only.
-2. Leave `ApplicantsSection.tsx`'s query (the authoritative applicants list) on `["application-applicants", visaApplicationId]`, and keep the existing invalidations there.
-3. Verify any `invalidateQueries` calls still target the correct keys after the rename (the add/remove mutations in `ApplicantsSection` invalidate `["application-applicants", visaApplicationId]`, which remains correct; if the custom-document flow needs to refresh its helper list, also invalidate the new `["application-applicants-form", ...]` key).
-
-## Hardening (optional but recommended)
-
-In `ApplicantsSection.tsx`, guard the date render so a bad/missing `created_at` can never blank the page again, e.g. only call `format` when `created_at` is a valid date, otherwise render a dash.
-
-## Verification
-
-- Reload the application detail page while authenticated; confirm it renders with the Applicants and Timeline sections.
-- Confirm the custom-document form still shows correct applicant names.
-- Add/remove an applicant and confirm both the list and the form helper refresh.
+### Notes
+No database, RLS, or edge-function changes are required — the schema (`client_portal_access` with `access_token`, `token_expires_at`, `is_submitted`) and access validation already support this story.
