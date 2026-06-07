@@ -148,6 +148,9 @@ export function InviteClientDialog({
 
   const handleClose = () => {
     setGeneratedLink(null);
+    setGeneratedExpiry(null);
+    setExpiryDate("");
+    setErrors({});
     setCopied(false);
     onOpenChange(false);
   };
