@@ -57,6 +57,7 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { useFolderStatusRealtime } from "@/hooks/useFolderStatusRealtime";
 import { getCountryFlag } from "@/lib/countryFlags";
 import { ApplicantSelector, type ApplicantSelection } from "@/components/visa-application/ApplicantSelector";
