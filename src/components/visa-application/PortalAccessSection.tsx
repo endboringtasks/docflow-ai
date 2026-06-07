@@ -29,11 +29,13 @@ interface PortalAccessRecord {
   revoked_reason: string | null;
   created_at: string;
   last_accessed_at: string | null;
+  application_applicant_id: string | null;
 }
 
 interface PortalAccessSectionProps {
   visaApplicationId: string;
   userId: string | undefined;
+  applicantNames?: Record<string, string>;
 }
 
 type LinkState = "revoked" | "expired" | "submitted" | "active";
