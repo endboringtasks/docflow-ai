@@ -79,9 +79,25 @@ export default function AdminCompanies() {
     },
   });
 
-  const filteredCompanies = companies?.filter((company) =>
-    company.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredCompanies = companies?.filter((company) => {
+    const matchesSearch = company.name.toLowerCase().includes(search.toLowerCase());
+    const matchesPlan = planFilter === "all" || company.subscription_plan === planFilter;
+    const matchesStatus =
+      statusFilter === "all" || (company.subscription_status || "") === statusFilter;
+    const matchesNiche = nicheFilter === "all" || company.niche === nicheFilter;
+    return matchesSearch && matchesPlan && matchesStatus && matchesNiche;
+  });
+
+  const totalPages = Math.max(1, Math.ceil((filteredCompanies?.length ?? 0) / PAGE_SIZE));
+  const pagedCompanies = filteredCompanies?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, planFilter, statusFilter, nicheFilter]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const allSelected = filteredCompanies?.length > 0 && selectedIds.size === filteredCompanies?.length;
   const someSelected = selectedIds.size > 0 && !allSelected;
