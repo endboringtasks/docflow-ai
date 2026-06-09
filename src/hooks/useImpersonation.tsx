@@ -37,6 +37,7 @@ const IMPERSONATION_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour in milliseconds
 export function ImpersonationProvider({ children }: { children: ReactNode }) {
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [impersonatedUser, setImpersonatedUser] = useState<ImpersonationTarget | null>(null);
+  const [initiatingAdmin, setInitiatingAdmin] = useState<ImpersonationAdmin | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
