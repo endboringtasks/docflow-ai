@@ -19,6 +19,26 @@ serve(async (req) => {
     // Create admin client with service role
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Helper to write audit log entries (best-effort)
+    const logAudit = async (
+      actorId: string | null,
+      action: string,
+      targetId: string | null,
+      details: Record<string, unknown>,
+    ) => {
+      try {
+        await supabaseAdmin.from("platform_audit_logs").insert({
+          user_id: actorId,
+          action,
+          entity_type: "user",
+          entity_id: targetId,
+          details,
+        });
+      } catch (e) {
+        console.error("Failed to write audit log:", e);
+      }
+    };
+
     // Create user client to verify the caller
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
