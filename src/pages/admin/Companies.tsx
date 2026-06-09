@@ -226,14 +226,43 @@ export default function AdminCompanies() {
                   </div>
                 )}
               </div>
-              <div className="relative w-64">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search companies..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8"
-                />
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={planFilter} onValueChange={setPlanFilter}>
+                  <SelectTrigger className="w-32 h-9"><SelectValue placeholder="Plan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All plans</SelectItem>
+                    {PLANS.map((p) => (
+                      <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={nicheFilter} onValueChange={setNicheFilter}>
+                  <SelectTrigger className="w-32 h-9"><SelectValue placeholder="Niche" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All niches</SelectItem>
+                    {["migration", "audit", "hr"].map((n) => (
+                      <SelectItem key={n} value={n} className="capitalize">{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-32 h-9"><SelectValue placeholder="Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    {["active", "trialing", "past_due", "canceled", "incomplete"].map((s) => (
+                      <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="relative w-64">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search companies..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
               </div>
             </div>
           </CardHeader>
