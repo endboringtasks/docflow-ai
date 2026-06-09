@@ -25,8 +25,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Settings, Key, Plus, Trash2, Shield, UserPlus } from "lucide-react";
+import { Trash2, Shield, UserPlus } from "lucide-react";
 import { UploadSyncConfigCard } from "@/components/admin/UploadSyncConfigCard";
+import { PlatformSettingsCard } from "@/components/admin/PlatformSettingsCard";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,14 +35,7 @@ import { useAuth } from "@/hooks/useAuth";
 export default function AdminSettings() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [isKeyDialogOpen, setIsKeyDialogOpen] = useState(false);
   const [isAdminDialogOpen, setIsAdminDialogOpen] = useState(false);
-  const [newSetting, setNewSetting] = useState({
-    key: "",
-    value: "",
-    description: "",
-    isSecret: false,
-  });
   const [newAdminEmail, setNewAdminEmail] = useState("");
 
   const { data: settings, isLoading: settingsLoading } = useQuery({
