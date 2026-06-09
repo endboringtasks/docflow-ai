@@ -22,8 +22,8 @@ interface ConfigParam {
 const CONFIG_PARAMS: ConfigParam[] = [
   { key: "upload_max_file_size_mb", label: "Max File Size", description: "Maximum upload size", min: 1, max: 100, unit: "MB" },
   { key: "upload_signed_url_expiry_seconds", label: "Signed URL Expiry", description: "How long upload URLs remain valid", min: 60, max: 3600, unit: "seconds" },
-  { key: "upload_rate_limit_ip", label: "Rate Limit (IP)", description: "Max requests per IP per 5 min", min: 5, max: 500, unit: "requests" },
-  { key: "upload_rate_limit_token", label: "Rate Limit (Token)", description: "Max requests per token per 5 min", min: 1, max: 100, unit: "requests" },
+  { key: "upload_rate_limit_ip", label: "Rate Limit (IP)", description: "Max requests per IP per 5 min", min: 5, max: 1000, unit: "requests" },
+  { key: "upload_rate_limit_token", label: "Rate Limit (Token)", description: "Max requests per token per 5 min", min: 1, max: 300, unit: "requests" },
   { key: "sync_batch_size", label: "Sync Batch Size", description: "Attachments processed per sync run", min: 1, max: 50, unit: "items" },
   { key: "sync_max_attempts", label: "Max Sync Retries", description: "Retry attempts before giving up", min: 1, max: 20, unit: "attempts" },
   { key: "storage_retention_days", label: "Storage Retention", description: "Days to keep files after Drive sync", min: 1, max: 365, unit: "days" },

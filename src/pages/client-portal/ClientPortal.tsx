@@ -450,6 +450,14 @@ export default function ClientPortal() {
 
       const urlResult = await urlResponse.json();
       if (!urlResponse.ok) {
+        if (urlResponse.status === 429) {
+          const retryAfter = urlResponse.headers.get('Retry-After');
+          throw new Error(
+            retryAfter
+              ? `Too many uploads in a short time — please wait ${retryAfter}s and try again.`
+              : "Too many uploads in a short time — please wait a moment and try again."
+          );
+        }
         throw new Error(urlResult.error || 'Failed to get upload URL');
       }
 
@@ -509,6 +517,14 @@ export default function ClientPortal() {
 
       const finalizeResult = await finalizeResponse.json();
       if (!finalizeResponse.ok) {
+        if (finalizeResponse.status === 429) {
+          const retryAfter = finalizeResponse.headers.get('Retry-After');
+          throw new Error(
+            retryAfter
+              ? `Too many uploads in a short time — please wait ${retryAfter}s and try again.`
+              : "Too many uploads in a short time — please wait a moment and try again."
+          );
+        }
         throw new Error(finalizeResult.error || 'Failed to finalize upload');
       }
 

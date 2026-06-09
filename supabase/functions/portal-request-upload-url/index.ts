@@ -9,8 +9,8 @@ const corsHeaders = {
 // Defaults (overridden by platform_settings at runtime)
 const DEFAULT_MAX_FILE_SIZE_MB = 25
 const DEFAULT_SIGNED_URL_EXPIRY_SECONDS = 600
-const DEFAULT_RATE_LIMIT_IP = 50
-const DEFAULT_RATE_LIMIT_TOKEN = 10
+const DEFAULT_RATE_LIMIT_IP = 200
+const DEFAULT_RATE_LIMIT_TOKEN = 100
 
 async function getUploadSettings(supabase: any) {
   const keys = ['upload_max_file_size_mb', 'upload_signed_url_expiry_seconds', 'upload_rate_limit_ip', 'upload_rate_limit_token']
