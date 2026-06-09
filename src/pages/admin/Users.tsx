@@ -356,7 +356,7 @@ export default function AdminUsers() {
                       <TableCell className="text-muted-foreground">
                         {format(new Date(user.created_at), "MMM d, yyyy")}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         {user.id !== currentUser?.id && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
