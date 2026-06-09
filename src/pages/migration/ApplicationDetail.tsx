@@ -2785,6 +2785,11 @@ const VisaApplicationDetail = () => {
                                         </span>
                                       )}
                                     </div>
+                                    <SyncStatusBadge
+                                      status={attachment.sync_status as any}
+                                      error={attachment.sync_error}
+                                      className="flex-shrink-0"
+                                    />
                                   </div>
                                 ))}
                               </div>
