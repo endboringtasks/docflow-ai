@@ -87,6 +87,10 @@ export function DocumentPreviewDialog({
   const [rotation, setRotation] = useState(0);
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeSource, setActiveSource] = useState<"storage" | "drive">("storage");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [usedFallback, setUsedFallback] = useState(false);
+  
   
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [driveFileInfo, setDriveFileInfo] = useState<{
