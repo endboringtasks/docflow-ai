@@ -898,8 +898,35 @@ const MigrationVisaApplications = () => {
     }
   };
 
+  // BR-12 / UI-9: block the list when there is no active company context.
+  if (!companyLoading && !currentCompany) {
+    return (
+      <AppLayout niche="migration">
+        <div className="p-6 lg:p-8">
+          <h1 className="text-3xl font-bold mb-6">Applications</h1>
+          <div className="max-w-md mx-auto text-center py-16">
+            <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h2 className="text-lg font-semibold mb-2">No company selected</h2>
+            <p className="text-muted-foreground mb-6">
+              {companies.length > 0
+                ? "Select a company from the switcher in the header to view its applications."
+                : "You don't belong to a company yet. Create one to start tracking applications."}
+            </p>
+            {companies.length === 0 && (
+              <Button onClick={() => navigate("/onboarding")} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Create a company
+              </Button>
+            )}
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout niche="migration">
+
       <div className="p-6 lg:p-8 space-y-6">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
