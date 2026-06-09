@@ -1,4 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -471,6 +478,21 @@ const MigrationClients = () => {
       client.email?.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filteredClients.length / PAGE_SIZE));
+  const pagedClients = filteredClients.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+
+
   const handleCreateClient = () => {
     const isCorporate = newClient.clientType === "corporate";
     const hasRequiredField = isCorporate 
@@ -721,7 +743,7 @@ const MigrationClients = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                  {filteredClients.map((client, index) => (
+                  {pagedClients.map((client, index) => (
                     <motion.tr 
                       key={client.id}
                       className="hover:bg-secondary/30 transition-colors"
@@ -914,6 +936,31 @@ const MigrationClients = () => {
             )}
           </div>
         )}
+
+        {!isLoading && filteredClients.length > PAGE_SIZE && (
+          <Pagination className="mt-6">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className={page <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+              <PaginationItem>
+                <span className="px-4 text-sm text-muted-foreground">
+                  Page {page} of {totalPages}
+                </span>
+              </PaginationItem>
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className={page >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        )}
+
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={!!clientToDelete} onOpenChange={() => setClientToDelete(null)}>
