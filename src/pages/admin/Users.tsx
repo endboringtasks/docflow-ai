@@ -82,6 +82,9 @@ export default function AdminUsers() {
   const [userToDelete, setUserToDelete] = useState<UserToDelete | null>(null);
   const [adminDialogOpen, setAdminDialogOpen] = useState(false);
   const [userToToggleAdmin, setUserToToggleAdmin] = useState<UserToToggleAdmin | null>(null);
+  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "user">("all");
+  const [companyFilter, setCompanyFilter] = useState<string>("all");
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
 
   const openConfirmDialog = (user: UserToImpersonate) => {
     setUserToImpersonate(user);
