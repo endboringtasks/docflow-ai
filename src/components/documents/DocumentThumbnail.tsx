@@ -5,19 +5,23 @@ import { PdfThumbnail } from "./PdfThumbnail";
 interface DocumentThumbnailProps {
   filePath: string | null;
   fileUrl: string | null;
+  /** Real file name used for type detection (filePath may be a "drive://" id without an extension). */
+  fileName?: string | null;
   onPreview?: () => void;
   size?: number;
 }
 
+const stripDrivePrefix = (path: string): string => path.replace(/^drive:\/\//, "");
+
 const isImageFile = (filePath: string | null): boolean => {
   if (!filePath) return false;
-  const ext = filePath.split('.').pop()?.toLowerCase();
+  const ext = stripDrivePrefix(filePath).split('.').pop()?.toLowerCase();
   return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '');
 };
 
 const isPdfFile = (filePath: string | null): boolean => {
   if (!filePath) return false;
-  const ext = filePath.split('.').pop()?.toLowerCase();
+  const ext = stripDrivePrefix(filePath).split('.').pop()?.toLowerCase();
   return ext === 'pdf';
 };
 
