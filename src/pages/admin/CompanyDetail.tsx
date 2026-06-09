@@ -200,6 +200,7 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
         .from("google_drive_connections")
         .select("id, connected_email, root_folder_name, root_folder_id, created_at")
         .eq("company_id", companyId)
+        .is("disconnected_at", null)
         .maybeSingle();
       if (error) throw error;
       return data;
