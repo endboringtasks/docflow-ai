@@ -1533,10 +1533,19 @@ export default function ClientPortal() {
                   )}
                 </Tooltip>
               </TooltipProvider>
-              {!isEligibleToSubmit && totalDocs > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  {missingRequiredDocs.length} required document{missingRequiredDocs.length === 1 ? "" : "s"} still needed before you can submit.
-                </p>
+              {!isEligibleToSubmit && missingRequiredDocs.length > 0 && (
+                <div className="max-w-md rounded-md border border-destructive/30 bg-destructive/5 p-3 text-right">
+                  <p className="text-sm font-medium text-foreground">
+                    {missingRequiredDocs.length} required document{missingRequiredDocs.length === 1 ? "" : "s"} still needed before you can submit:
+                  </p>
+                  <ul className="mt-2 space-y-1">
+                    {missingRequiredDocs.map((doc) => (
+                      <li key={doc.id} className="text-sm text-muted-foreground">
+                        {sanitizeForSort(doc.document_name)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           </div>

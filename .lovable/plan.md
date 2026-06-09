@@ -1,28 +1,34 @@
-# Fix: Document thumbnails show generic icon instead of image/PDF preview
+## Context
 
-## Problem
-In the application detail document list, attachment thumbnails render a generic file icon instead of the actual image/PDF preview, even though a valid thumbnail URL is loaded.
+The BDD spec "Portal Submission" (Jira DOC-40) is almost entirely implemented already. I verified each Business Rule and Acceptance Criterion against the current code:
 
-## Root cause
-`DocumentThumbnail` decides the rendering (image vs PDF vs icon) from its `filePath` prop. Attachments pass `filePath={attachment.file_path}`, which for synced files is `drive://<id>` — no file extension. So `isImageFile(filePath)` and `isPdfFile(filePath)` both return false and the component always falls back to the generic `<File>` icon, ignoring the loaded `fileUrl`.
+| Spec | Status | Where |
+|---|---|---|
+| BR-1 / AC-1 / AC-2 — Submit only when required docs uploaded | ✅ | `ClientPortal.tsx` `isEligibleToSubmit`, `missingRequiredDocs` |
+| BR-2 / AC-7 / TC-4 — One-time, idempotent | ✅ | `submit_portal_access` RPC (`WHERE is_submitted = false`) |
+| BR-3 / AC-4 — Sets `is_submitted` + `submitted_at` | ✅ | RPC + `client-portal-submit` edge fn |
+| BR-4 / AC-5 / TC-5 — Read-only after submit (client + server) | ✅ | UI guards + `client-portal-upload`, `portal-request-upload-url`, `portal-finalize-upload`, `client-portal-remove-document` all reject when `is_submitted` |
+| BR-5 / AC-6 / TC-7 — Notify company members | ✅ | `client-portal-submit` inserts notifications |
+| UI-2 / AC-3 / TC-3 — Irreversible confirm dialog + cancel | ✅ | `isSubmitDialogOpen` AlertDialog |
+| UI-3 / TC-6 — Post-submission "Submitted" state | ✅ | Submitted card with `submitted_at` |
+| UI-4 / TC-8 — Failure keeps portal editable | ✅ | `handleSubmit` catch block |
 
-This is the same class of bug already fixed in `DocumentPreviewDialog`: type detection must follow the real file name, not the `drive://` path scheme.
+## The one gap
 
-## Fix (frontend only)
-1. `src/components/documents/DocumentThumbnail.tsx`:
-   - Add an optional `fileName?: string | null` prop.
-   - Use `fileName` (when provided) for `isImageFile` / `isPdfFile` type detection, falling back to `filePath` when `fileName` is absent. Strip any `drive://` prefix before extension checks as a safety net.
-   - Keep using `fileUrl` for the actual `<img>` / PDF thumbnail source.
+**AC-2 / TC-2** require the UI to show *which* required document(s) are missing (an actionable list). Today the portal only shows a **count** ("3 required documents still needed") and a generic tooltip — not the names.
 
-2. `src/pages/migration/ApplicationDetail.tsx`:
-   - Pass `fileName={attachment.file_name}` at the attachment thumbnail (around line 2774).
-   - For the legacy single-file thumbnail (around line 2814), pass `fileName={doc.fileName ?? doc.filePath}` (legacy `filePath` is a real storage path with extension, so this stays correct).
+## Change (frontend only)
+
+In `src/pages/client-portal/ClientPortal.tsx`, replace the count-only message (lines ~1536–1540) with an actionable list of the missing required document names, derived from the existing `missingRequiredDocs` array (using the same name-cleanup regex already used elsewhere in the file). Keep it compact and enterprise-styled (no inline buttons), e.g. a short heading plus a bulleted list of the cleaned document names. The Submit button disabled state and tooltip remain unchanged.
+
+No backend, schema, or edge-function changes are needed — those acceptance criteria are already satisfied.
 
 ## Verification
-- Open the affected draft application: attachment rows now show image/PDF thumbnails instead of the generic icon.
-- Confirm non-previewable file types still show the generic icon.
-- Confirm legacy single-file documents still render thumbnails.
+
+- Open a portal missing one or more required docs → the named list of missing documents is shown and Submit stays disabled.
+- Upload all required docs → list disappears, Submit enables.
+- Confirm submitted portals still render the read-only "Submitted" state.
 
 ## Files
-- `src/components/documents/DocumentThumbnail.tsx`
-- `src/pages/migration/ApplicationDetail.tsx`
+
+- `src/pages/client-portal/ClientPortal.tsx`
