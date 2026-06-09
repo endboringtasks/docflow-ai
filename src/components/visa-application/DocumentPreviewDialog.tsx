@@ -26,6 +26,8 @@ import {
   ExternalLink,
   History,
   ArrowLeft,
+  HardDrive,
+  Database,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,9 +46,11 @@ interface DocumentPreviewDialogProps {
     reviewStatus: ReviewStatus;
     reviewComment: string | null;
     storageObjectPath?: string | null;
+    driveFileId?: string | null;
   } | null;
   onReviewUpdate: (docId: string, status: ReviewStatus, comment: string) => Promise<void>;
-  
+  /** Strict review source by application status: "drive" when Done, else "storage". */
+  reviewSource?: "storage" | "drive";
   companyId?: string;
   documentHistory?: DocumentHistoryEntry[];
 }
@@ -74,7 +78,7 @@ export function DocumentPreviewDialog({
   onOpenChange,
   document,
   onReviewUpdate,
-  
+  reviewSource = "storage",
   companyId,
   documentHistory = [],
 }: DocumentPreviewDialogProps) {
@@ -85,6 +89,10 @@ export function DocumentPreviewDialog({
   const [rotation, setRotation] = useState(0);
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeSource, setActiveSource] = useState<"storage" | "drive">("storage");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [usedFallback, setUsedFallback] = useState(false);
+  
   
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [driveFileInfo, setDriveFileInfo] = useState<{
@@ -119,65 +127,72 @@ export function DocumentPreviewDialog({
     }
   }, [open, document?.filePath]);
 
+  const loadFromStorage = async (): Promise<boolean> => {
+    if (!document?.filePath) return false;
+    // Prefer storage_object_path; fall back to legacy filePath stored in the bucket.
+    const path = document.storageObjectPath || (!isDriveFile(document.filePath) ? document.filePath : null);
+    if (!path) return false;
+    const { data, error } = await supabase.storage
+      .from("document-attachments")
+      .createSignedUrl(path, 3600);
+    if (error || !data?.signedUrl) return false;
+    setPreviewUrl(data.signedUrl);
+    setActiveSource("storage");
+    return true;
+  };
+
+  const loadFromDrive = async (): Promise<boolean> => {
+    if (!document?.filePath) return false;
+    const fileId = document.driveFileId || (isDriveFile(document.filePath) ? getDriveFileId(document.filePath) : null);
+    if (!fileId || !companyId) return false;
+    const { data, error } = await supabase.functions.invoke("get-drive-file-url", {
+      body: { file_id: fileId, company_id: companyId },
+    });
+    if (error || !data?.success) return false;
+    setDriveFileInfo({
+      name: data.file.name,
+      mimeType: data.file.mimeType,
+      webViewLink: data.file.webViewLink,
+    });
+    setPreviewUrl(data.file.previewUrl || null);
+    setActiveSource("drive");
+    return true;
+  };
+
   const loadPreview = async () => {
     if (!document?.filePath) return;
 
     setLoading(true);
+    setLoadError(null);
+    setUsedFallback(false);
     try {
-      // Priority: use storage_object_path for direct signed URL (no edge function)
-      if (document.storageObjectPath) {
-        const { data, error } = await supabase.storage
-          .from("document-attachments")
-          .createSignedUrl(document.storageObjectPath, 3600);
+      // Strict review source by application status: Drive when Done, Storage otherwise.
+      const primary = reviewSource === "drive" ? loadFromDrive : loadFromStorage;
+      const fallback = reviewSource === "drive" ? loadFromStorage : loadFromDrive;
+      const primaryLabel = reviewSource === "drive" ? "Google Drive" : "Storage";
+      const fallbackLabel = reviewSource === "drive" ? "Storage" : "Google Drive";
 
-        if (!error && data?.signedUrl) {
-          setPreviewUrl(data.signedUrl);
-          setLoading(false);
-          return;
-        }
-        // Fall through to Drive logic if storage URL fails
+      if (await primary()) return;
+
+      // Primary source failed — attempt graceful fallback (UI-4).
+      if (await fallback()) {
+        setUsedFallback(true);
+        setLoadError(
+          `Couldn't load from ${primaryLabel}. Showing the copy from ${fallbackLabel} instead.`
+        );
+        return;
       }
 
-      // Check if this is a Google Drive file
-      if (isDriveFile(document.filePath)) {
-        if (!companyId) {
-          throw new Error("Company ID required for Drive files");
-        }
-        
-        const fileId = getDriveFileId(document.filePath);
-        const { data, error } = await supabase.functions.invoke("get-drive-file-url", {
-          body: { file_id: fileId, company_id: companyId },
-        });
-
-        if (error) throw error;
-        if (!data?.success) throw new Error(data?.error || "Failed to get file URL");
-
-        setDriveFileInfo({
-          name: data.file.name,
-          mimeType: data.file.mimeType,
-          webViewLink: data.file.webViewLink,
-        });
-
-        if (data.file.previewUrl) {
-          setPreviewUrl(data.file.previewUrl);
-        } else if (data.file.webViewLink) {
-          setPreviewUrl(null);
-        }
-      } else {
-        // Supabase storage file (legacy path without storage_object_path)
-        const { data, error } = await supabase.storage
-          .from("document-attachments")
-          .createSignedUrl(document.filePath, 3600);
-
-        if (error) throw error;
-        setPreviewUrl(data.signedUrl);
-      }
+      setLoadError(`Couldn't load this document from ${primaryLabel}.`);
+      toast.error("Failed to load document preview");
     } catch (error) {
       console.error("Error loading preview:", error);
+      setLoadError("Failed to load document preview");
       toast.error("Failed to load document preview");
     } finally {
       setLoading(false);
     }
+
   };
 
   const handleDownload = async () => {
@@ -256,9 +271,19 @@ export function DocumentPreviewDialog({
         isFullscreen && "max-w-[100vw] max-h-[100vh] w-screen h-screen rounded-none"
       )}>
         <DialogHeader className="flex-shrink-0 flex flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <DialogTitle className="text-lg">{document.name}</DialogTitle>
             {getStatusBadge(document.reviewStatus)}
+            {document.filePath && (
+              <Badge variant="outline" className="gap-1 font-normal">
+                {activeSource === "drive" ? (
+                  <HardDrive className="w-3 h-3" />
+                ) : (
+                  <Database className="w-3 h-3" />
+                )}
+                Viewing from {activeSource === "drive" ? "Drive" : "Storage"}
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -291,6 +316,20 @@ export function DocumentPreviewDialog({
           )}
           
           <TabsContent value="current" className="flex-1 min-h-0 flex flex-col gap-4 mt-4 data-[state=inactive]:hidden">
+            {/* Source fallback / load error notice (UI-4) */}
+            {loadError && !loading && (
+              <div
+                className={cn(
+                  "flex items-start gap-2 rounded-lg border p-3 text-sm",
+                  usedFallback
+                    ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                    : "border-destructive/30 bg-destructive/10 text-destructive"
+                )}
+              >
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>{loadError}</span>
+              </div>
+            )}
             {/* Preview Area */}
             <div className="flex-1 min-h-0 flex flex-col gap-4">
           {loading ? (

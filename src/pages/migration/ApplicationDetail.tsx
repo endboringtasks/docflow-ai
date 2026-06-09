@@ -80,6 +80,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { InviteClientDialog } from "@/components/visa-application/InviteClientDialog";
 import { DocumentPreviewDialog, ReviewStatus } from "@/components/visa-application/DocumentPreviewDialog";
+import { SyncStatusBadge } from "@/components/visa-application/SyncStatusBadge";
 import { DocumentHistorySection, DocumentHistoryEntry } from "@/components/visa-application/DocumentHistorySection";
 import { ApplicantsSection } from "@/components/visa-application/ApplicantsSection";
 import { PortalAccessSection } from "@/components/visa-application/PortalAccessSection";
@@ -124,6 +125,11 @@ interface DocumentAttachment {
   uploaded_by: string | null;
   uploaded_by_client: string | null;
   storage_object_path: string | null;
+  sync_status: string | null;
+  sync_error: string | null;
+  drive_file_id: string | null;
+  drive_app_folder_file_id: string | null;
+  synced_at: string | null;
 }
 
 interface DocumentItem {
@@ -494,7 +500,7 @@ const VisaApplicationDetail = () => {
       const docIds = (docs || []).map(d => d.id);
       const { data: attachments } = await supabase
         .from("document_attachments")
-        .select("id, document_checklist_id, file_path, file_name, file_type, file_size, uploaded_at, uploaded_by, uploaded_by_client, storage_object_path")
+        .select("id, document_checklist_id, file_path, file_name, file_type, file_size, uploaded_at, uploaded_by, uploaded_by_client, storage_object_path, sync_status, sync_error, drive_file_id, drive_app_folder_file_id, synced_at")
         .in("document_checklist_id", docIds)
         .order("uploaded_at", { ascending: true });
       
@@ -514,6 +520,11 @@ const VisaApplicationDetail = () => {
           uploaded_by: a.uploaded_by,
           uploaded_by_client: a.uploaded_by_client,
           storage_object_path: a.storage_object_path,
+          sync_status: a.sync_status,
+          sync_error: a.sync_error,
+          drive_file_id: a.drive_file_id,
+          drive_app_folder_file_id: a.drive_app_folder_file_id,
+          synced_at: a.synced_at,
         });
       });
       
@@ -1810,12 +1821,40 @@ const VisaApplicationDetail = () => {
     return data.publicUrl;
   };
 
+  // Review source is strict by application status: Drive when Done, Storage otherwise.
+  const reviewSource: "storage" | "drive" =
+    visaApplication?.status === "done" ? "drive" : "storage";
+
   // Fetch thumbnail URL for a document
-  const fetchThumbnailUrl = async (filePath: string, storageObjectPath?: string | null): Promise<string | null> => {
+  const fetchThumbnailUrl = async (
+    filePath: string,
+    storageObjectPath?: string | null,
+    driveFileId?: string | null
+  ): Promise<string | null> => {
     const cacheKey = storageObjectPath || filePath;
     if (thumbnailUrls[cacheKey]) return thumbnailUrls[cacheKey];
-    
+
     try {
+      // When application is Done, load thumbnails from Drive.
+      if (reviewSource === "drive") {
+        const fileId =
+          driveFileId || (isDriveFile(filePath) ? getDriveFileId(filePath) : null);
+        if (fileId && currentCompany?.id) {
+          const { data, error } = await supabase.functions.invoke("get-drive-file-url", {
+            body: { file_id: fileId, company_id: currentCompany.id },
+          });
+          if (!error && data?.success) {
+            const url = data.file.previewUrl || data.file.thumbnailLink;
+            if (url) {
+              setThumbnailUrls(prev => ({ ...prev, [cacheKey]: url }));
+              return url;
+            }
+          }
+        }
+        return null;
+      }
+
+      // Not Done: load from Storage.
       // If we have a storage_object_path, use it directly (no edge function needed)
       if (storageObjectPath) {
         const { data, error } = await supabase.storage
@@ -1868,7 +1907,11 @@ const VisaApplicationDetail = () => {
           for (const attachment of doc.attachments) {
             const cacheKey = attachment.storage_object_path || attachment.file_path;
             if (isPreviewableFile(attachment.file_name || attachment.file_path) && !thumbnailUrls[cacheKey]) {
-              await fetchThumbnailUrl(attachment.file_path, attachment.storage_object_path);
+              await fetchThumbnailUrl(
+                attachment.file_path,
+                attachment.storage_object_path,
+                attachment.drive_app_folder_file_id || attachment.drive_file_id
+              );
             }
           }
         }
@@ -1876,7 +1919,7 @@ const VisaApplicationDetail = () => {
     };
     
     loadThumbnails();
-  }, [documents, currentCompany?.id]);
+  }, [documents, currentCompany?.id, reviewSource]);
 
   const handleDownloadFile = async (filePath: string, fileName: string) => {
     const { data, error } = await supabase.storage
@@ -2743,6 +2786,11 @@ const VisaApplicationDetail = () => {
                                         </span>
                                       )}
                                     </div>
+                                    <SyncStatusBadge
+                                      status={attachment.sync_status as any}
+                                      error={attachment.sync_error}
+                                      className="flex-shrink-0"
+                                    />
                                   </div>
                                 ))}
                               </div>
@@ -3187,9 +3235,13 @@ const VisaApplicationDetail = () => {
           document={previewDoc ? {
             ...previewDoc,
             storageObjectPath: previewDoc.attachments?.[0]?.storage_object_path || null,
+            driveFileId:
+              previewDoc.attachments?.[0]?.drive_app_folder_file_id ||
+              previewDoc.attachments?.[0]?.drive_file_id ||
+              null,
           } : null}
           onReviewUpdate={handleReviewUpdate}
-          
+          reviewSource={reviewSource}
           companyId={visaApplication?.company_id}
           documentHistory={previewDoc ? (documentHistoryByDoc?.[previewDoc.id] as DocumentHistoryEntry[] || []) : []}
         />
