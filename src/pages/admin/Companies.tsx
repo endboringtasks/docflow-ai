@@ -268,7 +268,7 @@ export default function AdminCompanies() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCompanies?.map((company) => (
+                  {pagedCompanies?.map((company) => (
                     <TableRow 
                       key={company.id} 
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
