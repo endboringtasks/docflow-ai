@@ -314,7 +314,11 @@ export default function AdminUsers() {
                 </TableHeader>
                 <TableBody>
                   {filteredUsers?.map((user) => (
-                    <TableRow key={user.id}>
+                    <TableRow
+                      key={user.id}
+                      className="cursor-pointer"
+                      onClick={() => setSelectedUser(user)}
+                    >
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           {user.display_name || "No name"}
