@@ -51,6 +51,21 @@ export function ImpersonationProvider({ children }: { children: ReactNode }) {
 
       const originalSession: Session = JSON.parse(storedSession);
 
+      // BR-11: write an audit log for the impersonation end, attributed to the
+      // original admin. Best-effort — never block the session restore on failure.
+      try {
+        const storedTarget = localStorage.getItem(IMPERSONATION_TARGET_KEY);
+        const target: ImpersonationTarget | null = storedTarget ? JSON.parse(storedTarget) : null;
+        await supabase.functions.invoke("admin-end-impersonation", {
+          body: {
+            targetUserId: target?.id ?? null,
+            adminAccessToken: originalSession.access_token,
+          },
+        });
+      } catch (auditError) {
+        console.error("Failed to log impersonation end:", auditError);
+      }
+
       // Sign out of impersonated session
       await supabase.auth.signOut();
 
@@ -69,18 +84,21 @@ export function ImpersonationProvider({ children }: { children: ReactNode }) {
       // Clear impersonation data
       localStorage.removeItem(IMPERSONATION_STORAGE_KEY);
       localStorage.removeItem(IMPERSONATION_TARGET_KEY);
+      localStorage.removeItem(IMPERSONATION_ADMIN_KEY);
       localStorage.removeItem(IMPERSONATION_START_KEY);
       setIsImpersonating(false);
       setImpersonatedUser(null);
+      setInitiatingAdmin(null);
       setTimeRemaining(null);
 
-      if (showToast) toast.success("Returned to admin account");
+      if (showToast) toast.success("Impersonation ended");
       window.location.href = "/admin";
     } catch (error: any) {
       console.error("End impersonation error:", error);
       if (showToast) toast.error("Failed to end impersonation. Please log in again.");
       localStorage.removeItem(IMPERSONATION_STORAGE_KEY);
       localStorage.removeItem(IMPERSONATION_TARGET_KEY);
+      localStorage.removeItem(IMPERSONATION_ADMIN_KEY);
       localStorage.removeItem(IMPERSONATION_START_KEY);
       await supabase.auth.signOut();
       window.location.href = "/auth";
