@@ -552,6 +552,101 @@ export default function AdminUsers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* User Detail Sheet */}
+      <Sheet open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
+        <SheetContent className="sm:max-w-md overflow-y-auto">
+          {selectedUser && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">
+                  {selectedUser.display_name || "No name"}
+                  {selectedUser.isPlatformAdmin && (
+                    <Shield className="w-4 h-4 text-primary" />
+                  )}
+                </SheetTitle>
+                <SheetDescription>User profile and company memberships</SheetDescription>
+              </SheetHeader>
+
+              <div className="mt-6 space-y-6">
+                {/* Identity */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    {selectedUser.isPlatformAdmin ? (
+                      <Badge>Super Admin</Badge>
+                    ) : (
+                      <Badge variant="outline">Standard User</Badge>
+                    )}
+                    <Badge variant="secondary">Active</Badge>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Mail className="w-4 h-4" />
+                    <span className="break-all">{selectedUser.email || "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="w-4 h-4" />
+                    Joined {format(new Date(selectedUser.created_at), "MMM d, yyyy")}
+                  </div>
+                </div>
+
+                {/* Company memberships */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Building2 className="w-4 h-4" />
+                    Company memberships
+                  </h3>
+                  {selectedUser.memberships.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      This user does not belong to any company.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedUser.memberships.map((m: any, i: number) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between rounded-md border p-3"
+                        >
+                          <span className="text-sm font-medium">
+                            {m.companies?.name || "Unknown company"}
+                          </span>
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {m.role}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Delete action */}
+                {selectedUser.id !== currentUser?.id && !selectedUser.isPlatformAdmin && (
+                  <div className="border-t pt-4">
+                    <Button
+                      variant="destructive"
+                      className="w-full"
+                      onClick={() => {
+                        openDeleteDialog({
+                          id: selectedUser.id,
+                          email: selectedUser.email,
+                          display_name: selectedUser.display_name,
+                        });
+                        setSelectedUser(null);
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete user
+                    </Button>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Permanently removes the user account. This action cannot be undone and is logged for audit.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </AdminLayout>
+
   );
 }
