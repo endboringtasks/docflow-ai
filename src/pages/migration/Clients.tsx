@@ -743,7 +743,7 @@ const MigrationClients = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                  {filteredClients.map((client, index) => (
+                  {pagedClients.map((client, index) => (
                     <motion.tr 
                       key={client.id}
                       className="hover:bg-secondary/30 transition-colors"
