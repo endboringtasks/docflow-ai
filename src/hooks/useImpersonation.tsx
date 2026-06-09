@@ -126,6 +126,8 @@ export function ImpersonationProvider({ children }: { children: ReactNode }) {
 
       setIsImpersonating(true);
       setImpersonatedUser(JSON.parse(storedTarget));
+      const storedAdmin = localStorage.getItem(IMPERSONATION_ADMIN_KEY);
+      if (storedAdmin) setInitiatingAdmin(JSON.parse(storedAdmin));
       setTimeRemaining(Math.floor((IMPERSONATION_TIMEOUT_MS - elapsed) / 1000));
     }
   }, [endImpersonation]);
