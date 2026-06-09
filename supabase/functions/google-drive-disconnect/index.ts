@@ -143,7 +143,7 @@ serve(async (req) => {
       throw new Error("Company ID required");
     }
 
-    // Verify user is a member of the company
+    // Authorize: allow company members OR platform admins
     const { data: membership } = await supabase
       .from("company_members")
       .select("id")
@@ -151,9 +151,22 @@ serve(async (req) => {
       .eq("company_id", companyId)
       .maybeSingle();
 
-    if (!membership) {
+    let isAuthorized = !!membership;
+
+    if (!isAuthorized) {
+      const { data: isAdmin, error: adminError } = await supabaseAdmin.rpc(
+        "is_platform_admin",
+        { _user_id: user.id }
+      );
+      if (adminError) {
+        console.error("is_platform_admin check error:", adminError);
+      }
+      isAuthorized = isAdmin === true;
+    }
+
+    if (!isAuthorized) {
       return new Response(
-        JSON.stringify({ error: "Access denied. You are not a member of this company." }),
+        JSON.stringify({ error: "Access denied. You are not authorized to disconnect this company." }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
