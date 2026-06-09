@@ -43,6 +43,13 @@ import {
 import { Search, Building2, ChevronRight, MoreHorizontal, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { CompanyDetail } from "./CompanyDetail";
 import { Database } from "@/integrations/supabase/types";
 
