@@ -132,10 +132,12 @@ interface Country {
 const MigrationVisaApplications = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { currentCompany } = useCompany();
+  const { currentCompany, companies, loading: companyLoading } = useCompany();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "active" | "done">("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<VisaApplication | null>(null);
   const [applicationToDelete, setApplicationToDelete] = useState<VisaApplication | null>(null);
