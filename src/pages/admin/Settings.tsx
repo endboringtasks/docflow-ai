@@ -38,19 +38,6 @@ export default function AdminSettings() {
   const [isAdminDialogOpen, setIsAdminDialogOpen] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState("");
 
-  const { data: settings, isLoading: settingsLoading } = useQuery({
-    queryKey: ["admin-settings"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("platform_settings")
-        .select("*")
-        .order("key");
-
-      if (error) throw error;
-      return data;
-    },
-  });
-
   const { data: admins, isLoading: adminsLoading } = useQuery({
     queryKey: ["admin-platform-admins"],
     queryFn: async () => {
@@ -67,38 +54,7 @@ export default function AdminSettings() {
     },
   });
 
-  const createSetting = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("platform_settings").insert({
-        key: newSetting.key,
-        value: { value: newSetting.value },
-        description: newSetting.description,
-        is_secret: newSetting.isSecret,
-        updated_by: user?.id,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-settings"] });
-      setIsKeyDialogOpen(false);
-      setNewSetting({ key: "", value: "", description: "", isSecret: false });
-      toast.success("Setting created");
-    },
-    onError: (error) => {
-      toast.error("Failed to create setting: " + error.message);
-    },
-  });
 
-  const deleteSetting = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("platform_settings").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-settings"] });
-      toast.success("Setting deleted");
-    },
-  });
 
   const addAdmin = useMutation({
     mutationFn: async () => {
