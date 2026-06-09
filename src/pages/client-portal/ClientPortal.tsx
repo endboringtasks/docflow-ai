@@ -705,25 +705,38 @@ export default function ClientPortal() {
   };
 
   const handleSubmit = async () => {
-    if (!portalAccess) return;
+    if (!portalAccess || isSubmitting) return;
+
+    // Guard: never submit when requirements are incomplete (BR-1 / AC-2)
+    if (!isEligibleToSubmit) {
+      toast.error("Please upload all required documents before submitting.");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
       // Save form data one final time
       await saveFormData(formData);
 
-      // Mark as submitted using secure RPC
+      // Mark as submitted using secure RPC (idempotent: WHERE is_submitted = false)
       const { data: submitted, error: submitError } = await supabase
         .rpc("submit_portal_access", { p_token: token });
 
-      if (submitError || !submitted) {
+      if (submitError) {
+        // Genuine server/network error — leave portal editable (UI-4 / TC-8)
         throw new Error("Failed to submit application");
       }
 
-      // Note: Notifications are handled separately since this is unauthenticated access
-      // The edge function or backend should handle notifying team members
+      if (!submitted) {
+        // Already submitted (idempotent path) — reflect read-only state (BR-6 / AC-7 / TC-4)
+        setPortalAccess(prev => prev ? { ...prev, is_submitted: true } : null);
+        setIsSubmitDialogOpen(false);
+        toast.info("This portal has already been submitted.");
+        return;
+      }
 
-      // Call edge function to notify team and finalize submission
+      // Call edge function to notify team and finalize submission.
+      // Notifications are best-effort and must not roll back a successful submission.
       try {
         await fetch(
           `${config.supabaseUrl}/functions/v1/client-portal-submit`,
@@ -737,9 +750,9 @@ export default function ClientPortal() {
         console.error("Failed to notify team:", notifyError);
       }
 
-      setPortalAccess(prev => prev ? { ...prev, is_submitted: true } : null);
+      setPortalAccess(prev => prev ? { ...prev, is_submitted: true, submitted_at: new Date().toISOString() } : null);
       setIsSubmitDialogOpen(false);
-      toast.success("Application submitted successfully!");
+      toast.success("Application submitted successfully! Your agent has been notified.");
     } catch (err) {
       console.error("Submit failed:", err);
       toast.error(err instanceof Error ? err.message : "Failed to submit application");
@@ -747,6 +760,7 @@ export default function ClientPortal() {
       setIsSubmitting(false);
     }
   };
+
 
   const getClientName = () => {
     if (!client) return "";
@@ -772,6 +786,14 @@ export default function ClientPortal() {
     d.review_status !== 'rejected'
   ).length;
   const progress = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
+
+  // Required documents still missing (not uploaded, or returned to client / rejected)
+  const missingRequiredDocs = requiredDocuments.filter(d =>
+    !(d.is_completed && d.review_status !== 'pending_client' && d.review_status !== 'rejected')
+  );
+
+  // Submission eligibility: there must be at least one required document and none missing
+  const isEligibleToSubmit = totalDocs > 0 && missingRequiredDocs.length === 0;
 
   // Check if any documents need attention (pending_client or rejected)
   const docsNeedingAttention = documents.filter(d => 
@@ -1470,16 +1492,36 @@ export default function ClientPortal() {
             </Card>
 
             {/* Submit Button */}
-            <div className="flex justify-end">
-              <Button
-                size="lg"
-                onClick={() => setIsSubmitDialogOpen(true)}
-                disabled={completedDocs === 0}
-                className="gap-2"
-              >
-                <Send className="w-5 h-5" />
-                Submit Application
-              </Button>
+            <div className="flex flex-col items-end gap-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0}>
+                      <Button
+                        size="lg"
+                        onClick={() => setIsSubmitDialogOpen(true)}
+                        disabled={!isEligibleToSubmit}
+                        className="gap-2"
+                      >
+                        <Send className="w-5 h-5" />
+                        Submit Application
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {!isEligibleToSubmit && (
+                    <TooltipContent>
+                      {totalDocs === 0
+                        ? "There are no required documents to submit."
+                        : "Upload all required documents to submit."}
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
+              {!isEligibleToSubmit && totalDocs > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {missingRequiredDocs.length} required document{missingRequiredDocs.length === 1 ? "" : "s"} still needed before you can submit.
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -1490,16 +1532,23 @@ export default function ClientPortal() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Submit Application?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Once submitted, you won't be able to make changes. Make sure all your information is correct and all required documents are uploaded.
-              <br /><br />
-              <strong>{completedDocs}</strong> of <strong>{totalDocs}</strong> required documents uploaded.
-              {optionalCount > 0 && <> Plus <strong>{optionalCompleted}/{optionalCount}</strong> optional.</>}
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Submission is <strong>one-time and irreversible</strong>. Once you submit, the
+                  portal becomes <strong>read-only</strong> — you won't be able to upload, edit, or
+                  remove documents. Please make sure everything is correct.
+                </p>
+                <p>
+                  <strong>{completedDocs}</strong> of <strong>{totalDocs}</strong> required documents uploaded.
+                  {optionalCount > 0 && <> Plus <strong>{optionalCompleted}/{optionalCount}</strong> optional.</>}
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSubmit} disabled={isSubmitting}>
+            <AlertDialogAction onClick={handleSubmit} disabled={isSubmitting || !isEligibleToSubmit}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />

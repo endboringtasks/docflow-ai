@@ -1,49 +1,46 @@
-# DOC-6: Invite Team Members — Completion Plan
+# DOC-40 — Portal Submission
 
-Most of this story is already implemented in `src/components/settings/TeamMembers.tsx` (invite form, role select, owner/admin-only invite button, pending list, duplicate guard via DB). This plan closes the remaining acceptance-criteria gaps.
+The client portal already has a basic submit flow (`submit_portal_access` RPC, `client-portal-submit` edge function for notifications, and a "Submitted" state). DOC-40 requires hardening it against the business rules and acceptance criteria. This plan closes the gaps without rebuilding what works.
 
-## Gaps vs. acceptance criteria
+## Gaps vs. spec
 
-1. **Cancel Invitation** — Spec: cancelling sets status to `cancelled`. Current code hard-deletes the row. ❌
-2. **Existing Member** — Spec: inviting an email that already belongs to an active member must show an error. Currently not checked. ❌
-3. **Re-invite after cancel** — The table has `UNIQUE (company_id, email)` across all statuses, so once a row is soft-cancelled, the same email can never be invited again. Needs to scope uniqueness to `pending`. ❌
-4. **Cancelled Invitation Cannot Be Accepted** — Already satisfied: both `accept_pending_invitations` functions only act on `status = 'pending'`. ✅
-5. Send / Select role / Permission restriction / Pending visibility / Duplicate (pending) — already satisfied. ✅
+| Area | Current | DOC-40 requires |
+|------|---------|-----------------|
+| Submit eligibility (BR-1, AC-2, TC-2) | Enabled when ≥1 required doc uploaded | Enabled only when **all** required docs uploaded; otherwise blocked with an actionable list of what's missing |
+| Confirmation (UI-2, AC-3) | "won't be able to make changes" | Clear **irreversible / one-time** wording |
+| Idempotency (BR-6, AC-7, TC-4) | RPC is idempotent but UI shows a generic "Failed to submit" if already submitted | Gracefully report "already submitted", refresh to read-only state |
+| Read-only after submit (BR-4, AC-5, TC-5) | UI hides editing when submitted; server already rejects uploads | Keep + verify; no change needed beyond confirmation |
+| Notifications (BR-5, AC-6, TC-7) | Notifies all company members | Keep all-members behavior (recipient config out of scope) |
 
 ## Changes
 
-### 1. Database migration
-- Drop the full unique constraint `team_invitations_company_id_email_key`.
-- Add a partial unique index so only one *pending* invite per email/company is allowed:
-  `CREATE UNIQUE INDEX team_invitations_pending_unique ON team_invitations (company_id, email) WHERE status = 'pending';`
+### 1. Eligibility & missing-requirements (frontend)
+In `src/pages/client-portal/ClientPortal.tsx`:
+- Compute `missingRequiredDocs` = required, applicable docs that are not completed (or are `pending_client` / `rejected`).
+- `isEligible = totalDocs > 0 && missingRequiredDocs.length === 0`.
+- Change the Submit button to be disabled when `!isEligible`, with a tooltip/help text "Upload all required documents to submit".
+- In the confirmation dialog, when not eligible, list the specific missing document names instead of allowing submit. (Button already opens dialog only on click; we gate the action.)
 
-This keeps the duplicate-pending guard while allowing a previously cancelled/accepted email to be re-invited.
+### 2. Irreversible confirmation copy (frontend)
+Update the AlertDialog wording to clearly state submission is **one-time and irreversible** and that the portal becomes read-only afterward.
 
-### 2. `TeamMembers.tsx` — invite flow (`handleInvite`)
-- Before inserting, check the already-loaded `members` list: if the normalized email matches an active member's email, show `"This person is already a team member"` and stop.
-- Replace the plain `insert` with logic that handles a pre-existing non-pending row for the same `(company_id, email)`:
-  - Query for any existing invitation for this company+email.
-  - If one exists with status `pending` → show "already been invited" error.
-  - If one exists with another status (`cancelled`/`accepted`) → update it back to `status: 'pending'`, new role, new `invited_by`.
-  - Otherwise → insert a new row.
-- Keep the `23505` fallback toast as a safety net for the partial unique index.
+### 3. Idempotent / graceful submit (frontend)
+In `handleSubmit`:
+- If `submit_portal_access` returns `false` (already submitted) rather than throwing a generic error, treat it as success-path: set local `is_submitted = true`, close dialog, show an info toast "This portal was already submitted."
+- Keep real errors (network/server) as failures that leave the portal editable (UI-4, TC-8).
+- Disable the confirm button while submitting to prevent double-clicks (already present) and guard re-entry.
 
-### 3. `TeamMembers.tsx` — cancel flow (`handleCancelInvitation`)
-- Replace the `.delete()` with `.update({ status: 'cancelled' })` on the invitation id (the existing UPDATE RLS policy already allows admins/owners).
-- Add a confirmation `AlertDialog` around the cancel button (matching the existing remove-member confirmation pattern), since cancellation is a state-changing action.
+### 4. Success feedback (UI-5)
+Keep success toast; the "Application Submitted!" card with `submitted_at` already satisfies post-submission state (UI-3, TC-6).
 
-### 4. Pending list query
-- No change needed: it already filters `status = 'pending'`, so cancelled invites correctly disappear from the list.
+### 5. Server-side safety verification (no code change expected)
+Confirm `portal-request-upload-url`, `portal-finalize-upload`, and `client-portal-remove-document` already reject when `is_submitted` is true (they check `portalAccess.is_submitted`). This satisfies TC-5 server enforcement. No migration needed — `submit_portal_access` already sets `is_submitted` + `submitted_at` atomically with an `is_submitted = false` guard (idempotent).
 
-## Verification
-- Invite a new email → row created `pending`, appears in list.
-- Invite the same pending email again → error, no duplicate.
-- Invite an email matching an active member → error.
-- Cancel a pending invite (with confirmation) → status `cancelled`, removed from list, not deleted.
-- Re-invite the cancelled email → succeeds (row flips back to `pending`).
-- Sign up with a cancelled email → not auto-added (accept RPC ignores non-pending).
-- Member/guest user → no invite form/button visible.
+## Out of scope
+- Configurable notification recipients (BR-5 note): current behavior notifies all company members; left as-is.
+- No database migration required; existing RPCs and edge functions cover state, timestamp, idempotency, and notifications.
 
 ## Technical notes
-- Roles enum already excludes inviting as `owner` (INSERT policy blocks `role = 'owner'`); the invite UI only offers Admin/Member/Guest.
-- All status values used: `pending`, `accepted`, `cancelled` (text column, no enum change required).
+- All edits are confined to `src/pages/client-portal/ClientPortal.tsx`.
+- `missingRequiredDocs` reuses the existing `requiredDocuments` / review-status filtering already in the file.
+- Idempotency relies on the existing `submit_portal_access` WHERE `is_submitted = false` clause returning `NULL`/`false` on repeat calls.
