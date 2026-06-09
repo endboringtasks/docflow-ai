@@ -242,6 +242,7 @@ export function ImpersonationProvider({ children }: { children: ReactNode }) {
       value={{
         isImpersonating,
         impersonatedUser,
+        initiatingAdmin,
         startImpersonation,
         endImpersonation,
         extendSession,
