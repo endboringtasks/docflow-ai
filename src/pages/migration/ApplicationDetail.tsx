@@ -3239,6 +3239,7 @@ const VisaApplicationDetail = () => {
               previewDoc.attachments?.[0]?.drive_app_folder_file_id ||
               previewDoc.attachments?.[0]?.drive_file_id ||
               null,
+            fileName: previewDoc.attachments?.[0]?.file_name || previewDoc.name || null,
           } : null}
           onReviewUpdate={handleReviewUpdate}
           reviewSource={reviewSource}
