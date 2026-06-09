@@ -1189,7 +1189,7 @@ const MigrationVisaApplications = () => {
           </div>
         ) : (
           <div className="grid gap-4">
-            {filteredApplications.map((application, index) => (
+            {pagedApplications.map((application, index) => (
               <motion.div
                 key={application.id}
                 initial={{ opacity: 0, y: 20 }}
