@@ -316,6 +316,20 @@ export function DocumentPreviewDialog({
           )}
           
           <TabsContent value="current" className="flex-1 min-h-0 flex flex-col gap-4 mt-4 data-[state=inactive]:hidden">
+            {/* Source fallback / load error notice (UI-4) */}
+            {loadError && !loading && (
+              <div
+                className={cn(
+                  "flex items-start gap-2 rounded-lg border p-3 text-sm",
+                  usedFallback
+                    ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                    : "border-destructive/30 bg-destructive/10 text-destructive"
+                )}
+              >
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>{loadError}</span>
+              </div>
+            )}
             {/* Preview Area */}
             <div className="flex-1 min-h-0 flex flex-col gap-4">
           {loading ? (
