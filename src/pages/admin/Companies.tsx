@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -43,6 +43,13 @@ import {
 import { Search, Building2, ChevronRight, MoreHorizontal, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { CompanyDetail } from "./CompanyDetail";
 import { Database } from "@/integrations/supabase/types";
 
@@ -53,6 +60,11 @@ export default function AdminCompanies() {
   const queryClient = useQueryClient();
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [planFilter, setPlanFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [nicheFilter, setNicheFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<{ type: string; value?: string } | null>(null);
 
@@ -74,9 +86,25 @@ export default function AdminCompanies() {
     },
   });
 
-  const filteredCompanies = companies?.filter((company) =>
-    company.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredCompanies = companies?.filter((company) => {
+    const matchesSearch = company.name.toLowerCase().includes(search.toLowerCase());
+    const matchesPlan = planFilter === "all" || company.subscription_plan === planFilter;
+    const matchesStatus =
+      statusFilter === "all" || (company.subscription_status || "") === statusFilter;
+    const matchesNiche = nicheFilter === "all" || company.niche === nicheFilter;
+    return matchesSearch && matchesPlan && matchesStatus && matchesNiche;
+  });
+
+  const totalPages = Math.max(1, Math.ceil((filteredCompanies?.length ?? 0) / PAGE_SIZE));
+  const pagedCompanies = filteredCompanies?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, planFilter, statusFilter, nicheFilter]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const allSelected = filteredCompanies?.length > 0 && selectedIds.size === filteredCompanies?.length;
   const someSelected = selectedIds.size > 0 && !allSelected;
@@ -205,14 +233,43 @@ export default function AdminCompanies() {
                   </div>
                 )}
               </div>
-              <div className="relative w-64">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search companies..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8"
-                />
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={planFilter} onValueChange={setPlanFilter}>
+                  <SelectTrigger className="w-32 h-9"><SelectValue placeholder="Plan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All plans</SelectItem>
+                    {PLANS.map((p) => (
+                      <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={nicheFilter} onValueChange={setNicheFilter}>
+                  <SelectTrigger className="w-32 h-9"><SelectValue placeholder="Niche" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All niches</SelectItem>
+                    {["migration", "audit", "hr"].map((n) => (
+                      <SelectItem key={n} value={n} className="capitalize">{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-32 h-9"><SelectValue placeholder="Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    {["active", "trialing", "past_due", "canceled", "incomplete"].map((s) => (
+                      <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="relative w-64">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search companies..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -247,7 +304,7 @@ export default function AdminCompanies() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCompanies?.map((company) => (
+                  {pagedCompanies?.map((company) => (
                     <TableRow 
                       key={company.id} 
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -298,6 +355,29 @@ export default function AdminCompanies() {
                   )}
                 </TableBody>
               </Table>
+            )}
+            {!isLoading && (filteredCompanies?.length ?? 0) > PAGE_SIZE && (
+              <Pagination className="mt-4">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      className={page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <span className="text-sm text-muted-foreground px-2">
+                      Page {page} of {totalPages}
+                    </span>
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      className={page === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
             )}
           </CardContent>
         </Card>
