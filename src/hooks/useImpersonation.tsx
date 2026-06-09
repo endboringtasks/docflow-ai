@@ -185,9 +185,13 @@ export function ImpersonationProvider({ children }: { children: ReactNode }) {
         throw new Error(data.error || "Impersonation failed");
       }
 
-      // Store target user info and start time
+      // Store target user info, admin info, and start time
       localStorage.setItem(IMPERSONATION_TARGET_KEY, JSON.stringify(data.targetUser));
       localStorage.setItem(IMPERSONATION_START_KEY, Date.now().toString());
+      if (data.admin) {
+        localStorage.setItem(IMPERSONATION_ADMIN_KEY, JSON.stringify(data.admin));
+        setInitiatingAdmin(data.admin);
+      }
       setImpersonatedUser(data.targetUser);
       setIsImpersonating(true);
       setTimeRemaining(IMPERSONATION_TIMEOUT_MS / 1000);
