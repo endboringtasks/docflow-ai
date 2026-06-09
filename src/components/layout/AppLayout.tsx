@@ -183,11 +183,15 @@ const AppLayout = ({ children, niche }: AppLayoutProps) => {
             </div>
             <span className="font-semibold">Docflow AI</span>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            <ThemeToggle />
+          </div>
         </header>
 
         {/* Desktop Header with Theme Toggle */}
-        <header className="hidden lg:flex sticky top-0 z-30 h-14 border-b border-border bg-background/95 backdrop-blur-sm items-center justify-end px-6">
+        <header className="hidden lg:flex sticky top-0 z-30 h-14 border-b border-border bg-background/95 backdrop-blur-sm items-center justify-end gap-1 px-6">
+          <NotificationBell />
           <ThemeToggle />
         </header>
 
