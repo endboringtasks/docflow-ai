@@ -259,15 +259,30 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            {isLoading ? (
-              <Skeleton className="h-6 w-48" />
-            ) : (
-              company?.name
+          <div className="flex items-center justify-between gap-2 pr-8">
+            <SheetTitle className="flex items-center gap-2">
+              {isLoading ? (
+                <Skeleton className="h-6 w-48" />
+              ) : (
+                company?.name ?? "Company"
+              )}
+            </SheetTitle>
+            {!isLoading && company && !isEditing && (
+              <Button variant="outline" size="sm" onClick={startEdit}>
+                <Pencil className="w-4 h-4 mr-1" />
+                Edit
+              </Button>
             )}
-          </SheetTitle>
+          </div>
         </SheetHeader>
 
+        {!isLoading && isFetched && !company ? (
+          <div className="mt-10 flex flex-col items-center justify-center text-center gap-2 text-muted-foreground">
+            <Building2 className="w-8 h-8" />
+            <p className="text-sm font-medium">Company not found</p>
+            <p className="text-xs">This company may have been removed.</p>
+          </div>
+        ) : (
         <div className="mt-6 space-y-6">
           {/* Company Info */}
           <div className="space-y-3">
@@ -277,6 +292,69 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
                 <Skeleton className="h-5 w-32" />
                 <Skeleton className="h-5 w-40" />
               </div>
+            ) : isEditing ? (
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="company-name">Name</Label>
+                  <Input
+                    id="company-name"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    maxLength={120}
+                  />
+                  {nameError && <p className="text-xs text-destructive">{nameError}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Niche</Label>
+                  <Select value={form.niche} onValueChange={(v) => setForm((f) => ({ ...f, niche: v }))}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select niche" /></SelectTrigger>
+                    <SelectContent>
+                      {NICHES.map((n) => (
+                        <SelectItem key={n} value={n} className="capitalize">{n}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Plan</Label>
+                  <Select value={form.subscription_plan} onValueChange={(v) => setForm((f) => ({ ...f, subscription_plan: v }))}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select plan" /></SelectTrigger>
+                    <SelectContent>
+                      {PLANS.map((plan) => (
+                        <SelectItem key={plan} value={plan} className="capitalize">{plan}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Status</Label>
+                  <Select value={form.subscription_status} onValueChange={(v) => setForm((f) => ({ ...f, subscription_status: v }))}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select status" /></SelectTrigger>
+                    <SelectContent>
+                      {STATUSES.map((s) => (
+                        <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <div>ID: {company?.id}</div>
+                  <div>Created {company?.created_at ? format(new Date(company.created_at), "MMM d, yyyy") : "N/A"}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => saveMutation.mutate()}
+                    disabled={!isFormValid || saveMutation.isPending}
+                  >
+                    {saveMutation.isPending && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                    Save
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)} disabled={saveMutation.isPending}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
@@ -284,34 +362,21 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
                   <Badge variant={company?.subscription_status === "active" ? "default" : "destructive"} className="capitalize">
                     {company?.subscription_status || "N/A"}
                   </Badge>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-muted-foreground">Plan:</span>
-                  <Select
-                    value={company?.subscription_plan}
-                    onValueChange={(value) => updatePlanMutation.mutate(value as SubscriptionPlan)}
-                    disabled={updatePlanMutation.isPending}
-                  >
-                    <SelectTrigger className="w-32 h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PLANS.map((plan) => (
-                        <SelectItem key={plan} value={plan} className="capitalize">
-                          {plan}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {updatePlanMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <Badge variant="secondary" className="capitalize">{company?.subscription_plan}</Badge>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Calendar className="w-4 h-4" />
                   Created {company?.created_at ? format(new Date(company.created_at), "MMM d, yyyy") : "N/A"}
                 </div>
+                {(company as any)?.updated_at && (
+                  <div className="text-xs text-muted-foreground">
+                    Last updated {format(new Date((company as any).updated_at), "MMM d, yyyy HH:mm")}
+                  </div>
+                )}
               </div>
             )}
           </div>
+
 
           <Separator />
 
