@@ -25,15 +25,19 @@ const isPdfFile = (filePath: string | null): boolean => {
   return ext === 'pdf';
 };
 
-export function DocumentThumbnail({ filePath, fileUrl, onPreview, size = 32 }: DocumentThumbnailProps) {
+export function DocumentThumbnail({ filePath, fileUrl, fileName, onPreview, size = 32 }: DocumentThumbnailProps) {
   const [imageError, setImageError] = useState(false);
 
   if (!filePath || !fileUrl) {
     return <File className="w-4 h-4 text-muted-foreground" />;
   }
 
+  // Use the real file name for type detection when available (filePath may be a
+  // "drive://" id without an extension).
+  const typeSource = fileName || filePath;
+
   // Image files
-  if (isImageFile(filePath) && !imageError) {
+  if (isImageFile(typeSource) && !imageError) {
     return (
       <button 
         onClick={onPreview}
