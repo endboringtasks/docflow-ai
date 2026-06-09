@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCompany } from "@/hooks/useCompany";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useDriveBackfill } from "@/hooks/useDriveBackfill";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 interface AppLayoutProps {
   children: ReactNode;
