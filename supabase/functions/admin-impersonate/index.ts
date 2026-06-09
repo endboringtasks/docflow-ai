@@ -70,6 +70,10 @@ serve(async (req) => {
 
     if (adminError || !adminRecord) {
       console.error("Not a platform admin:", callingUser.id);
+      await logAudit(callingUser.id, "impersonate_start_failed", null, {
+        admin_email: callingUser.email,
+        reason: "caller_not_super_admin",
+      });
       return new Response(
         JSON.stringify({ error: "Access denied. Super admin required." }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -79,6 +83,10 @@ serve(async (req) => {
     // Get the target user ID from request body
     const { targetUserId } = await req.json();
     if (!targetUserId) {
+      await logAudit(callingUser.id, "impersonate_start_failed", null, {
+        admin_email: callingUser.email,
+        reason: "missing_target_user_id",
+      });
       return new Response(
         JSON.stringify({ error: "Target user ID required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -87,6 +95,10 @@ serve(async (req) => {
 
     // Prevent impersonating yourself
     if (targetUserId === callingUser.id) {
+      await logAudit(callingUser.id, "impersonate_start_failed", targetUserId, {
+        admin_email: callingUser.email,
+        reason: "self_impersonation",
+      });
       return new Response(
         JSON.stringify({ error: "Cannot impersonate yourself" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -94,53 +106,79 @@ serve(async (req) => {
     }
 
     // Get target user info
-    const { data: targetProfile } = await supabaseAdmin
+    const { data: targetProfile, error: targetError } = await supabaseAdmin
       .from("profiles")
       .select("email, display_name")
       .eq("id", targetUserId)
       .single();
 
+    // BR-13: target user must exist
+    if (targetError || !targetProfile?.email) {
+      await logAudit(callingUser.id, "impersonate_start_failed", targetUserId, {
+        admin_email: callingUser.email,
+        reason: "target_user_not_found",
+      });
+      return new Response(
+        JSON.stringify({ error: "Target user not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Generate a magic link for the target user (creates a session)
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
-      email: targetProfile?.email || "",
+      email: targetProfile.email,
       options: {
         redirectTo: `${req.headers.get("origin") || supabaseUrl}/`,
       },
     });
 
-    if (linkError) {
+    // BR-14: on token generation failure, do not change the current session
+    if (linkError || !linkData.properties?.hashed_token) {
       console.error("Failed to generate impersonation link:", linkError);
+      await logAudit(callingUser.id, "impersonate_start_failed", targetUserId, {
+        admin_email: callingUser.email,
+        target_email: targetProfile.email,
+        reason: "token_generation_failed",
+      });
       return new Response(
         JSON.stringify({ error: "Failed to generate impersonation session" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Log the impersonation event
-    await supabaseAdmin.from("platform_audit_logs").insert({
-      user_id: callingUser.id,
-      action: "impersonate_user",
-      entity_type: "user",
-      entity_id: targetUserId,
-      details: {
-        admin_email: callingUser.email,
-        target_email: targetProfile?.email,
-        target_name: targetProfile?.display_name,
-      },
+    // Get the admin's own profile for display in the banner
+    const { data: adminProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("display_name")
+      .eq("id", callingUser.id)
+      .maybeSingle();
+
+    // Log the impersonation start (dual attribution)
+    await logAudit(callingUser.id, "impersonate_start", targetUserId, {
+      admin_id: callingUser.id,
+      admin_email: callingUser.email,
+      target_id: targetUserId,
+      target_email: targetProfile.email,
+      target_name: targetProfile.display_name,
     });
 
-    console.log(`Admin ${callingUser.email} impersonating user ${targetProfile?.email}`);
+    console.log(`Admin ${callingUser.email} impersonating user ${targetProfile.email}`);
 
     // Return the token properties for the client to use
     return new Response(
       JSON.stringify({
         success: true,
-        token: linkData.properties?.hashed_token,
+        token: linkData.properties.hashed_token,
         targetUser: {
           id: targetUserId,
-          email: targetProfile?.email,
-          display_name: targetProfile?.display_name,
+          email: targetProfile.email,
+          display_name: targetProfile.display_name,
+        },
+        admin: {
+          id: callingUser.id,
+          email: callingUser.email,
+          display_name: adminProfile?.display_name ?? null,
         },
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
