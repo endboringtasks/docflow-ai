@@ -53,6 +53,14 @@ import {
 } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -124,10 +132,12 @@ interface Country {
 const MigrationVisaApplications = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { currentCompany } = useCompany();
+  const { currentCompany, companies, loading: companyLoading } = useCompany();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "active" | "done">("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<VisaApplication | null>(null);
   const [applicationToDelete, setApplicationToDelete] = useState<VisaApplication | null>(null);
@@ -775,6 +785,23 @@ const MigrationVisaApplications = () => {
     return matchesSearch && matchesStatus;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredApplications.length / PAGE_SIZE));
+  const pagedApplications = filteredApplications.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
+  );
+
+  // Reset to first page whenever the search term or status filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, statusFilter]);
+
+  // Keep the current page within bounds if results shrink
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+
   const handleCreateApplication = () => {
     if (!newApplication.clientId || !newApplication.countryId || !newApplication.categoryId || !newApplication.applicationName.trim()) return;
     
@@ -871,8 +898,35 @@ const MigrationVisaApplications = () => {
     }
   };
 
+  // BR-12 / UI-9: block the list when there is no active company context.
+  if (!companyLoading && !currentCompany) {
+    return (
+      <AppLayout niche="migration">
+        <div className="p-6 lg:p-8">
+          <h1 className="text-3xl font-bold mb-6">Applications</h1>
+          <div className="max-w-md mx-auto text-center py-16">
+            <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h2 className="text-lg font-semibold mb-2">No company selected</h2>
+            <p className="text-muted-foreground mb-6">
+              {companies.length > 0
+                ? "Select a company from the switcher in the header to view its applications."
+                : "You don't belong to a company yet. Create one to start tracking applications."}
+            </p>
+            {companies.length === 0 && (
+              <Button onClick={() => navigate("/onboarding")} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Create a company
+              </Button>
+            )}
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout niche="migration">
+
       <div className="p-6 lg:p-8 space-y-6">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -1135,7 +1189,7 @@ const MigrationVisaApplications = () => {
           </div>
         ) : (
           <div className="grid gap-4">
-            {filteredApplications.map((application, index) => (
+            {pagedApplications.map((application, index) => (
               <motion.div
                 key={application.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -1301,7 +1355,41 @@ const MigrationVisaApplications = () => {
             ))}
           </div>
         )}
+
+        {/* Pagination (BR-9 / UI-6) */}
+        {!isLoading && filteredApplications.length > PAGE_SIZE && (
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setPage((p) => Math.max(1, p - 1));
+                  }}
+                  className={page === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              <PaginationItem>
+                <span className="px-4 text-sm text-muted-foreground">
+                  Page {page} of {totalPages}
+                </span>
+              </PaginationItem>
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setPage((p) => Math.min(totalPages, p + 1));
+                  }}
+                  className={page === totalPages ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        )}
       </div>
+
 
       {/* Edit Application Dialog */}
       <Dialog open={!!applicationToEdit} onOpenChange={() => setApplicationToEdit(null)}>
