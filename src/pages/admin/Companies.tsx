@@ -53,6 +53,11 @@ export default function AdminCompanies() {
   const queryClient = useQueryClient();
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [planFilter, setPlanFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [nicheFilter, setNicheFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<{ type: string; value?: string } | null>(null);
 
