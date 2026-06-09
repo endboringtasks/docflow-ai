@@ -9,9 +9,16 @@ interface ImpersonationTarget {
   display_name: string | null;
 }
 
+interface ImpersonationAdmin {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+}
+
 interface ImpersonationContextType {
   isImpersonating: boolean;
   impersonatedUser: ImpersonationTarget | null;
+  initiatingAdmin: ImpersonationAdmin | null;
   startImpersonation: (targetUserId: string) => Promise<void>;
   endImpersonation: (showToast?: boolean) => Promise<void>;
   extendSession: () => void;
@@ -23,6 +30,7 @@ const ImpersonationContext = createContext<ImpersonationContextType | undefined>
 
 const IMPERSONATION_STORAGE_KEY = "admin_original_session";
 const IMPERSONATION_TARGET_KEY = "impersonation_target";
+const IMPERSONATION_ADMIN_KEY = "impersonation_admin";
 const IMPERSONATION_START_KEY = "impersonation_start_time";
 const IMPERSONATION_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour in milliseconds
 
