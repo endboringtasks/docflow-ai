@@ -25,8 +25,14 @@ export function ImpersonationBanner() {
             <UserX className="w-4 h-4" />
             <span className="text-sm font-medium">
               Impersonating: {impersonatedUser.display_name || impersonatedUser.email}
+              {impersonatedUser.email && impersonatedUser.display_name ? ` (${impersonatedUser.email})` : ""}
             </span>
           </div>
+          {initiatingAdmin && (
+            <span className="text-xs opacity-80 hidden md:inline">
+              Started by: {initiatingAdmin.display_name || initiatingAdmin.email}
+            </span>
+          )}
           {timeRemaining !== null && (
             <div className={`flex items-center gap-1 text-sm ${isExpiringSoon ? "animate-pulse font-semibold" : "opacity-80"}`}>
               <Clock className="w-3 h-3" />
