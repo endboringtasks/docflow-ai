@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -25,8 +25,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Settings, Key, Plus, Trash2, Shield, UserPlus } from "lucide-react";
+import { Trash2, Shield, UserPlus } from "lucide-react";
 import { UploadSyncConfigCard } from "@/components/admin/UploadSyncConfigCard";
+import { PlatformSettingsCard } from "@/components/admin/PlatformSettingsCard";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,28 +35,8 @@ import { useAuth } from "@/hooks/useAuth";
 export default function AdminSettings() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [isKeyDialogOpen, setIsKeyDialogOpen] = useState(false);
   const [isAdminDialogOpen, setIsAdminDialogOpen] = useState(false);
-  const [newSetting, setNewSetting] = useState({
-    key: "",
-    value: "",
-    description: "",
-    isSecret: false,
-  });
   const [newAdminEmail, setNewAdminEmail] = useState("");
-
-  const { data: settings, isLoading: settingsLoading } = useQuery({
-    queryKey: ["admin-settings"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("platform_settings")
-        .select("*")
-        .order("key");
-
-      if (error) throw error;
-      return data;
-    },
-  });
 
   const { data: admins, isLoading: adminsLoading } = useQuery({
     queryKey: ["admin-platform-admins"],
@@ -73,38 +54,7 @@ export default function AdminSettings() {
     },
   });
 
-  const createSetting = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("platform_settings").insert({
-        key: newSetting.key,
-        value: { value: newSetting.value },
-        description: newSetting.description,
-        is_secret: newSetting.isSecret,
-        updated_by: user?.id,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-settings"] });
-      setIsKeyDialogOpen(false);
-      setNewSetting({ key: "", value: "", description: "", isSecret: false });
-      toast.success("Setting created");
-    },
-    onError: (error) => {
-      toast.error("Failed to create setting: " + error.message);
-    },
-  });
 
-  const deleteSetting = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("platform_settings").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-settings"] });
-      toast.success("Setting deleted");
-    },
-  });
 
   const addAdmin = useMutation({
     mutationFn: async () => {
@@ -251,133 +201,8 @@ export default function AdminSettings() {
         {/* Upload & Sync Config */}
         <UploadSyncConfigCard />
 
-        {/* API Keys & Settings */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Key className="w-5 h-5" />
-                  API Keys & Configuration
-                </CardTitle>
-                <CardDescription>Platform-wide settings and API keys</CardDescription>
-              </div>
-              <Dialog open={isKeyDialogOpen} onOpenChange={setIsKeyDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Setting
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add Setting</DialogTitle>
-                    <DialogDescription>Add a new configuration key</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="key">Key</Label>
-                      <Input
-                        id="key"
-                        placeholder="e.g., STRIPE_WEBHOOK_SECRET"
-                        value={newSetting.key}
-                        onChange={(e) =>
-                          setNewSetting((prev) => ({ ...prev, key: e.target.value }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="value">Value</Label>
-                      <Input
-                        id="value"
-                        type={newSetting.isSecret ? "password" : "text"}
-                        placeholder="Value"
-                        value={newSetting.value}
-                        onChange={(e) =>
-                          setNewSetting((prev) => ({ ...prev, value: e.target.value }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Description (optional)</Label>
-                      <Input
-                        id="description"
-                        placeholder="What is this setting for?"
-                        value={newSetting.description}
-                        onChange={(e) =>
-                          setNewSetting((prev) => ({ ...prev, description: e.target.value }))
-                        }
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsKeyDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={() => createSetting.mutate()}
-                      disabled={!newSetting.key || !newSetting.value}
-                    >
-                      Add Setting
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {settingsLoading ? (
-              <Skeleton className="h-24 w-full" />
-            ) : settings?.length === 0 ? (
-              <p className="text-center text-muted-foreground py-4">
-                No settings configured yet.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Key</TableHead>
-                    <TableHead>Value</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Updated</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {settings?.map((setting) => (
-                    <TableRow key={setting.id}>
-                      <TableCell className="font-mono text-sm">{setting.key}</TableCell>
-                      <TableCell>
-                        {setting.is_secret ? (
-                          <Badge variant="secondary">••••••••</Badge>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">
-                            {JSON.stringify((setting.value as any)?.value || setting.value)}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {setting.description || "-"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {format(new Date(setting.updated_at), "MMM d, yyyy")}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteSetting.mutate(setting.id)}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+        {/* Platform Settings (DOC-63) */}
+        <PlatformSettingsCard />
       </div>
     </AdminLayout>
   );
