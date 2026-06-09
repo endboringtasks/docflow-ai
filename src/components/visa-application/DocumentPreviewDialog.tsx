@@ -44,9 +44,11 @@ interface DocumentPreviewDialogProps {
     reviewStatus: ReviewStatus;
     reviewComment: string | null;
     storageObjectPath?: string | null;
+    driveFileId?: string | null;
   } | null;
   onReviewUpdate: (docId: string, status: ReviewStatus, comment: string) => Promise<void>;
-  
+  /** Strict review source by application status: "drive" when Done, else "storage". */
+  reviewSource?: "storage" | "drive";
   companyId?: string;
   documentHistory?: DocumentHistoryEntry[];
 }
