@@ -61,10 +61,7 @@ export default function AdminAuditLogs() {
     queryFn: async () => {
       let query = supabase
         .from("platform_audit_logs")
-        .select(`
-          *,
-          profiles:user_id(email, display_name)
-        `)
+        .select("*")
         .order("created_at", { ascending: false })
         .limit(500);
 
@@ -81,7 +78,25 @@ export default function AdminAuditLogs() {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+
+      // platform_audit_logs.user_id has a FK to auth.users, not public.profiles,
+      // so the relationship can't be embedded. Resolve profiles separately.
+      const userIds = [...new Set((data ?? []).map((l) => l.user_id).filter(Boolean))];
+      let profileMap = new Map<string, { email: string | null; display_name: string | null }>();
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, email, display_name")
+          .in("id", userIds as string[]);
+        profileMap = new Map(
+          (profiles ?? []).map((p) => [p.id, { email: p.email, display_name: p.display_name }])
+        );
+      }
+
+      return (data ?? []).map((log) => ({
+        ...log,
+        profiles: log.user_id ? profileMap.get(log.user_id) ?? null : null,
+      }));
     },
   });
 
