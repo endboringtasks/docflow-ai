@@ -252,18 +252,26 @@ export function DocumentPreviewDialog({
   if (!document) return null;
 
   const filePath = document.filePath;
-  const isDrive = filePath && isDriveFile(filePath);
-  const canPreview = filePath && (
-    isDrive 
-      ? (driveFileInfo?.mimeType?.startsWith("image/") || driveFileInfo?.mimeType === "application/pdf" || previewUrl)
-      : (isImageFile(filePath) || isPdfFile(filePath))
-  );
-  const isImage = isDrive 
+  // Determine the file type from the source actually being displayed.
+  // When viewing from Drive (with metadata), use the Drive mime type.
+  // Otherwise (Storage, or before Drive metadata loads), derive the type from
+  // the real file name extension — never from the "drive://" filePath scheme.
+  const stripDrivePrefix = (p: string) => p.replace(/^drive:\/\//, "");
+  const nameForType =
+    document.fileName ||
+    document.storageObjectPath ||
+    (filePath ? stripDrivePrefix(filePath) : "");
+  const useDriveType = activeSource === "drive" && !!driveFileInfo;
+
+  const isImage = useDriveType
     ? driveFileInfo?.mimeType?.startsWith("image/")
-    : (filePath && isImageFile(filePath));
-  const isPdf = isDrive 
+    : (!!nameForType && isImageFile(nameForType));
+  const isPdf = useDriveType
     ? driveFileInfo?.mimeType === "application/pdf"
-    : (filePath && isPdfFile(filePath));
+    : (!!nameForType && isPdfFile(nameForType));
+  const isDrive = activeSource === "drive";
+  const canPreview = !!filePath && (!!previewUrl || isImage || isPdf);
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
