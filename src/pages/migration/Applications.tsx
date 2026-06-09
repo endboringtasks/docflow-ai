@@ -785,6 +785,23 @@ const MigrationVisaApplications = () => {
     return matchesSearch && matchesStatus;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredApplications.length / PAGE_SIZE));
+  const pagedApplications = filteredApplications.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
+  );
+
+  // Reset to first page whenever the search term or status filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, statusFilter]);
+
+  // Keep the current page within bounds if results shrink
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+
   const handleCreateApplication = () => {
     if (!newApplication.clientId || !newApplication.countryId || !newApplication.categoryId || !newApplication.applicationName.trim()) return;
     
