@@ -229,8 +229,10 @@ const MigrationClients = () => {
           .update({ folder_status: "pending" })
           .eq("id", data.id);
 
-        try {
-          await supabase.functions.invoke("dispatch-webhook", {
+        // Fire-and-forget: don't block the UI on the Make.com round-trip.
+        // folder_status is already 'pending'; realtime + timeout cron update it later.
+        supabase.functions
+          .invoke("dispatch-webhook", {
             body: {
               event_type: "client.created",
               data: {
@@ -243,10 +245,10 @@ const MigrationClients = () => {
                 root_folder_id: rootFolderId,
               },
             },
+          })
+          .catch((webhookError) => {
+            console.warn("Failed to dispatch webhook:", webhookError);
           });
-        } catch (webhookError) {
-          console.warn("Failed to dispatch webhook:", webhookError);
-        }
       } else {
         console.log("Google Drive not connected — skipping folder creation webhook");
       }
