@@ -598,16 +598,17 @@ const MigrationVisaApplications = () => {
   // Delete application mutation
   const deleteApplicationMutation = useMutation({
     mutationFn: async (application: VisaApplication) => {
+      // Delete the DB record first (fast) — this is what removes the row from the list.
       const { error } = await supabase
         .from("visa_applications")
         .delete()
         .eq("id", application.id);
-      
+
       if (error) throw error;
 
-      // Dispatch webhook for visa_application.deleted event
-      try {
-        const { error: invokeError } = await supabase.functions.invoke("dispatch-webhook", {
+      // Fire-and-forget: dispatch webhook for visa_application.deleted event
+      supabase.functions
+        .invoke("dispatch-webhook", {
           body: {
             event_type: "application.deleted",
             data: {
@@ -623,12 +624,10 @@ const MigrationVisaApplications = () => {
               created_at: application.created_at,
             },
           },
+        })
+        .catch((webhookError) => {
+          console.warn("Failed to dispatch webhook:", webhookError);
         });
-
-        if (invokeError) throw invokeError;
-      } catch (webhookError) {
-        console.warn("Failed to dispatch webhook:", webhookError);
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });

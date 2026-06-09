@@ -271,36 +271,34 @@ const MigrationClients = () => {
   // Delete client mutation
   const deleteClientMutation = useMutation({
     mutationFn: async (client: Client) => {
-      // Best-effort: rename Google Drive folder with DELETED_ prefix before deleting
-      // Only attempt if folder was actually created (has ID and status is not "failed")
-      const shouldRenameFolder = client.client_folder_id && client.folder_status !== "failed" && currentCompany?.id;
-      if (shouldRenameFolder) {
-        try {
-          const { error: renameError } = await supabase.functions.invoke("google-drive-rename-folder", {
-            body: {
-              companyId: currentCompany.id,
-              folderId: client.client_folder_id,
-              newPrefix: "DELETED_",
-            },
-          });
-          if (renameError) {
-            console.warn("Failed to rename Drive folder (best-effort):", renameError);
-          }
-        } catch (renameError) {
-          console.warn("Failed to rename Drive folder (best-effort):", renameError);
-        }
-      }
-
+      // Delete the DB record first (fast) — this is what removes the row from the list.
       const { error } = await supabase
         .from("clients")
         .delete()
         .eq("id", client.id);
-      
+
       if (error) throw error;
 
-      // Dispatch webhook for client.deleted event
-      try {
-        await supabase.functions.invoke("dispatch-webhook", {
+      // Best-effort, fire-and-forget: rename Drive folder with DELETED_ prefix.
+      // Only attempt if folder was actually created (has ID and status is not "failed").
+      const shouldRenameFolder = client.client_folder_id && client.folder_status !== "failed" && currentCompany?.id;
+      if (shouldRenameFolder) {
+        supabase.functions
+          .invoke("google-drive-rename-folder", {
+            body: {
+              companyId: currentCompany!.id,
+              folderId: client.client_folder_id,
+              newPrefix: "DELETED_",
+            },
+          })
+          .catch((renameError) => {
+            console.warn("Failed to rename Drive folder (best-effort):", renameError);
+          });
+      }
+
+      // Fire-and-forget: dispatch webhook for client.deleted event
+      supabase.functions
+        .invoke("dispatch-webhook", {
           body: {
             event_type: "client.deleted",
             data: {
@@ -317,21 +315,15 @@ const MigrationClients = () => {
               created_at: client.created_at,
             },
           },
+        })
+        .catch((webhookError) => {
+          console.warn("Failed to dispatch webhook:", webhookError);
         });
-      } catch (webhookError) {
-        console.warn("Failed to dispatch webhook:", webhookError);
-      }
-
-      return { shouldRenameFolder };
     },
-    onSuccess: (_data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
       setClientToDelete(null);
-      if (_data?.shouldRenameFolder) {
-        toast.success("Client deleted and Drive folder renamed");
-      } else {
-        toast.success("Client deleted successfully");
-      }
+      toast.success("Client deleted successfully");
     },
     onError: (error) => {
       toast.error("Failed to delete client", {
