@@ -1919,7 +1919,7 @@ const VisaApplicationDetail = () => {
     };
     
     loadThumbnails();
-  }, [documents, currentCompany?.id]);
+  }, [documents, currentCompany?.id, reviewSource]);
 
   const handleDownloadFile = async (filePath: string, fileName: string) => {
     const { data, error } = await supabase.storage
