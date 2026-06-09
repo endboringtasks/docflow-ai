@@ -46,6 +46,8 @@ import {
   Unlink,
   Folder,
   ExternalLink,
+  Pencil,
+  Building2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useImpersonation } from "@/hooks/useImpersonation";
