@@ -1,33 +1,28 @@
-# Fix: Blank "Review" preview for synced documents (draft applications)
+# Fix: Document thumbnails show generic icon instead of image/PDF preview
 
 ## Problem
-On `/app/migration/applications/55a854de-...`, clicking **Review** opens the dialog, signs a valid Storage URL (badge correctly reads "Viewing from Storage"), but the preview area is blank.
+In the application detail document list, attachment thumbnails render a generic file icon instead of the actual image/PDF preview, even though a valid thumbnail URL is loaded.
 
 ## Root cause
-In `DocumentPreviewDialog.tsx`, the file-type detection (`isDrive`, `isImage`, `isPdf`, `canPreview`) is derived from `document.filePath`. For these records `document_checklist.file_path = "drive://<id>"` (it mirrors the synced Drive id), so `isDrive = true`.
+`DocumentThumbnail` decides the rendering (image vs PDF vs icon) from its `filePath` prop. Attachments pass `filePath={attachment.file_path}`, which for synced files is `drive://<id>` — no file extension. So `isImageFile(filePath)` and `isPdfFile(filePath)` both return false and the component always falls back to the generic `<File>` icon, ignoring the loaded `fileUrl`.
 
-When the application status is `draft`, `reviewSource = "storage"`, so the dialog loads the file from Storage (via `storageObjectPath`) and never populates `driveFileInfo`. But because `isDrive` is `true`, `isImage`/`isPdf` are computed from `driveFileInfo` (which is `null`), so both are false and the render block outputs neither `<img>` nor `<iframe>` → blank preview.
-
-In short: the type detection follows the stored `filePath` scheme, not the source actually being displayed.
+This is the same class of bug already fixed in `DocumentPreviewDialog`: type detection must follow the real file name, not the `drive://` path scheme.
 
 ## Fix (frontend only)
-Make file-type detection follow the **active source / real file name**, not the `drive://` path.
+1. `src/components/documents/DocumentThumbnail.tsx`:
+   - Add an optional `fileName?: string | null` prop.
+   - Use `fileName` (when provided) for `isImageFile` / `isPdfFile` type detection, falling back to `filePath` when `fileName` is absent. Strip any `drive://` prefix before extension checks as a safety net.
+   - Keep using `fileUrl` for the actual `<img>` / PDF thumbnail source.
 
-1. Pass the real file name to the dialog. In `ApplicationDetail.tsx` where the `document` prop is built (around line 3235), add a `fileName` field from `previewDoc.attachments?.[0]?.file_name` (fallback to `name`). This gives a reliable extension for type detection regardless of `filePath` scheme.
-
-2. In `DocumentPreviewDialog.tsx`:
-   - Add optional `fileName?: string | null` to the `document` prop type.
-   - Compute type detection based on `activeSource`:
-     - When `activeSource === "drive"` and `driveFileInfo` is present, use `driveFileInfo.mimeType` (current behavior).
-     - Otherwise (Storage, or Drive before metadata loads), derive `isImage`/`isPdf` from the real file name extension — prefer `document.fileName`, then `storageObjectPath`, then `filePath` (stripping any `drive://` prefix before checking the extension).
-   - Update `canPreview`, `isImage`, `isPdf` to use this source-aware logic so a Storage-loaded image/PDF renders even when `filePath` starts with `drive://`.
-
-3. Keep the existing strict-by-status source selection and graceful fallback untouched; only the type-detection/rendering branch changes.
+2. `src/pages/migration/ApplicationDetail.tsx`:
+   - Pass `fileName={attachment.file_name}` at the attachment thumbnail (around line 2774).
+   - For the legacy single-file thumbnail (around line 2814), pass `fileName={doc.fileName ?? doc.filePath}` (legacy `filePath` is a real storage path with extension, so this stays correct).
 
 ## Verification
-- Open the affected application (draft) and click Review on a synced document → image/PDF now renders from Storage with the "Viewing from Storage" badge.
-- Set an application to `done` and confirm Drive-sourced preview still works.
+- Open the affected draft application: attachment rows now show image/PDF thumbnails instead of the generic icon.
+- Confirm non-previewable file types still show the generic icon.
+- Confirm legacy single-file documents still render thumbnails.
 
 ## Files
-- `src/components/visa-application/DocumentPreviewDialog.tsx`
+- `src/components/documents/DocumentThumbnail.tsx`
 - `src/pages/migration/ApplicationDetail.tsx`
