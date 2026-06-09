@@ -1,4 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
