@@ -499,7 +499,7 @@ const VisaApplicationDetail = () => {
       const docIds = (docs || []).map(d => d.id);
       const { data: attachments } = await supabase
         .from("document_attachments")
-        .select("id, document_checklist_id, file_path, file_name, file_type, file_size, uploaded_at, uploaded_by, uploaded_by_client, storage_object_path")
+        .select("id, document_checklist_id, file_path, file_name, file_type, file_size, uploaded_at, uploaded_by, uploaded_by_client, storage_object_path, sync_status, sync_error, drive_file_id, drive_app_folder_file_id, synced_at")
         .in("document_checklist_id", docIds)
         .order("uploaded_at", { ascending: true });
       
