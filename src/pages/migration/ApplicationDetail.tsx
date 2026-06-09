@@ -1820,12 +1820,40 @@ const VisaApplicationDetail = () => {
     return data.publicUrl;
   };
 
+  // Review source is strict by application status: Drive when Done, Storage otherwise.
+  const reviewSource: "storage" | "drive" =
+    visaApplication?.status === "done" ? "drive" : "storage";
+
   // Fetch thumbnail URL for a document
-  const fetchThumbnailUrl = async (filePath: string, storageObjectPath?: string | null): Promise<string | null> => {
+  const fetchThumbnailUrl = async (
+    filePath: string,
+    storageObjectPath?: string | null,
+    driveFileId?: string | null
+  ): Promise<string | null> => {
     const cacheKey = storageObjectPath || filePath;
     if (thumbnailUrls[cacheKey]) return thumbnailUrls[cacheKey];
-    
+
     try {
+      // When application is Done, load thumbnails from Drive.
+      if (reviewSource === "drive") {
+        const fileId =
+          driveFileId || (isDriveFile(filePath) ? getDriveFileId(filePath) : null);
+        if (fileId && currentCompany?.id) {
+          const { data, error } = await supabase.functions.invoke("get-drive-file-url", {
+            body: { file_id: fileId, company_id: currentCompany.id },
+          });
+          if (!error && data?.success) {
+            const url = data.file.previewUrl || data.file.thumbnailLink;
+            if (url) {
+              setThumbnailUrls(prev => ({ ...prev, [cacheKey]: url }));
+              return url;
+            }
+          }
+        }
+        return null;
+      }
+
+      // Not Done: load from Storage.
       // If we have a storage_object_path, use it directly (no edge function needed)
       if (storageObjectPath) {
         const { data, error } = await supabase.storage
