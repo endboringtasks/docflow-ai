@@ -31,7 +31,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, Users as UsersIcon, Shield, ShieldOff, UserCheck, Loader2, MoreHorizontal, Trash2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Search, Users as UsersIcon, Shield, ShieldOff, UserCheck, Loader2, MoreHorizontal, Trash2, Mail, Calendar, Building2 } from "lucide-react";
 import { format } from "date-fns";
 import { useImpersonation } from "@/hooks/useImpersonation";
 import { useAuth } from "@/hooks/useAuth";
@@ -68,6 +82,9 @@ export default function AdminUsers() {
   const [userToDelete, setUserToDelete] = useState<UserToDelete | null>(null);
   const [adminDialogOpen, setAdminDialogOpen] = useState(false);
   const [userToToggleAdmin, setUserToToggleAdmin] = useState<UserToToggleAdmin | null>(null);
+  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "user">("all");
+  const [companyFilter, setCompanyFilter] = useState<string>("all");
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
 
   const openConfirmDialog = (user: UserToImpersonate) => {
     setUserToImpersonate(user);
@@ -199,11 +216,30 @@ export default function AdminUsers() {
     },
   });
 
-  const filteredUsers = users?.filter(
-    (user) =>
+  const companyOptions = Array.from(
+    new Set(
+      (users ?? [])
+        .flatMap((u) => u.memberships.map((m: any) => m.companies?.name))
+        .filter((name: string | undefined): name is string => !!name)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  const filteredUsers = users?.filter((user) => {
+    const matchesSearch =
       user.email?.toLowerCase().includes(search.toLowerCase()) ||
-      user.display_name?.toLowerCase().includes(search.toLowerCase())
-  );
+      user.display_name?.toLowerCase().includes(search.toLowerCase());
+
+    const matchesRole =
+      roleFilter === "all" ||
+      (roleFilter === "admin" && user.isPlatformAdmin) ||
+      (roleFilter === "user" && !user.isPlatformAdmin);
+
+    const matchesCompany =
+      companyFilter === "all" ||
+      user.memberships.some((m: any) => m.companies?.name === companyFilter);
+
+    return matchesSearch && matchesRole && matchesCompany;
+  });
 
   return (
     <AdminLayout>
@@ -215,22 +251,48 @@ export default function AdminUsers() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <CardTitle className="flex items-center gap-2">
                 <UsersIcon className="w-5 h-5" />
                 All Users
               </CardTitle>
-              <div className="relative w-64">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search users..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8"
-                />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search users..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+                <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as typeof roleFilter)}>
+                  <SelectTrigger className="w-full sm:w-40">
+                    <SelectValue placeholder="Role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All roles</SelectItem>
+                    <SelectItem value="admin">Super Admin</SelectItem>
+                    <SelectItem value="user">Standard User</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={companyFilter} onValueChange={setCompanyFilter}>
+                  <SelectTrigger className="w-full sm:w-48">
+                    <SelectValue placeholder="Company" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All companies</SelectItem>
+                    {companyOptions.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </CardHeader>
+
           <CardContent>
             {isLoading ? (
               <div className="space-y-2">
@@ -252,7 +314,11 @@ export default function AdminUsers() {
                 </TableHeader>
                 <TableBody>
                   {filteredUsers?.map((user) => (
-                    <TableRow key={user.id}>
+                    <TableRow
+                      key={user.id}
+                      className="cursor-pointer"
+                      onClick={() => setSelectedUser(user)}
+                    >
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           {user.display_name || "No name"}
@@ -290,7 +356,7 @@ export default function AdminUsers() {
                       <TableCell className="text-muted-foreground">
                         {format(new Date(user.created_at), "MMM d, yyyy")}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         {user.id !== currentUser?.id && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -486,6 +552,101 @@ export default function AdminUsers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* User Detail Sheet */}
+      <Sheet open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
+        <SheetContent className="sm:max-w-md overflow-y-auto">
+          {selectedUser && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">
+                  {selectedUser.display_name || "No name"}
+                  {selectedUser.isPlatformAdmin && (
+                    <Shield className="w-4 h-4 text-primary" />
+                  )}
+                </SheetTitle>
+                <SheetDescription>User profile and company memberships</SheetDescription>
+              </SheetHeader>
+
+              <div className="mt-6 space-y-6">
+                {/* Identity */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    {selectedUser.isPlatformAdmin ? (
+                      <Badge>Super Admin</Badge>
+                    ) : (
+                      <Badge variant="outline">Standard User</Badge>
+                    )}
+                    <Badge variant="secondary">Active</Badge>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Mail className="w-4 h-4" />
+                    <span className="break-all">{selectedUser.email || "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="w-4 h-4" />
+                    Joined {format(new Date(selectedUser.created_at), "MMM d, yyyy")}
+                  </div>
+                </div>
+
+                {/* Company memberships */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Building2 className="w-4 h-4" />
+                    Company memberships
+                  </h3>
+                  {selectedUser.memberships.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      This user does not belong to any company.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedUser.memberships.map((m: any, i: number) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between rounded-md border p-3"
+                        >
+                          <span className="text-sm font-medium">
+                            {m.companies?.name || "Unknown company"}
+                          </span>
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {m.role}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Delete action */}
+                {selectedUser.id !== currentUser?.id && !selectedUser.isPlatformAdmin && (
+                  <div className="border-t pt-4">
+                    <Button
+                      variant="destructive"
+                      className="w-full"
+                      onClick={() => {
+                        openDeleteDialog({
+                          id: selectedUser.id,
+                          email: selectedUser.email,
+                          display_name: selectedUser.display_name,
+                        });
+                        setSelectedUser(null);
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete user
+                    </Button>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Permanently removes the user account. This action cannot be undone and is logged for audit.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </AdminLayout>
+
   );
 }
