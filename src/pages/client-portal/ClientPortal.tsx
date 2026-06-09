@@ -705,25 +705,38 @@ export default function ClientPortal() {
   };
 
   const handleSubmit = async () => {
-    if (!portalAccess) return;
+    if (!portalAccess || isSubmitting) return;
+
+    // Guard: never submit when requirements are incomplete (BR-1 / AC-2)
+    if (!isEligibleToSubmit) {
+      toast.error("Please upload all required documents before submitting.");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
       // Save form data one final time
       await saveFormData(formData);
 
-      // Mark as submitted using secure RPC
+      // Mark as submitted using secure RPC (idempotent: WHERE is_submitted = false)
       const { data: submitted, error: submitError } = await supabase
         .rpc("submit_portal_access", { p_token: token });
 
-      if (submitError || !submitted) {
+      if (submitError) {
+        // Genuine server/network error — leave portal editable (UI-4 / TC-8)
         throw new Error("Failed to submit application");
       }
 
-      // Note: Notifications are handled separately since this is unauthenticated access
-      // The edge function or backend should handle notifying team members
+      if (!submitted) {
+        // Already submitted (idempotent path) — reflect read-only state (BR-6 / AC-7 / TC-4)
+        setPortalAccess(prev => prev ? { ...prev, is_submitted: true } : null);
+        setIsSubmitDialogOpen(false);
+        toast.info("This portal has already been submitted.");
+        return;
+      }
 
-      // Call edge function to notify team and finalize submission
+      // Call edge function to notify team and finalize submission.
+      // Notifications are best-effort and must not roll back a successful submission.
       try {
         await fetch(
           `${config.supabaseUrl}/functions/v1/client-portal-submit`,
@@ -737,9 +750,9 @@ export default function ClientPortal() {
         console.error("Failed to notify team:", notifyError);
       }
 
-      setPortalAccess(prev => prev ? { ...prev, is_submitted: true } : null);
+      setPortalAccess(prev => prev ? { ...prev, is_submitted: true, submitted_at: new Date().toISOString() } : null);
       setIsSubmitDialogOpen(false);
-      toast.success("Application submitted successfully!");
+      toast.success("Application submitted successfully! Your agent has been notified.");
     } catch (err) {
       console.error("Submit failed:", err);
       toast.error(err instanceof Error ? err.message : "Failed to submit application");
@@ -747,6 +760,7 @@ export default function ClientPortal() {
       setIsSubmitting(false);
     }
   };
+
 
   const getClientName = () => {
     if (!client) return "";
