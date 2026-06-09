@@ -1532,16 +1532,23 @@ export default function ClientPortal() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Submit Application?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Once submitted, you won't be able to make changes. Make sure all your information is correct and all required documents are uploaded.
-              <br /><br />
-              <strong>{completedDocs}</strong> of <strong>{totalDocs}</strong> required documents uploaded.
-              {optionalCount > 0 && <> Plus <strong>{optionalCompleted}/{optionalCount}</strong> optional.</>}
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Submission is <strong>one-time and irreversible</strong>. Once you submit, the
+                  portal becomes <strong>read-only</strong> — you won't be able to upload, edit, or
+                  remove documents. Please make sure everything is correct.
+                </p>
+                <p>
+                  <strong>{completedDocs}</strong> of <strong>{totalDocs}</strong> required documents uploaded.
+                  {optionalCount > 0 && <> Plus <strong>{optionalCompleted}/{optionalCount}</strong> optional.</>}
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSubmit} disabled={isSubmitting}>
+            <AlertDialogAction onClick={handleSubmit} disabled={isSubmitting || !isEligibleToSubmit}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
