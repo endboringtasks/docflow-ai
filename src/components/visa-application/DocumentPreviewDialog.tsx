@@ -121,65 +121,72 @@ export function DocumentPreviewDialog({
     }
   }, [open, document?.filePath]);
 
+  const loadFromStorage = async (): Promise<boolean> => {
+    if (!document?.filePath) return false;
+    // Prefer storage_object_path; fall back to legacy filePath stored in the bucket.
+    const path = document.storageObjectPath || (!isDriveFile(document.filePath) ? document.filePath : null);
+    if (!path) return false;
+    const { data, error } = await supabase.storage
+      .from("document-attachments")
+      .createSignedUrl(path, 3600);
+    if (error || !data?.signedUrl) return false;
+    setPreviewUrl(data.signedUrl);
+    setActiveSource("storage");
+    return true;
+  };
+
+  const loadFromDrive = async (): Promise<boolean> => {
+    if (!document?.filePath) return false;
+    const fileId = document.driveFileId || (isDriveFile(document.filePath) ? getDriveFileId(document.filePath) : null);
+    if (!fileId || !companyId) return false;
+    const { data, error } = await supabase.functions.invoke("get-drive-file-url", {
+      body: { file_id: fileId, company_id: companyId },
+    });
+    if (error || !data?.success) return false;
+    setDriveFileInfo({
+      name: data.file.name,
+      mimeType: data.file.mimeType,
+      webViewLink: data.file.webViewLink,
+    });
+    setPreviewUrl(data.file.previewUrl || null);
+    setActiveSource("drive");
+    return true;
+  };
+
   const loadPreview = async () => {
     if (!document?.filePath) return;
 
     setLoading(true);
+    setLoadError(null);
+    setUsedFallback(false);
     try {
-      // Priority: use storage_object_path for direct signed URL (no edge function)
-      if (document.storageObjectPath) {
-        const { data, error } = await supabase.storage
-          .from("document-attachments")
-          .createSignedUrl(document.storageObjectPath, 3600);
+      // Strict review source by application status: Drive when Done, Storage otherwise.
+      const primary = reviewSource === "drive" ? loadFromDrive : loadFromStorage;
+      const fallback = reviewSource === "drive" ? loadFromStorage : loadFromDrive;
+      const primaryLabel = reviewSource === "drive" ? "Google Drive" : "Storage";
+      const fallbackLabel = reviewSource === "drive" ? "Storage" : "Google Drive";
 
-        if (!error && data?.signedUrl) {
-          setPreviewUrl(data.signedUrl);
-          setLoading(false);
-          return;
-        }
-        // Fall through to Drive logic if storage URL fails
+      if (await primary()) return;
+
+      // Primary source failed — attempt graceful fallback (UI-4).
+      if (await fallback()) {
+        setUsedFallback(true);
+        setLoadError(
+          `Couldn't load from ${primaryLabel}. Showing the copy from ${fallbackLabel} instead.`
+        );
+        return;
       }
 
-      // Check if this is a Google Drive file
-      if (isDriveFile(document.filePath)) {
-        if (!companyId) {
-          throw new Error("Company ID required for Drive files");
-        }
-        
-        const fileId = getDriveFileId(document.filePath);
-        const { data, error } = await supabase.functions.invoke("get-drive-file-url", {
-          body: { file_id: fileId, company_id: companyId },
-        });
-
-        if (error) throw error;
-        if (!data?.success) throw new Error(data?.error || "Failed to get file URL");
-
-        setDriveFileInfo({
-          name: data.file.name,
-          mimeType: data.file.mimeType,
-          webViewLink: data.file.webViewLink,
-        });
-
-        if (data.file.previewUrl) {
-          setPreviewUrl(data.file.previewUrl);
-        } else if (data.file.webViewLink) {
-          setPreviewUrl(null);
-        }
-      } else {
-        // Supabase storage file (legacy path without storage_object_path)
-        const { data, error } = await supabase.storage
-          .from("document-attachments")
-          .createSignedUrl(document.filePath, 3600);
-
-        if (error) throw error;
-        setPreviewUrl(data.signedUrl);
-      }
+      setLoadError(`Couldn't load this document from ${primaryLabel}.`);
+      toast.error("Failed to load document preview");
     } catch (error) {
       console.error("Error loading preview:", error);
+      setLoadError("Failed to load document preview");
       toast.error("Failed to load document preview");
     } finally {
       setLoading(false);
     }
+
   };
 
   const handleDownload = async () => {
