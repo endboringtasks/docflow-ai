@@ -3235,9 +3235,13 @@ const VisaApplicationDetail = () => {
           document={previewDoc ? {
             ...previewDoc,
             storageObjectPath: previewDoc.attachments?.[0]?.storage_object_path || null,
+            driveFileId:
+              previewDoc.attachments?.[0]?.drive_app_folder_file_id ||
+              previewDoc.attachments?.[0]?.drive_file_id ||
+              null,
           } : null}
           onReviewUpdate={handleReviewUpdate}
-          
+          reviewSource={reviewSource}
           companyId={visaApplication?.company_id}
           documentHistory={previewDoc ? (documentHistoryByDoc?.[previewDoc.id] as DocumentHistoryEntry[] || []) : []}
         />
