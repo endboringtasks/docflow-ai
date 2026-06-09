@@ -31,7 +31,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, Users as UsersIcon, Shield, ShieldOff, UserCheck, Loader2, MoreHorizontal, Trash2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Search, Users as UsersIcon, Shield, ShieldOff, UserCheck, Loader2, MoreHorizontal, Trash2, Mail, Calendar, Building2 } from "lucide-react";
 import { format } from "date-fns";
 import { useImpersonation } from "@/hooks/useImpersonation";
 import { useAuth } from "@/hooks/useAuth";
