@@ -9,7 +9,7 @@ function formatTimeRemaining(seconds: number): string {
 }
 
 export function ImpersonationBanner() {
-  const { isImpersonating, impersonatedUser, endImpersonation, extendSession, isLoading, timeRemaining } = useImpersonation();
+  const { isImpersonating, impersonatedUser, initiatingAdmin, endImpersonation, extendSession, isLoading, timeRemaining } = useImpersonation();
 
   if (!isImpersonating || !impersonatedUser) {
     return null;
