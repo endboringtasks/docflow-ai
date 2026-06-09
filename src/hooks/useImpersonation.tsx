@@ -9,9 +9,16 @@ interface ImpersonationTarget {
   display_name: string | null;
 }
 
+interface ImpersonationAdmin {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+}
+
 interface ImpersonationContextType {
   isImpersonating: boolean;
   impersonatedUser: ImpersonationTarget | null;
+  initiatingAdmin: ImpersonationAdmin | null;
   startImpersonation: (targetUserId: string) => Promise<void>;
   endImpersonation: (showToast?: boolean) => Promise<void>;
   extendSession: () => void;
@@ -23,12 +30,14 @@ const ImpersonationContext = createContext<ImpersonationContextType | undefined>
 
 const IMPERSONATION_STORAGE_KEY = "admin_original_session";
 const IMPERSONATION_TARGET_KEY = "impersonation_target";
+const IMPERSONATION_ADMIN_KEY = "impersonation_admin";
 const IMPERSONATION_START_KEY = "impersonation_start_time";
 const IMPERSONATION_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour in milliseconds
 
 export function ImpersonationProvider({ children }: { children: ReactNode }) {
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [impersonatedUser, setImpersonatedUser] = useState<ImpersonationTarget | null>(null);
+  const [initiatingAdmin, setInitiatingAdmin] = useState<ImpersonationAdmin | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
@@ -41,6 +50,21 @@ export function ImpersonationProvider({ children }: { children: ReactNode }) {
       }
 
       const originalSession: Session = JSON.parse(storedSession);
+
+      // BR-11: write an audit log for the impersonation end, attributed to the
+      // original admin. Best-effort — never block the session restore on failure.
+      try {
+        const storedTarget = localStorage.getItem(IMPERSONATION_TARGET_KEY);
+        const target: ImpersonationTarget | null = storedTarget ? JSON.parse(storedTarget) : null;
+        await supabase.functions.invoke("admin-end-impersonation", {
+          body: {
+            targetUserId: target?.id ?? null,
+            adminAccessToken: originalSession.access_token,
+          },
+        });
+      } catch (auditError) {
+        console.error("Failed to log impersonation end:", auditError);
+      }
 
       // Sign out of impersonated session
       await supabase.auth.signOut();
@@ -60,18 +84,21 @@ export function ImpersonationProvider({ children }: { children: ReactNode }) {
       // Clear impersonation data
       localStorage.removeItem(IMPERSONATION_STORAGE_KEY);
       localStorage.removeItem(IMPERSONATION_TARGET_KEY);
+      localStorage.removeItem(IMPERSONATION_ADMIN_KEY);
       localStorage.removeItem(IMPERSONATION_START_KEY);
       setIsImpersonating(false);
       setImpersonatedUser(null);
+      setInitiatingAdmin(null);
       setTimeRemaining(null);
 
-      if (showToast) toast.success("Returned to admin account");
+      if (showToast) toast.success("Impersonation ended");
       window.location.href = "/admin";
     } catch (error: any) {
       console.error("End impersonation error:", error);
       if (showToast) toast.error("Failed to end impersonation. Please log in again.");
       localStorage.removeItem(IMPERSONATION_STORAGE_KEY);
       localStorage.removeItem(IMPERSONATION_TARGET_KEY);
+      localStorage.removeItem(IMPERSONATION_ADMIN_KEY);
       localStorage.removeItem(IMPERSONATION_START_KEY);
       await supabase.auth.signOut();
       window.location.href = "/auth";
@@ -99,6 +126,8 @@ export function ImpersonationProvider({ children }: { children: ReactNode }) {
 
       setIsImpersonating(true);
       setImpersonatedUser(JSON.parse(storedTarget));
+      const storedAdmin = localStorage.getItem(IMPERSONATION_ADMIN_KEY);
+      if (storedAdmin) setInitiatingAdmin(JSON.parse(storedAdmin));
       setTimeRemaining(Math.floor((IMPERSONATION_TIMEOUT_MS - elapsed) / 1000));
     }
   }, [endImpersonation]);
@@ -156,9 +185,13 @@ export function ImpersonationProvider({ children }: { children: ReactNode }) {
         throw new Error(data.error || "Impersonation failed");
       }
 
-      // Store target user info and start time
+      // Store target user info, admin info, and start time
       localStorage.setItem(IMPERSONATION_TARGET_KEY, JSON.stringify(data.targetUser));
       localStorage.setItem(IMPERSONATION_START_KEY, Date.now().toString());
+      if (data.admin) {
+        localStorage.setItem(IMPERSONATION_ADMIN_KEY, JSON.stringify(data.admin));
+        setInitiatingAdmin(data.admin);
+      }
       setImpersonatedUser(data.targetUser);
       setIsImpersonating(true);
       setTimeRemaining(IMPERSONATION_TIMEOUT_MS / 1000);
@@ -184,9 +217,11 @@ export function ImpersonationProvider({ children }: { children: ReactNode }) {
       toast.error(error.message || "Failed to impersonate user");
       setIsImpersonating(false);
       setImpersonatedUser(null);
+      setInitiatingAdmin(null);
       setTimeRemaining(null);
       localStorage.removeItem(IMPERSONATION_STORAGE_KEY);
       localStorage.removeItem(IMPERSONATION_TARGET_KEY);
+      localStorage.removeItem(IMPERSONATION_ADMIN_KEY);
       localStorage.removeItem(IMPERSONATION_START_KEY);
     } finally {
       setIsLoading(false);
@@ -207,6 +242,7 @@ export function ImpersonationProvider({ children }: { children: ReactNode }) {
       value={{
         isImpersonating,
         impersonatedUser,
+        initiatingAdmin,
         startImpersonation,
         endImpersonation,
         extendSession,
