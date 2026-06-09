@@ -519,6 +519,11 @@ const VisaApplicationDetail = () => {
           uploaded_by: a.uploaded_by,
           uploaded_by_client: a.uploaded_by_client,
           storage_object_path: a.storage_object_path,
+          sync_status: a.sync_status,
+          sync_error: a.sync_error,
+          drive_file_id: a.drive_file_id,
+          drive_app_folder_file_id: a.drive_app_folder_file_id,
+          synced_at: a.synced_at,
         });
       });
       
