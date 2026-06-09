@@ -478,6 +478,21 @@ const MigrationClients = () => {
       client.email?.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filteredClients.length / PAGE_SIZE));
+  const pagedClients = filteredClients.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+
+
   const handleCreateClient = () => {
     const isCorporate = newClient.clientType === "corporate";
     const hasRequiredField = isCorporate 
