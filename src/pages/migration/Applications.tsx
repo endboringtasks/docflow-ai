@@ -425,52 +425,58 @@ const MigrationVisaApplications = () => {
       return { ...data, visa_type_id: applicationData.visa_type_id };
     },
     onSuccess: async (data) => {
-      // Document initialization is handled by ApplicationDetail.tsx when the user views the application
+      // Close the dialog immediately — folder creation happens in the background.
+      queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
+      setIsCreateOpen(false);
+      setNewApplication({ clientId: "", countryId: "", categoryId: "", subcategoryId: "", applicationName: "", visaSubclass: "", visaTypeId: "" });
+      setApplicantSelections({});
+      toast.success("Application created!", {
+        description: "A webhook can be configured to create the application folder.",
+      });
 
-      // Dispatch webhook for visa_application.created event
-      try {
-        // Get drive connection and client folder info
-        const [driveConnectionResult, clientResult] = await Promise.all([
-          supabase
-            .from("google_drive_connections")
-            .select("root_folder_id")
-            .eq("company_id", currentCompany?.id)
-            .single(),
-          supabase
-            .from("clients")
-            .select("client_folder_id, first_name, last_name, company_name, client_type")
-            .eq("id", data.client_id)
-            .single(),
-        ]);
+      // Fire-and-forget: dispatch folder-creation webhook without blocking the UI.
+      // Document initialization is handled by ApplicationDetail.tsx when the user views the application.
+      (async () => {
+        try {
+          const [driveConnectionResult, clientResult] = await Promise.all([
+            supabase
+              .from("google_drive_connections")
+              .select("root_folder_id")
+              .eq("company_id", currentCompany?.id)
+              .single(),
+            supabase
+              .from("clients")
+              .select("client_folder_id, first_name, last_name, company_name, client_type")
+              .eq("id", data.client_id)
+              .single(),
+          ]);
 
-        const clientName = clientResult.data?.client_type === "corporate"
-          ? clientResult.data?.company_name
-          : `${clientResult.data?.first_name || ""} ${clientResult.data?.last_name || ""}`.trim();
-
-        await supabase.functions.invoke("dispatch-webhook", {
-          body: {
-            event_type: "application.created",
-            data: {
-              // Essential fields (always sent)
-              application_id: data.id,
-              application_name: data.application_name,
-              visa_subclass: data.visa_subclass,
-              client_folder_id: clientResult.data?.client_folder_id || null,
-              // Optional fields (filtered by edge function based on webhook config)
-              company_id: currentCompany?.id,
-              client_id: data.client_id,
-              status: data.status,
-              root_folder_id: driveConnectionResult.data?.root_folder_id || null,
-              created_at: data.created_at,
+          await supabase.functions.invoke("dispatch-webhook", {
+            body: {
+              event_type: "application.created",
+              data: {
+                // Essential fields (always sent)
+                application_id: data.id,
+                application_name: data.application_name,
+                visa_subclass: data.visa_subclass,
+                client_folder_id: clientResult.data?.client_folder_id || null,
+                // Optional fields (filtered by edge function based on webhook config)
+                company_id: currentCompany?.id,
+                client_id: data.client_id,
+                status: data.status,
+                root_folder_id: driveConnectionResult.data?.root_folder_id || null,
+                created_at: data.created_at,
+              },
             },
-          },
-        });
-        console.log("Webhook dispatched for visa application:", data.id);
-      } catch (webhookError) {
-        console.error("Failed to dispatch webhook:", webhookError);
-      }
+          });
+          console.log("Webhook dispatched for visa application:", data.id);
+        } catch (webhookError) {
+          console.error("Failed to dispatch webhook:", webhookError);
+        }
+      })();
 
-      // Insert application applicants
+      // Insert application applicants (background — does not hold the dialog open)
       try {
         const applicantRecords: any[] = [];
 
@@ -521,16 +527,6 @@ const MigrationVisaApplications = () => {
       } catch (applicantError) {
         console.error("Failed to insert applicants:", applicantError);
       }
-
-
-      queryClient.invalidateQueries({ queryKey: ["visa-applications", currentCompany?.id] });
-      queryClient.invalidateQueries({ queryKey: ["clients", currentCompany?.id] });
-      setIsCreateOpen(false);
-      setNewApplication({ clientId: "", countryId: "", categoryId: "", subcategoryId: "", applicationName: "", visaSubclass: "", visaTypeId: "" });
-      setApplicantSelections({});
-      toast.success("Application created!", {
-        description: "A webhook can be configured to create the application folder.",
-      });
     },
     onError: (error) => {
       toast.error("Failed to create application", {
