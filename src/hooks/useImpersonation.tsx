@@ -217,9 +217,11 @@ export function ImpersonationProvider({ children }: { children: ReactNode }) {
       toast.error(error.message || "Failed to impersonate user");
       setIsImpersonating(false);
       setImpersonatedUser(null);
+      setInitiatingAdmin(null);
       setTimeRemaining(null);
       localStorage.removeItem(IMPERSONATION_STORAGE_KEY);
       localStorage.removeItem(IMPERSONATION_TARGET_KEY);
+      localStorage.removeItem(IMPERSONATION_ADMIN_KEY);
       localStorage.removeItem(IMPERSONATION_START_KEY);
     } finally {
       setIsLoading(false);
