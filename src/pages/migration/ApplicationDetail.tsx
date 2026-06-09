@@ -2773,6 +2773,7 @@ const VisaApplicationDetail = () => {
                                     <div className="flex items-center gap-3 min-w-0 flex-1">
                                       <DocumentThumbnail
                                         filePath={attachment.file_path}
+                                        fileName={attachment.file_name}
                                         fileUrl={thumbnailUrls[attachment.storage_object_path || attachment.file_path] || null}
                                         onPreview={() => setPreviewDoc(doc)}
                                         size={24}
