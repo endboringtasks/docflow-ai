@@ -76,7 +76,7 @@ export function DocumentPreviewDialog({
   onOpenChange,
   document,
   onReviewUpdate,
-  
+  reviewSource = "storage",
   companyId,
   documentHistory = [],
 }: DocumentPreviewDialogProps) {
