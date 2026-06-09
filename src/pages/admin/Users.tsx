@@ -216,11 +216,30 @@ export default function AdminUsers() {
     },
   });
 
-  const filteredUsers = users?.filter(
-    (user) =>
+  const companyOptions = Array.from(
+    new Set(
+      (users ?? [])
+        .flatMap((u) => u.memberships.map((m: any) => m.companies?.name))
+        .filter((name: string | undefined): name is string => !!name)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  const filteredUsers = users?.filter((user) => {
+    const matchesSearch =
       user.email?.toLowerCase().includes(search.toLowerCase()) ||
-      user.display_name?.toLowerCase().includes(search.toLowerCase())
-  );
+      user.display_name?.toLowerCase().includes(search.toLowerCase());
+
+    const matchesRole =
+      roleFilter === "all" ||
+      (roleFilter === "admin" && user.isPlatformAdmin) ||
+      (roleFilter === "user" && !user.isPlatformAdmin);
+
+    const matchesCompany =
+      companyFilter === "all" ||
+      user.memberships.some((m: any) => m.companies?.name === companyFilter);
+
+    return matchesSearch && matchesRole && matchesCompany;
+  });
 
   return (
     <AdminLayout>
