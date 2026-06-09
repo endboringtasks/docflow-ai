@@ -1492,16 +1492,36 @@ export default function ClientPortal() {
             </Card>
 
             {/* Submit Button */}
-            <div className="flex justify-end">
-              <Button
-                size="lg"
-                onClick={() => setIsSubmitDialogOpen(true)}
-                disabled={completedDocs === 0}
-                className="gap-2"
-              >
-                <Send className="w-5 h-5" />
-                Submit Application
-              </Button>
+            <div className="flex flex-col items-end gap-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0}>
+                      <Button
+                        size="lg"
+                        onClick={() => setIsSubmitDialogOpen(true)}
+                        disabled={!isEligibleToSubmit}
+                        className="gap-2"
+                      >
+                        <Send className="w-5 h-5" />
+                        Submit Application
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {!isEligibleToSubmit && (
+                    <TooltipContent>
+                      {totalDocs === 0
+                        ? "There are no required documents to submit."
+                        : "Upload all required documents to submit."}
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
+              {!isEligibleToSubmit && totalDocs > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {missingRequiredDocs.length} required document{missingRequiredDocs.length === 1 ? "" : "s"} still needed before you can submit.
+                </p>
+              )}
             </div>
           </div>
         )}
