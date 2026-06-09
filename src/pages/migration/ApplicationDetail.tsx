@@ -124,6 +124,11 @@ interface DocumentAttachment {
   uploaded_by: string | null;
   uploaded_by_client: string | null;
   storage_object_path: string | null;
+  sync_status: string | null;
+  sync_error: string | null;
+  drive_file_id: string | null;
+  drive_app_folder_file_id: string | null;
+  synced_at: string | null;
 }
 
 interface DocumentItem {
