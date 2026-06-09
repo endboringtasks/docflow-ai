@@ -1906,7 +1906,11 @@ const VisaApplicationDetail = () => {
           for (const attachment of doc.attachments) {
             const cacheKey = attachment.storage_object_path || attachment.file_path;
             if (isPreviewableFile(attachment.file_name || attachment.file_path) && !thumbnailUrls[cacheKey]) {
-              await fetchThumbnailUrl(attachment.file_path, attachment.storage_object_path);
+              await fetchThumbnailUrl(
+                attachment.file_path,
+                attachment.storage_object_path,
+                attachment.drive_app_folder_file_id || attachment.drive_file_id
+              );
             }
           }
         }
