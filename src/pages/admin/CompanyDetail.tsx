@@ -61,12 +61,22 @@ interface CompanyDetailProps {
 
 const PLANS: SubscriptionPlan[] = ["free", "basic", "pro", "enterprise"];
 
+const NICHES = ["migration", "audit", "hr"] as const;
+const STATUSES = ["active", "trialing", "past_due", "canceled", "incomplete"] as const;
+
 export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailProps) {
   const queryClient = useQueryClient();
   const { startImpersonation, isLoading: impersonationLoading } = useImpersonation();
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    niche: "" as string,
+    subscription_plan: "" as string,
+    subscription_status: "" as string,
+  });
 
-  const { data: company, isLoading: companyLoading } = useQuery({
+  const { data: company, isLoading: companyLoading, isFetched } = useQuery({
     queryKey: ["admin-company-detail", companyId],
     queryFn: async () => {
       if (!companyId) return null;
@@ -74,31 +84,72 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
         .from("companies")
         .select("*")
         .eq("id", companyId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
     enabled: !!companyId && open,
   });
 
-  const updatePlanMutation = useMutation({
-    mutationFn: async (newPlan: SubscriptionPlan) => {
+  const startEdit = () => {
+    if (!company) return;
+    setForm({
+      name: company.name ?? "",
+      niche: company.niche ?? "",
+      subscription_plan: company.subscription_plan ?? "",
+      subscription_status: company.subscription_status ?? "",
+    });
+    setIsEditing(true);
+  };
+
+  const nameError =
+    !form.name.trim()
+      ? "Name is required"
+      : form.name.trim().length > 120
+      ? "Name must be 120 characters or fewer"
+      : "";
+  const isFormValid = !nameError && NICHES.includes(form.niche as typeof NICHES[number]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
       if (!companyId) throw new Error("No company selected");
-      const { error } = await supabase
-        .from("companies")
-        .update({ subscription_plan: newPlan })
-        .eq("id", companyId);
-      if (error) throw error;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      const { data, error } = await supabase.functions.invoke("admin-update-company", {
+        body: {
+          companyId,
+          expectedUpdatedAt: (company as any)?.updated_at,
+          updates: {
+            name: form.name.trim(),
+            niche: form.niche,
+            subscription_plan: form.subscription_plan,
+            subscription_status: form.subscription_status || null,
+          },
+        },
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      });
+      if (error) {
+        const ctx = (error as any)?.context;
+        if (ctx && typeof ctx.json === "function") {
+          const parsed = await ctx.json().catch(() => null);
+          if (parsed?.message) throw new Error(parsed.message);
+          if (parsed?.error) throw new Error(parsed.error);
+        }
+        throw error;
+      }
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-company-detail", companyId] });
       queryClient.invalidateQueries({ queryKey: ["admin-companies"] });
-      toast.success("Subscription plan updated");
+      toast.success("Company updated");
+      setIsEditing(false);
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to update plan");
+      toast.error(error.message || "Failed to update company");
     },
   });
+
 
   const handleImpersonate = async (userId: string) => {
     setImpersonatingUserId(userId);
