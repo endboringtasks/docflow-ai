@@ -568,6 +568,7 @@ export function CompanyDetail({ companyId, open, onOpenChange }: CompanyDetailPr
             </a>
           </div>
         </div>
+        )}
       </SheetContent>
     </Sheet>
   );
