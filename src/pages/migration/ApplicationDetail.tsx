@@ -80,6 +80,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/hooks/useCompany";
 import { InviteClientDialog } from "@/components/visa-application/InviteClientDialog";
 import { DocumentPreviewDialog, ReviewStatus } from "@/components/visa-application/DocumentPreviewDialog";
+import { SyncStatusBadge } from "@/components/visa-application/SyncStatusBadge";
 import { DocumentHistorySection, DocumentHistoryEntry } from "@/components/visa-application/DocumentHistorySection";
 import { ApplicantsSection } from "@/components/visa-application/ApplicantsSection";
 import { PortalAccessSection } from "@/components/visa-application/PortalAccessSection";
