@@ -269,9 +269,19 @@ export function DocumentPreviewDialog({
         isFullscreen && "max-w-[100vw] max-h-[100vh] w-screen h-screen rounded-none"
       )}>
         <DialogHeader className="flex-shrink-0 flex flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <DialogTitle className="text-lg">{document.name}</DialogTitle>
             {getStatusBadge(document.reviewStatus)}
+            {document.filePath && (
+              <Badge variant="outline" className="gap-1 font-normal">
+                {activeSource === "drive" ? (
+                  <HardDrive className="w-3 h-3" />
+                ) : (
+                  <Database className="w-3 h-3" />
+                )}
+                Viewing from {activeSource === "drive" ? "Drive" : "Storage"}
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
