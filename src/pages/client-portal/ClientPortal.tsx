@@ -773,6 +773,14 @@ export default function ClientPortal() {
   ).length;
   const progress = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
 
+  // Required documents still missing (not uploaded, or returned to client / rejected)
+  const missingRequiredDocs = requiredDocuments.filter(d =>
+    !(d.is_completed && d.review_status !== 'pending_client' && d.review_status !== 'rejected')
+  );
+
+  // Submission eligibility: there must be at least one required document and none missing
+  const isEligibleToSubmit = totalDocs > 0 && missingRequiredDocs.length === 0;
+
   // Check if any documents need attention (pending_client or rejected)
   const docsNeedingAttention = documents.filter(d => 
     d.review_status === 'pending_client' || d.review_status === 'rejected'
