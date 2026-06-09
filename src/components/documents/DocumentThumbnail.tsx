@@ -55,7 +55,7 @@ export function DocumentThumbnail({ filePath, fileUrl, fileName, onPreview, size
   }
 
   // PDF files
-  if (isPdfFile(filePath)) {
+  if (isPdfFile(typeSource)) {
     return (
       <PdfThumbnail 
         url={fileUrl} 
