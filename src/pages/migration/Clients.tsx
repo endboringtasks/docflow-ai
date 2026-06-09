@@ -937,6 +937,31 @@ const MigrationClients = () => {
           </div>
         )}
 
+        {!isLoading && filteredClients.length > PAGE_SIZE && (
+          <Pagination className="mt-6">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className={page <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+              <PaginationItem>
+                <span className="px-4 text-sm text-muted-foreground">
+                  Page {page} of {totalPages}
+                </span>
+              </PaginationItem>
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className={page >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        )}
+
+
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={!!clientToDelete} onOpenChange={() => setClientToDelete(null)}>
           <AlertDialogContent>
