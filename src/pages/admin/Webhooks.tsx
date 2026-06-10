@@ -1242,6 +1242,62 @@ export default function AdminWebhooks() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Rotate Secret Confirmation */}
+      <AlertDialog open={!!rotatingWebhook} onOpenChange={(open) => !open && setRotatingWebhook(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rotate signing secret</AlertDialogTitle>
+            <AlertDialogDescription>
+              This generates a new secret for "{rotatingWebhook?.name}" and immediately invalidates the
+              old one. Any consumer still using the previous secret will be rejected until updated.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => rotatingWebhook && rotateSecret.mutate(rotatingWebhook)}
+              disabled={rotateSecret.isPending}
+            >
+              Rotate secret
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Copy-once Secret Reveal (UI-6/BR-6) */}
+      <Dialog open={!!revealedSecret} onOpenChange={(open) => !open && setRevealedSecret(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{revealedSecret?.rotated ? "Secret rotated" : "Webhook created"}</DialogTitle>
+            <DialogDescription>
+              Copy this signing secret now. For security, it is masked afterwards and cannot be shown again.
+            </DialogDescription>
+          </DialogHeader>
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Store it securely</AlertTitle>
+            <AlertDescription>
+              You won't be able to view this secret again. Rotate it if you lose it.
+            </AlertDescription>
+          </Alert>
+          <div className="flex items-center gap-2">
+            <Input readOnly value={revealedSecret?.secret ?? ""} className="font-mono text-xs" />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => revealedSecret && copySecret(revealedSecret.secret)}
+              title="Copy secret"
+            >
+              <Copy className="w-4 h-4" />
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setRevealedSecret(null)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
