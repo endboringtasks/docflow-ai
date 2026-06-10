@@ -1175,6 +1175,15 @@ export default function AdminWebhooks() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => setRotatingWebhook({ id: webhook.id, name: webhook.name })}
+                            title="Rotate signing secret"
+                          >
+                            <KeyRound className="w-4 h-4" />
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => openDuplicateDialog(webhook)}
                             title="Duplicate webhook"
                           >
