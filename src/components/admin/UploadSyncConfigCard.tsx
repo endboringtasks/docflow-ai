@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Settings, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { SettingGuidancePopover } from "@/components/admin/SettingGuidancePopover";
 
 interface ConfigParam {
   key: string;
