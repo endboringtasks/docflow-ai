@@ -467,6 +467,8 @@ Deno.serve(async (req) => {
       webhooks.map(async (webhook) => {
         const deliveryRequestId = `${requestId}:${webhook.id}`;
         const deliveryStartedAt = Date.now();
+        // BR-10: one stable idempotency/event id per delivery, constant across retries
+        const idempotencyKey = crypto.randomUUID();
 
         try {
           // Filter the data based on this webhook's included_fields
@@ -474,6 +476,7 @@ Deno.serve(async (req) => {
 
           const webhookPayload = {
             event: payload.event_type,
+            event_id: idempotencyKey,
             timestamp: new Date().toISOString(),
             data: filteredData,
           };
@@ -483,27 +486,41 @@ Deno.serve(async (req) => {
           // Get retry configuration with defaults
           const maxRetries = webhook.max_retries ?? 3;
           const retryBackoffSeconds = webhook.retry_backoff_seconds ?? 5;
+          const deliveryTimeoutSeconds = (webhook as any).delivery_timeout_seconds ?? 30;
+          const maxBackoffSeconds = (webhook as any).max_backoff_seconds ?? null;
 
-          console.log(`Webhook ${webhook.name} retry config: max_retries=${maxRetries}, backoff=${retryBackoffSeconds}s`);
+          console.log(`Webhook ${webhook.name} retry config: max_retries=${maxRetries}, backoff=${retryBackoffSeconds}s, timeout=${deliveryTimeoutSeconds}s, backoff_cap=${maxBackoffSeconds ?? "none"}`);
 
+          // BR-12: persist every individual delivery attempt as it happens
           const { response, attempts } = await sendWebhookWithRetry(
             webhook as WebhookConfig,
             webhookPayload,
-            maxRetries,
-            retryBackoffSeconds
+            idempotencyKey,
+            {
+              maxRetries,
+              baseBackoffSeconds: retryBackoffSeconds,
+              timeoutSeconds: deliveryTimeoutSeconds,
+              maxBackoffSeconds,
+            },
+            (attemptLog) =>
+              safeLogWebhookRequest(supabase, {
+                endpoint: webhook.url,
+                method: "POST",
+                request_id: `${deliveryRequestId}:attempt-${attemptLog.attempt_number}`,
+                status_code: attemptLog.status_code,
+                duration_ms: attemptLog.duration_ms,
+                error_message: attemptLog.error_message
+                  ? `${attemptLog.error_message} ${contextSnippet}`.slice(0, 800)
+                  : null,
+                attempt_number: attemptLog.attempt_number,
+                will_retry: attemptLog.will_retry,
+                final_state: attemptLog.final_state,
+              })
           );
 
           const deliveryDurationMs = Date.now() - deliveryStartedAt;
+          console.log(`Webhook ${webhook.name} total delivery time: ${deliveryDurationMs}ms over ${attempts} attempt(s)`);
 
-          // Persist delivery attempt
-          await safeLogWebhookRequest(supabase, {
-            endpoint: webhook.url,
-            method: "POST",
-            request_id: deliveryRequestId,
-            status_code: response.status,
-            duration_ms: deliveryDurationMs,
-            error_message: response.ok ? null : `http_${response.status} ${contextSnippet}`,
-          });
 
           if (!response.ok) {
             const errorText = await response.text();
