@@ -740,8 +740,19 @@ export default function AdminWebhooks() {
                     placeholder="https://hook.make.com/..."
                     value={newWebhook.url}
                     onChange={(e) => setNewWebhook((prev) => ({ ...prev, url: e.target.value }))}
+                    aria-invalid={!!urlError}
                   />
+                  {urlError && (
+                    <p className="text-sm font-medium text-destructive">{urlError}</p>
+                  )}
+                  {duplicateWarning && !urlError && (
+                    <Alert variant="default" className="mt-1">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>{duplicateWarning}</AlertDescription>
+                    </Alert>
+                  )}
                 </div>
+
                 <div className="space-y-2">
                   <Label>Events to Subscribe</Label>
                   <div className="space-y-3">
