@@ -170,17 +170,12 @@ export default function WebhookMonitoring() {
   const { data: endpointList } = useQuery({
     queryKey: ["webhook-endpoints"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("webhook_request_logs")
-        .select("endpoint")
-        .order("endpoint", { ascending: true })
-        .limit(1000);
+      const { data, error } = await supabase.rpc("get_webhook_log_endpoints");
 
       if (error) throw error;
-      const unique = Array.from(
-        new Set((data as { endpoint: string }[]).map((d) => d.endpoint).filter(Boolean))
-      );
-      return unique;
+      return ((data as { endpoint: string }[]) ?? [])
+        .map((d) => d.endpoint)
+        .filter(Boolean);
     },
     refetchInterval: 60000,
   });
