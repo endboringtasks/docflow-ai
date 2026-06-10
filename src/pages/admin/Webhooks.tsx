@@ -73,47 +73,78 @@ const WEBHOOK_TOPICS: WebhookTopic[] = [
 ];
 
 // All available fields for webhook payloads (organized by entity)
+// DOC-52: `mandatory` fields are always sent and locked; `sensitive` fields are
+// PII, excluded by default and gated behind an explicit toggle.
 const ALL_FIELDS: Record<WebhookEntityCategory, WebhookFieldDefinition[]> = {
   client: [
-    { id: "client_id", label: "Client ID", description: "Unique client identifier", default: true },
+    { id: "client_id", label: "Client ID", description: "Unique client identifier (resource id)", default: true, mandatory: true },
+    { id: "company_id", label: "Organization ID", description: "Your firm/agency identifier", default: true, mandatory: true },
+    { id: "created_at", label: "Created At", description: "Timestamp when client was created", default: true, mandatory: true },
     { id: "client_type", label: "Client Type", description: "Personal or corporate", default: true },
-    { id: "first_name", label: "First Name", description: "Client first name", default: true },
-    { id: "last_name", label: "Last Name", description: "Client last name", default: true },
-    { id: "company_name", label: "Company Name", description: "Company name (for corporate clients)", default: true },
-    { id: "company_id", label: "Organization ID", description: "Your firm/agency identifier", default: true },
-    { id: "email", label: "Email", description: "Client email address", default: true },
-    { id: "phone", label: "Phone", description: "Client phone number", default: true },
+    { id: "first_name", label: "First Name", description: "Client first name", default: false, sensitive: true, sensitivityCategory: "identity" },
+    { id: "last_name", label: "Last Name", description: "Client last name", default: false, sensitive: true, sensitivityCategory: "identity" },
+    { id: "company_name", label: "Company Name", description: "Company name (for corporate clients)", default: false, sensitive: true, sensitivityCategory: "identity" },
+    { id: "email", label: "Email", description: "Client email address", default: false, sensitive: true, sensitivityCategory: "contact" },
+    { id: "phone", label: "Phone", description: "Client phone number", default: false, sensitive: true, sensitivityCategory: "contact" },
     { id: "client_folder_id", label: "Client Folder ID", description: "Client's Google Drive folder", default: true },
     { id: "root_folder_id", label: "Root Folder ID", description: "Company's root Google Drive folder", default: true },
     { id: "folder_status", label: "Folder Status", description: "Drive folder creation status", default: true },
     { id: "folder_status_updated_at", label: "Folder Status Updated At", description: "When folder status last changed", default: true },
-    { id: "created_at", label: "Created At", description: "Timestamp when client was created", default: true },
   ],
   visa_application: [
-    { id: "application_id", label: "Application ID", description: "Unique application identifier", default: true },
+    { id: "application_id", label: "Application ID", description: "Unique application identifier (resource id)", default: true, mandatory: true },
+    { id: "company_id", label: "Organization ID", description: "Your firm/agency identifier", default: true, mandatory: true },
+    { id: "created_at", label: "Created At", description: "Timestamp when application was created", default: true, mandatory: true },
     { id: "application_name", label: "Application Name", description: "Name of the application", default: true },
     { id: "subclass", label: "Subclass", description: "Visa type being applied for", default: true },
-    { id: "company_id", label: "Organization ID", description: "Your firm/agency identifier", default: true },
     { id: "client_id", label: "Client ID", description: "Associated client identifier", default: true },
     { id: "client_folder_id", label: "Client Folder ID", description: "Client's Google Drive folder", default: true },
     { id: "status", label: "Status", description: "Application status (draft, active, done)", default: true },
     { id: "application_folder_id", label: "Drive Folder ID", description: "Application's Google Drive folder", default: true },
     { id: "folder_status", label: "Folder Status", description: "Drive folder creation status", default: true },
     { id: "folder_status_updated_at", label: "Folder Status Updated At", description: "When folder status last changed", default: true },
-    { id: "created_at", label: "Created At", description: "Timestamp when application was created", default: true },
   ],
 };
 
-// Get default selected fields
+// Flat lookup of every field definition by id (last definition wins for shared ids)
+const FIELD_DEF_BY_ID: Record<string, WebhookFieldDefinition> = (() => {
+  const map: Record<string, WebhookFieldDefinition> = {};
+  Object.values(ALL_FIELDS).forEach((fields) => {
+    fields.forEach((f) => {
+      // Prefer a mandatory/sensitive definition if any category marks it so
+      const existing = map[f.id];
+      map[f.id] = {
+        ...f,
+        mandatory: f.mandatory || existing?.mandatory,
+        sensitive: f.sensitive || existing?.sensitive,
+      };
+    });
+  });
+  return map;
+})();
+
+const MANDATORY_FIELD_IDS = Object.values(FIELD_DEF_BY_ID)
+  .filter((f) => f.mandatory)
+  .map((f) => f.id);
+
+const SENSITIVE_FIELD_IDS = new Set(
+  Object.values(FIELD_DEF_BY_ID).filter((f) => f.sensitive).map((f) => f.id)
+);
+
+const isMandatoryField = (id: string) => !!FIELD_DEF_BY_ID[id]?.mandatory;
+const isSensitiveField = (id: string) => SENSITIVE_FIELD_IDS.has(id);
+
+// Get default selected fields: mandatory + non-sensitive defaults (BR-8: never PII)
 const getDefaultFields = () => {
   const defaults: string[] = [];
   Object.values(ALL_FIELDS).forEach(fields => {
-    fields.filter(f => f.default).forEach(f => defaults.push(f.id));
+    fields.filter(f => (f.default || f.mandatory) && !f.sensitive).forEach(f => defaults.push(f.id));
   });
   return [...new Set(defaults)]; // Remove duplicates
 };
 
 // Sample payloads for each event type (matches actual webhook structure)
+
 
 export default function AdminWebhooks() {
   const { user } = useAuth();
