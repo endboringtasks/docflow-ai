@@ -1,80 +1,57 @@
-# DOC-52 — Webhook Payload Field Selection
+# DOC-50 — Webhook Configuration
 
-## Audit: what already exists
+## What already exists (no work needed)
 
-The per-webhook allowlist mechanism is already built and satisfies several rules:
+The webhook admin already covers most of DOC-50:
 
-- **BR-1 (scope):** selection is stored per webhook subscription (`platform_webhooks.included_fields`). We keep this per-subscription model.
-- **BR-3 (allowlist):** `filterPayloadData()` in `dispatch-webhook` includes only selected fields.
-- **BR-4 / BR-5:** each event type has a defined field schema (`ALL_FIELDS`); only those fields are selectable.
-- **BR-10:** payload is built from canonical/hydrated event data, then filtered.
-- **BR-12:** changes apply to future deliveries only.
-- **UI-1 / UI-6:** event/field selectors + Save/Cancel exist.
-- **PERM-1 / AC-1:** the page is already behind the platform-admin route guard.
+- **CRUD + enable/disable** — create/edit/duplicate/delete and an `is_active` toggle (UI-1/2/3, PF-1/2/3, AC-2, BR-1 partial).
+- **Event subscription** — topic-grouped multi-select of supported event types only (UI-5, BR-3/BR-4).
+- **Secret generation** — a `secret_key` is generated on create and stored on `platform_webhooks`.
+- **Delivery** — `dispatch-webhook` selects enabled subscribed endpoints, POSTs JSON, retries, and records every attempt to `webhook_request_logs` with status/duration/error (PF-4, BR-8/9/10/13, AC-4/5, TC-3/5). The monitoring page surfaces these logs (UI-8).
+- **Test delivery** — per-row "Send test payload" button (UI-9, TC-1).
+- **Access control** — page sits behind the platform-admin route guard (PERM-1, AC-1).
 
-## Gaps to close
+## Gaps this plan closes
 
 ```text
-BR-6 / BR-7 / AC-4 / TC-2   mandatory fields not locked; can be deselected
-BR-8                         sensitive PII fields included by default, no gating toggle
-BR-9 / AC-6 / TC-4 / PERM-3  no audit event when sensitive fields enabled
-BR-13                        mandatory fields not force-included server-side
-BR-14 / UI-7                 no save validation / inline messages
-UI-2                         no Mandatory / Sensitive badges
-UI-3                         no field search/filter
-UI-4                         no "select all non-sensitive" shortcut
-UI-5                         no warning callout for sensitive fields
-UI-8                         no payload preview panel
+BR-2 / AC-3 / TC-2   no HTTPS URL validation; any non-empty string saves
+BR-5 / BR-6 / BR-7   secret never shown after create; no copy-once; no rotation
+UI-6 / PERM-2        delivery sends raw secret in a non-standard header
+BR-14                duplicate endpoints saved silently
 ```
 
-## Field classification (decided)
+## Decisions (from you)
 
-Applied to fields that exist in the current payload schema:
-
-- **Mandatory (locked, always sent):**
-  - Envelope (always present, not in the field list): `event_id`, `event_type` (`event`), `timestamp`.
-  - Client data: `client_id` (resource_id), `company_id`/`organization_id`, `created_at`.
-  - Application data: `application_id` (resource_id), `company_id`/`organization_id`, `created_at`.
-- **Sensitive (excluded by default, gated):** `first_name`, `last_name`, `company_name`, `email`, `phone`.
-- **Optional (default on):** all remaining fields (`client_type`, `folder` ids/status, `subclass`, `status`, etc.).
-
-The broader compliance list (passport, DOB, address, visa/immigration history, financial, health, biometric, etc.) is captured as a documented sensitivity taxonomy in the field metadata so that any future payload fields are classified correctly; today none of those map to existing payload fields.
+- **Signing/auth header:** deliveries send the secret via the `x-make-apikey` HTTP header (Make.com's standard API-key header).
+- **Secret lifecycle:** show + copy the secret once at create time, mask it afterwards, and add a **Rotate secret** action.
+- **Duplicates:** show a non-blocking warning when an identical URL + event set already exists, but still allow saving.
 
 ## Changes
 
-### 1. Field metadata — `src/types/webhook.types.ts`
-Extend `WebhookFieldDefinition` with optional `mandatory?: boolean` and `sensitive?: boolean`. No breaking changes.
+### 1. HTTPS URL validation — `src/pages/admin/Webhooks.tsx`
+- Add a `validateUrl(url)` helper: must parse as a URL and use the `https:` protocol.
+- Show an inline error under the URL field and disable Save when invalid (BR-2/BR-15/AC-3/TC-2).
 
-### 2. Admin UI — `src/pages/admin/Webhooks.tsx`
-- Add `mandatory` / `sensitive` flags to the `ALL_FIELDS` definitions per the classification above; flip sensitive fields' `default` to `false`.
-- `getDefaultFields()`: include mandatory + non-sensitive defaults; never include sensitive by default.
-- Field list (rebuilt as a checkbox list, keeping current styling):
-  - **UI-2:** "Mandatory" badge on locked fields (checkbox checked + disabled); "Sensitive" badge on PII fields.
-  - **UI-3:** search input filtering fields by label/description.
-  - **UI-4:** "Select all non-sensitive" shortcut button per category.
-  - **UI-5:** an "Include sensitive fields" toggle; enabling it reveals a destructive warning callout. Sensitive checkboxes are disabled until the toggle is on.
-  - **UI-7:** inline validation messages.
-- `handleFieldToggle`: ignore toggles on mandatory fields (**AC-4 / TC-2**).
-- **BR-14 validation** before create/update: ensure all mandatory fields present and every selected field exists for the chosen events; block save with inline error otherwise. Always re-inject mandatory fields into `included_fields` on save (**BR-7 / BR-13**).
-- **BR-9 / AC-6:** when saving with one or more sensitive fields selected, write a `platform_audit_logs` row (`action: 'webhook.sensitive_fields_enabled'`, `entity_type: 'platform_webhook'`, `entity_id`, `details: { fields, webhook_name }`) via the existing client.
-- **UI-8 preview:** add a payload preview panel rendering sample JSON (envelope + filtered sample data) that updates live as fields toggle.
+### 2. Secret lifecycle UI — `src/pages/admin/Webhooks.tsx`
+- **On create:** after insert, open a "Webhook created" dialog that displays the full `secret_key` once with a Copy button and a clear "you won't be able to see this again" note (PF-1 step 8, UI-6, BR-6).
+- **List/edit:** never render the full secret again — show a masked placeholder (e.g. `••••••••last4`).
+- **Rotate secret:** add a row action (and/or a button in the edit dialog) that generates a new `crypto.randomUUID()`, updates `secret_key`, and shows the new value once in the same copy-once dialog. Confirm via an `AlertDialog` first since old consumers will break (BR-7, PERM-2).
+- Writes a `platform_audit_logs` row on rotation (`action: 'webhook.secret_rotated'`).
 
-### 3. Edge function — `supabase/functions/dispatch-webhook/index.ts`
-- Define the mandatory field set server-side. In `filterPayloadData()`, after applying the allowlist, **force-include mandatory fields** (`resource_id`, `organization_id`, `created_at`) and never drop them even if `included_fields` omits them (**BR-7 / BR-13 / AC-5**).
-- Envelope already carries `event`, `event_id`, `timestamp` — keep as-is.
-- Safe fallback (**BR-15**): if `included_fields` is null/empty, keep current behaviour (send all canonical fields).
+### 3. Duplicate warning — `src/pages/admin/Webhooks.tsx`
+- Before create/update, compare the normalized URL + sorted event set against existing webhooks (excluding the one being edited). If a match exists, show a non-blocking inline warning callout; saving stays enabled (BR-14).
 
-### 4. Database
-No schema change required — `included_fields` and `platform_audit_logs` already exist. Audit rows are written via the data API (insert), not a migration.
+### 4. Delivery header — `supabase/functions/dispatch-webhook/index.ts`
+- Replace the `x-webhook-secret` header with `x-make-apikey` carrying `webhook.secret_key` (keeps the existing plaintext-key model the user chose; no HMAC). Redeploys automatically.
 
-## Technical notes
-- Scope stays **per-subscription** (existing model); no global-default layer added, consistent with BR-1's "choose one".
-- Mandatory enforcement is duplicated client-side (UX) and server-side (guarantee) so a stale/manual config can never strip required fields.
-- Sensitive gating is purely additive: existing webhooks keep their saved `included_fields`; the default for *new* webhooks excludes PII.
+## Out of scope (per spec)
+
+Rate limiting / retry policy (DOC-54, DOC-56), payload field selection (DOC-52 — already built), advanced transformations. No DB schema change is required; `secret_key`, `webhook_request_logs`, and `platform_audit_logs` already exist.
 
 ## Verification
-- **TC-2/AC-4:** mandatory checkboxes are disabled; toggle attempts are ignored.
-- **TC-3/AC-5:** select a minimal optional set → delivered payload (via Test button + `WebhookMonitoring`) contains only mandatory + selected fields.
-- **TC-4/AC-6:** enabling a sensitive field shows the warning and writes an audit row on save.
-- **TC-5/UI-8:** toggling fields updates the preview JSON live.
-- **BR-14:** removing a required selection or selecting an invalid field blocks save with an inline message.
+
+- Enter `http://…` → inline error, Save disabled (AC-3/TC-2). Enter `https://…` → saves.
+- Create webhook → secret shown once with copy; reopen edit → secret masked.
+- Rotate → confirm dialog → new secret shown once; audit row written.
+- Save a second webhook with the same URL + events → warning shown, save still allowed.
+- Trigger/test a delivery → outbound request carries `x-make-apikey`; attempt recorded in monitoring logs.
