@@ -173,14 +173,34 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const switchCompany = (companyId: string) => {
+  const switchCompany = async (companyId: string): Promise<{ error: Error | null }> => {
+    // BR-6 / PERM-2: only allow switching to a company the user is a member of
     const membership = companies.find(m => m.company_id === companyId);
-    if (membership) {
+    if (!membership) {
+      return { error: new Error("You do not have access to this company.") };
+    }
+
+    if (membership.company_id === currentCompany?.id) {
+      return { error: null };
+    }
+
+    setSwitching(true);
+    try {
       setCurrentCompany(membership.company);
       setCurrentRole(membership.role);
       localStorage.setItem("currentCompanyId", companyId);
+      // BR-9 / BR-10: drop cached company-scoped data so all views reload
+      queryClient.clear();
+      return { error: null };
+    } catch (error) {
+      // BR-11: keep previous company on failure
+      return { error: error as Error };
+    } finally {
+      setSwitching(false);
     }
   };
+
+  const clearDefaultReselected = () => setDefaultCompanyReselected(null);
 
   return (
     <CompanyContext.Provider value={{
@@ -188,6 +208,9 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       currentRole,
       companies,
       loading,
+      switching,
+      defaultCompanyReselected,
+      clearDefaultReselected,
       createCompany,
       switchCompany,
       refetch: fetchCompanies,
