@@ -146,6 +146,26 @@ const getDefaultFields = () => {
 
 // Sample payloads for each event type (matches actual webhook structure)
 
+// BR-2/AC-3: endpoint URLs must be valid HTTPS URLs
+const isValidHttpsUrl = (value: string) => {
+  if (!value) return false;
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+// Mask a secret, revealing only the last 4 characters (BR-6)
+const maskSecret = (secret: string | null | undefined) => {
+  if (!secret) return "—";
+  const last4 = secret.slice(-4);
+  return `••••••••${last4}`;
+};
+
+
+
 
 export default function AdminWebhooks() {
   const { user } = useAuth();
