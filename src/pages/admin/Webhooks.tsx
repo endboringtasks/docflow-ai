@@ -292,6 +292,21 @@ export default function AdminWebhooks() {
     },
   });
 
+  // BR-14: warn (non-blocking) when an identical URL + event set already exists
+  const duplicateWarning = (() => {
+    if (!newWebhook.url.trim() || newWebhook.events.length === 0 || !webhooks) return null;
+    const normalizedUrl = newWebhook.url.trim().toLowerCase();
+    const sortedEvents = [...newWebhook.events].sort().join(",");
+    const match = webhooks.some((w: any) =>
+      w.id !== editingWebhook?.id &&
+      (w.url || "").trim().toLowerCase() === normalizedUrl &&
+      [...(w.events || [])].sort().join(",") === sortedEvents
+    );
+    return match
+      ? "A webhook with the same URL and event selection already exists."
+      : null;
+  })();
+
   // Field ids valid for the currently selected events (BR-5/BR-14)
   const getAvailableFieldIds = () => {
     const ids = new Set<string>();
