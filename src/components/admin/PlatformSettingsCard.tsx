@@ -56,6 +56,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import { SettingGuidancePopover } from "@/components/admin/SettingGuidancePopover";
 
 const PAGE_SIZE = 10;
 const KEY_REGEX = /^[a-z0-9]+(\.[a-z0-9_]+)*$/;
