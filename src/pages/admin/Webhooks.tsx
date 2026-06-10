@@ -1062,6 +1062,46 @@ export default function AdminWebhooks() {
             <p>• Use the webhook URL in Make.com, Zapier, or n8n as a trigger</p>
             <p>• Each delivery is authenticated with the endpoint secret sent in the <code>x-make-apikey</code> header</p>
             <p>• Each event sends a JSON payload with event type and data</p>
+            <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+              <p className="font-medium text-foreground">Verifying request signatures (HMAC-SHA256)</p>
+              <p>
+                Signed deliveries include two headers you can use to verify authenticity:
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li><code>X-Docflow-Signature: sha256=&lt;hex&gt;</code></li>
+                <li><code>X-Docflow-Timestamp</code> — unix seconds</li>
+              </ul>
+              <p>
+                The signature is computed as <code>HMAC_SHA256(secret, `${"{timestamp}"}.${"{raw_request_body}"}`)</code>.
+                Compute it over the <strong>raw request body</strong> and compare using a timing-safe equality check.
+              </p>
+              <pre className="overflow-x-auto rounded bg-background p-3 text-xs leading-relaxed">
+{`// Node.js (Express) example
+import crypto from "node:crypto";
+
+function verifyWebhook(req, secret) {
+  const timestamp = req.header("X-Docflow-Timestamp");
+  const received = req.header("X-Docflow-Signature"); // "sha256=<hex>"
+  if (!timestamp || !received) return false;
+
+  // Reject stale requests (replay protection): allow +/- 5 minutes
+  const ageSeconds = Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp));
+  if (!Number.isFinite(ageSeconds) || ageSeconds > 300) return false;
+
+  // req.rawBody must be the exact bytes received (use a raw body parser)
+  const expected =
+    "sha256=" +
+    crypto
+      .createHmac("sha256", secret)
+      .update(\`\${timestamp}.\${req.rawBody}\`)
+      .digest("hex");
+
+  const a = Buffer.from(received);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}`}
+              </pre>
+            </div>
           </CardContent>
         </Card>
 
