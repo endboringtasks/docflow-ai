@@ -38,6 +38,32 @@ interface WebhookConfig {
 // Sleep helper for retry backoff
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// BR-5/BR-6/BR-7: compute an HMAC-SHA256 signature over `${timestamp}.${rawBody}`.
+// Returns lowercase hex. Throws on failure so callers can fail the delivery
+// instead of sending an unsigned payload (BR-14/AC-5).
+async function computeSignature(
+  secret: string,
+  timestamp: string,
+  rawBody: string,
+): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signatureBuffer = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(`${timestamp}.${rawBody}`),
+  );
+  return Array.from(new Uint8Array(signatureBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 interface AttemptLog {
   attempt_number: number;
   duration_ms: number;
