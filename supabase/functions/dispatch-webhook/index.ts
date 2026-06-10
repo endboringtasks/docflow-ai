@@ -90,6 +90,9 @@ async function sendWebhookWithRetry(
 ): Promise<{ response: Response; attempts: number }> {
   const { maxRetries, baseBackoffSeconds, timeoutSeconds, maxBackoffSeconds } = options;
 
+  // Serialize the body exactly once so the signed bytes equal the bytes sent.
+  const rawBody = JSON.stringify(webhookPayload);
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     // BR-10: stable idempotency key across retries of the same delivery
@@ -100,6 +103,31 @@ async function sendWebhookWithRetry(
     // BR-5/UI-6: authenticate deliveries with the endpoint secret using
     // Make.com's standard API-key header.
     headers["x-make-apikey"] = webhook.secret_key;
+
+    // BR-5/BR-6/BR-7/BR-8: HMAC-SHA256 signature + timestamp headers.
+    // Computed once per delivery and reused across retries so the signature
+    // stays valid for the same body (pairs with the stable idempotency key).
+    // BR-14/AC-5: if signing fails, surface the failure rather than sending
+    // an unsigned payload.
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    try {
+      const signature = await computeSignature(webhook.secret_key, timestamp, rawBody);
+      headers["X-Docflow-Timestamp"] = timestamp;
+      headers["X-Docflow-Signature"] = `sha256=${signature}`;
+    } catch (signError) {
+      const message = signError instanceof Error ? signError.message : String(signError);
+      console.error(`Webhook ${webhook.name} signing failed: ${message}`);
+      // BR-14/AC-5: record an observable failure and abort this delivery.
+      await onAttempt({
+        attempt_number: 1,
+        duration_ms: 0,
+        status_code: 0,
+        error_message: `signing_failed: ${message}`.slice(0, 800),
+        will_retry: false,
+        final_state: "failed",
+      });
+      throw new Error(`Webhook signing failed: ${message}`);
+    }
   }
 
   let lastError: Error | null = null;
