@@ -42,7 +42,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Webhook, Plus, Trash2, Copy, ExternalLink, ChevronDown, ChevronRight, Send, Loader2, Pencil, CopyPlus } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Webhook, Plus, Trash2, Copy, ExternalLink, ChevronDown, ChevronRight, Send, Loader2, Pencil, CopyPlus, Search, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
