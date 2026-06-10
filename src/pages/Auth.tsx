@@ -10,6 +10,7 @@ import { useCompany } from "@/hooks/useCompany";
 import { PendingInvitations } from "@/components/auth/PendingInvitations";
 import { SEO } from "@/components/SEO";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { getSafeReturnTo } from "@/lib/safeRedirect";
 
 import { z } from "zod";
 
