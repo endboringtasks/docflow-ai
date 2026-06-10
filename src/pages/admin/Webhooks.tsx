@@ -723,38 +723,134 @@ export default function AdminWebhooks() {
                   </div>
                 </div>
                 
-                {/* Optional Fields Section */}
+                {/* Payload Field Selection (DOC-52) */}
                 {newWebhook.events.length > 0 && (
                   <div className="space-y-2">
                     <Label>Fields to Include</Label>
                     <p className="text-xs text-muted-foreground">
-                      Select which fields to include in webhook payloads:
+                      Choose which fields are included in webhook payloads. Mandatory fields are always sent.
                     </p>
+
+                    {/* UI-3: search */}
+                    <div className="relative mt-2">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        className="pl-8"
+                        placeholder="Search fields..."
+                        value={fieldSearch}
+                        onChange={(e) => setFieldSearch(e.target.value)}
+                      />
+                    </div>
+
+                    {/* UI-5: sensitive gate + warning */}
+                    <div className="flex items-center justify-between rounded-lg border p-3 mt-2">
+                      <div className="space-y-0.5 pr-3">
+                        <span className="text-sm font-medium">Include sensitive fields</span>
+                        <p className="text-xs text-muted-foreground">
+                          Allow selecting PII fields (name, email, phone). Excluded by default.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={includeSensitive}
+                        onCheckedChange={handleIncludeSensitiveToggle}
+                      />
+                    </div>
+                    {includeSensitive && (
+                      <Alert variant="destructive" className="mt-2">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle>Sensitive data warning</AlertTitle>
+                        <AlertDescription>
+                          Including PII in webhook payloads increases privacy and security exposure.
+                          Enabling sensitive fields is recorded in the platform audit log.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
                     <div className="space-y-3 mt-2">
-                      {getRelevantFieldCategories().map((category) => (
-                        <div key={category.key} className="p-3 border rounded-lg space-y-2">
-                          <span className="text-sm font-medium">{category.label}</span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {ALL_FIELDS[category.key].map((field) => {
-                              const isSelected = newWebhook.included_fields.includes(field.id);
-                              return (
-                                <Badge
-                                  key={field.id}
-                                  variant={isSelected ? "default" : "outline"}
-                                  className="text-xs cursor-pointer hover:opacity-80 transition-opacity"
-                                  onClick={() => handleFieldToggle(field.id)}
-                                  title={field.description}
-                                >
-                                  {field.label}
-                                </Badge>
-                              );
-                            })}
+                      {getRelevantFieldCategories().map((category) => {
+                        const term = fieldSearch.trim().toLowerCase();
+                        const fields = ALL_FIELDS[category.key].filter(
+                          (f) =>
+                            !term ||
+                            f.label.toLowerCase().includes(term) ||
+                            f.description.toLowerCase().includes(term)
+                        );
+                        if (fields.length === 0) return null;
+                        return (
+                          <div key={category.key} className="p-3 border rounded-lg space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">{category.label}</span>
+                              {/* UI-4 */}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => handleSelectAllNonSensitive(category.key)}
+                              >
+                                Select all non-sensitive
+                              </Button>
+                            </div>
+                            <div className="space-y-1.5">
+                              {fields.map((field) => {
+                                const isSelected =
+                                  field.mandatory || newWebhook.included_fields.includes(field.id);
+                                const locked =
+                                  field.mandatory || (field.sensitive && !includeSensitive);
+                                return (
+                                  <div key={field.id} className="flex items-start gap-2">
+                                    <Checkbox
+                                      id={`field-${category.key}-${field.id}`}
+                                      checked={isSelected}
+                                      disabled={locked}
+                                      onCheckedChange={() => handleFieldToggle(field.id)}
+                                      className="mt-0.5"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <label
+                                        htmlFor={`field-${category.key}-${field.id}`}
+                                        className="text-sm flex items-center gap-1.5 flex-wrap cursor-pointer"
+                                      >
+                                        {field.label}
+                                        {/* UI-2 badges */}
+                                        {field.mandatory && (
+                                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                            Mandatory
+                                          </Badge>
+                                        )}
+                                        {field.sensitive && (
+                                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                                            Sensitive
+                                          </Badge>
+                                        )}
+                                      </label>
+                                      <p className="text-xs text-muted-foreground">{field.description}</p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
+                    </div>
+
+                    {/* UI-7: inline validation */}
+                    {validationError && (
+                      <p className="text-sm font-medium text-destructive mt-1">{validationError}</p>
+                    )}
+
+                    {/* UI-8: payload preview */}
+                    <div className="mt-3 space-y-1.5">
+                      <span className="text-sm font-medium">Payload preview</span>
+                      <pre className="max-h-56 overflow-auto rounded-lg border bg-muted/50 p-3 text-xs">
+                        {JSON.stringify(buildPreviewPayload(), null, 2)}
+                      </pre>
                     </div>
                   </div>
                 )}
+                
+
                 
                 <div className="space-y-2">
                   <Label htmlFor="timeout">Folder Creation Timeout (seconds)</Label>
