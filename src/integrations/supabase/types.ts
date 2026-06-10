@@ -2359,6 +2359,12 @@ export type Database = {
           total_requests: number
         }[]
       }
+      get_webhook_log_endpoints: {
+        Args: never
+        Returns: {
+          endpoint: string
+        }[]
+      }
       has_client_access: {
         Args: { _client_id: string; _company_id: string; _user_id: string }
         Returns: boolean
