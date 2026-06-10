@@ -49,6 +49,9 @@ interface WebhookLog {
   error_message: string | null;
   rate_limited: boolean;
   created_at: string;
+  attempt_number: number | null;
+  will_retry: boolean | null;
+  final_state: string | null;
 }
 
 interface HourlyStat {
