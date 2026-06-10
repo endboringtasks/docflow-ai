@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Building2, ChevronDown, Check, Plus, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,8 +14,27 @@ import { useCompany } from "@/hooks/useCompany";
 
 export function CompanySwitcher() {
   const navigate = useNavigate();
-  const { currentCompany, currentRole, companies, loading, switchCompany } = useCompany();
+  const {
+    currentCompany,
+    currentRole,
+    companies,
+    loading,
+    switching,
+    switchCompany,
+    defaultCompanyReselected,
+    clearDefaultReselected,
+  } = useCompany();
   const [open, setOpen] = useState(false);
+
+  // BR-12: notify the user once when their previous workspace is no longer available
+  useEffect(() => {
+    if (defaultCompanyReselected) {
+      toast.info(
+        `Your previous workspace is no longer available. Switched to ${defaultCompanyReselected.name}.`
+      );
+      clearDefaultReselected();
+    }
+  }, [defaultCompanyReselected, clearDefaultReselected]);
 
   if (loading) {
     return (
@@ -47,16 +67,43 @@ export function CompanySwitcher() {
     );
   }
 
-  const handleSwitch = (companyId: string, niche: string) => {
-    switchCompany(companyId);
+  // BR-1 / BR-2 / AC-2 / TC-3: only multi-company users get a switcher
+  if (companies.length < 2) {
+    return (
+      <div className="w-full flex items-center gap-3 p-3 rounded-lg bg-sidebar-accent">
+        <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+          <Building2 className="w-4 h-4 text-primary" />
+        </div>
+        <div className="flex-1 text-left min-w-0">
+          <p className="text-sm font-medium text-sidebar-foreground truncate">
+            {currentCompany.name}
+          </p>
+          <p className="text-xs text-sidebar-foreground/60 capitalize">{currentRole}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const handleSwitch = async (companyId: string, niche: string) => {
     setOpen(false);
+    const { error } = await switchCompany(companyId);
+    if (error) {
+      // BR-11 / UI-8: keep previous company, surface the error
+      toast.error(error.message || "Failed to switch company. Please try again.");
+      return;
+    }
+    const target = companies.find((m) => m.company_id === companyId);
+    toast.success(`Switched to ${target?.company.name ?? "company"}`);
     navigate(`/app/${niche}/dashboard`);
   };
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
-        <button className="w-full flex items-center gap-3 p-3 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors">
+      <DropdownMenuTrigger asChild disabled={switching}>
+        <button
+          disabled={switching}
+          className="w-full flex items-center gap-3 p-3 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+        >
           <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
             <Building2 className="w-4 h-4 text-primary" />
           </div>
@@ -65,10 +112,14 @@ export function CompanySwitcher() {
               {currentCompany.name}
             </p>
             <p className="text-xs text-sidebar-foreground/60 capitalize">
-              {currentRole}
+              {switching ? "Switching…" : currentRole}
             </p>
           </div>
-          <ChevronDown className="w-4 h-4 text-sidebar-foreground/60 shrink-0" />
+          {switching ? (
+            <Loader2 className="w-4 h-4 text-sidebar-foreground/60 shrink-0 animate-spin" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-sidebar-foreground/60 shrink-0" />
+          )}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">

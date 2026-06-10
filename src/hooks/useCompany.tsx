@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 
@@ -26,8 +27,11 @@ interface CompanyContextType {
   currentRole: CompanyRole | null;
   companies: CompanyMembership[];
   loading: boolean;
+  switching: boolean;
+  defaultCompanyReselected: Company | null;
+  clearDefaultReselected: () => void;
   createCompany: (name: string, niche: Niche) => Promise<{ error: Error | null; company: Company | null }>;
-  switchCompany: (companyId: string) => void;
+  switchCompany: (companyId: string) => Promise<{ error: Error | null }>;
   refetch: () => Promise<void>;
 }
 
@@ -35,10 +39,13 @@ const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 
 export function CompanyProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [companies, setCompanies] = useState<CompanyMembership[]>([]);
   const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
   const [currentRole, setCurrentRole] = useState<CompanyRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [switching, setSwitching] = useState(false);
+  const [defaultCompanyReselected, setDefaultCompanyReselected] = useState<Company | null>(null);
 
   const fetchCompanies = async () => {
     if (!user) {
@@ -88,9 +95,13 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         setCurrentCompany(storedMembership.company);
         setCurrentRole(storedMembership.role);
       } else if (memberships.length > 0) {
+        // BR-12: stored company no longer accessible — fall back to a valid default
         setCurrentCompany(memberships[0].company);
         setCurrentRole(memberships[0].role);
         localStorage.setItem("currentCompanyId", memberships[0].company_id);
+        if (storedCompanyId) {
+          setDefaultCompanyReselected(memberships[0].company);
+        }
       }
     } catch (error) {
       console.error("Error fetching companies:", error);
@@ -162,14 +173,34 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const switchCompany = (companyId: string) => {
+  const switchCompany = async (companyId: string): Promise<{ error: Error | null }> => {
+    // BR-6 / PERM-2: only allow switching to a company the user is a member of
     const membership = companies.find(m => m.company_id === companyId);
-    if (membership) {
+    if (!membership) {
+      return { error: new Error("You do not have access to this company.") };
+    }
+
+    if (membership.company_id === currentCompany?.id) {
+      return { error: null };
+    }
+
+    setSwitching(true);
+    try {
       setCurrentCompany(membership.company);
       setCurrentRole(membership.role);
       localStorage.setItem("currentCompanyId", companyId);
+      // BR-9 / BR-10: drop cached company-scoped data so all views reload
+      queryClient.clear();
+      return { error: null };
+    } catch (error) {
+      // BR-11: keep previous company on failure
+      return { error: error as Error };
+    } finally {
+      setSwitching(false);
     }
   };
+
+  const clearDefaultReselected = () => setDefaultCompanyReselected(null);
 
   return (
     <CompanyContext.Provider value={{
@@ -177,6 +208,9 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       currentRole,
       companies,
       loading,
+      switching,
+      defaultCompanyReselected,
+      clearDefaultReselected,
       createCompany,
       switchCompany,
       refetch: fetchCompanies,
