@@ -71,7 +71,9 @@ async function sendWebhookWithRetry(
   };
 
   if (webhook.secret_key) {
-    headers["x-webhook-secret"] = webhook.secret_key;
+    // BR-5/UI-6: authenticate deliveries with the endpoint secret using
+    // Make.com's standard API-key header.
+    headers["x-make-apikey"] = webhook.secret_key;
   }
 
   let lastError: Error | null = null;

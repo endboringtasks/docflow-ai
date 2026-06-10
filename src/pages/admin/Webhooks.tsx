@@ -43,7 +43,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Webhook, Plus, Trash2, Copy, ExternalLink, ChevronDown, ChevronRight, Send, Loader2, Pencil, CopyPlus, Search, AlertTriangle } from "lucide-react";
+import { Webhook, Plus, Trash2, Copy, ExternalLink, ChevronDown, ChevronRight, Send, Loader2, Pencil, CopyPlus, Search, AlertTriangle, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -146,6 +146,26 @@ const getDefaultFields = () => {
 
 // Sample payloads for each event type (matches actual webhook structure)
 
+// BR-2/AC-3: endpoint URLs must be valid HTTPS URLs
+const isValidHttpsUrl = (value: string) => {
+  if (!value) return false;
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+// Mask a secret, revealing only the last 4 characters (BR-6)
+const maskSecret = (secret: string | null | undefined) => {
+  if (!secret) return "—";
+  const last4 = secret.slice(-4);
+  return `••••••••${last4}`;
+};
+
+
+
 
 export default function AdminWebhooks() {
   const { user } = useAuth();
@@ -180,7 +200,20 @@ export default function AdminWebhooks() {
   const [fieldSearch, setFieldSearch] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // DOC-50: secret reveal (copy-once) + rotation
+  const [revealedSecret, setRevealedSecret] = useState<{ name: string; secret: string; rotated: boolean } | null>(null);
+  const [rotatingWebhook, setRotatingWebhook] = useState<{ id: string; name: string } | null>(null);
+
   const hasSensitiveSelected = (fields: string[]) => fields.some((f) => isSensitiveField(f));
+
+  // BR-2/AC-3: URL must be a valid HTTPS URL
+  const urlError = newWebhook.url.trim() && !isValidHttpsUrl(newWebhook.url)
+    ? "Enter a valid HTTPS URL (must start with https://)."
+    : null;
+
+
+
+
 
   // Always ensure mandatory fields are present in a selection (BR-7/BR-13)
   const withMandatoryFields = (fields: string[]) =>
@@ -259,6 +292,21 @@ export default function AdminWebhooks() {
     },
   });
 
+  // BR-14: warn (non-blocking) when an identical URL + event set already exists
+  const duplicateWarning = (() => {
+    if (!newWebhook.url.trim() || newWebhook.events.length === 0 || !webhooks) return null;
+    const normalizedUrl = newWebhook.url.trim().toLowerCase();
+    const sortedEvents = [...newWebhook.events].sort().join(",");
+    const match = webhooks.some((w: any) =>
+      w.id !== editingWebhook?.id &&
+      (w.url || "").trim().toLowerCase() === normalizedUrl &&
+      [...(w.events || [])].sort().join(",") === sortedEvents
+    );
+    return match
+      ? "A webhook with the same URL and event selection already exists."
+      : null;
+  })();
+
   // Field ids valid for the currently selected events (BR-5/BR-14)
   const getAvailableFieldIds = () => {
     const ids = new Set<string>();
@@ -331,18 +379,52 @@ export default function AdminWebhooks() {
       }).select("id").single();
       if (error) throw error;
       await writeSensitiveAudit(resolved, data?.id ?? null);
+      return { name: newWebhook.name, secret: secretKey };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
       setIsDialogOpen(false);
       resetForm();
       toast.success("Webhook created successfully");
+      // UI-6/BR-6: show the secret once (copy-once)
+      setRevealedSecret({ name: result.name, secret: result.secret, rotated: false });
     },
     onError: (error) => {
       if (error.message === "validation") return;
       toast.error("Failed to create webhook: " + error.message);
     },
   });
+
+  // BR-7/PERM-2: rotate an endpoint's signing secret
+  const rotateSecret = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const secretKey = crypto.randomUUID();
+      const { error } = await supabase
+        .from("platform_webhooks")
+        .update({ secret_key: secretKey })
+        .eq("id", id);
+      if (error) throw error;
+      await supabase.from("platform_audit_logs").insert({
+        user_id: user?.id ?? null,
+        action: "webhook.secret_rotated",
+        entity_type: "platform_webhook",
+        entity_id: id,
+        details: { webhook_name: name },
+      });
+      return { name, secret: secretKey };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
+      setRotatingWebhook(null);
+      toast.success("Secret rotated");
+      setRevealedSecret({ name: result.name, secret: result.secret, rotated: true });
+    },
+    onError: (error) => {
+      setRotatingWebhook(null);
+      toast.error("Failed to rotate secret: " + error.message);
+    },
+  });
+
 
   const updateWebhook = useMutation({
     mutationFn: async () => {
@@ -658,8 +740,19 @@ export default function AdminWebhooks() {
                     placeholder="https://hook.make.com/..."
                     value={newWebhook.url}
                     onChange={(e) => setNewWebhook((prev) => ({ ...prev, url: e.target.value }))}
+                    aria-invalid={!!urlError}
                   />
+                  {urlError && (
+                    <p className="text-sm font-medium text-destructive">{urlError}</p>
+                  )}
+                  {duplicateWarning && !urlError && (
+                    <Alert variant="default" className="mt-1">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>{duplicateWarning}</AlertDescription>
+                    </Alert>
+                  )}
                 </div>
+
                 <div className="space-y-2">
                   <Label>Events to Subscribe</Label>
                   <div className="space-y-3">
@@ -947,7 +1040,7 @@ export default function AdminWebhooks() {
                 </Button>
                 <Button
                   onClick={() => editingWebhook ? updateWebhook.mutate() : createWebhook.mutate()}
-                  disabled={!newWebhook.name || !newWebhook.url || newWebhook.events.length === 0}
+                  disabled={!newWebhook.name || !newWebhook.url || !!urlError || !isValidHttpsUrl(newWebhook.url) || newWebhook.events.length === 0}
                 >
                   {editingWebhook ? "Update Webhook" : "Create Webhook"}
                 </Button>
@@ -967,7 +1060,7 @@ export default function AdminWebhooks() {
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-2">
             <p>• Use the webhook URL in Make.com, Zapier, or n8n as a trigger</p>
-            <p>• The secret key is used for verifying webhook signatures (HMAC-SHA256)</p>
+            <p>• Each delivery is authenticated with the endpoint secret sent in the <code>x-make-apikey</code> header</p>
             <p>• Each event sends a JSON payload with event type and data</p>
           </CardContent>
         </Card>
@@ -1082,6 +1175,15 @@ export default function AdminWebhooks() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => setRotatingWebhook({ id: webhook.id, name: webhook.name })}
+                            title="Rotate signing secret"
+                          >
+                            <KeyRound className="w-4 h-4" />
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => openDuplicateDialog(webhook)}
                             title="Duplicate webhook"
                           >
@@ -1140,6 +1242,62 @@ export default function AdminWebhooks() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Rotate Secret Confirmation */}
+      <AlertDialog open={!!rotatingWebhook} onOpenChange={(open) => !open && setRotatingWebhook(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rotate signing secret</AlertDialogTitle>
+            <AlertDialogDescription>
+              This generates a new secret for "{rotatingWebhook?.name}" and immediately invalidates the
+              old one. Any consumer still using the previous secret will be rejected until updated.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => rotatingWebhook && rotateSecret.mutate(rotatingWebhook)}
+              disabled={rotateSecret.isPending}
+            >
+              Rotate secret
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Copy-once Secret Reveal (UI-6/BR-6) */}
+      <Dialog open={!!revealedSecret} onOpenChange={(open) => !open && setRevealedSecret(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{revealedSecret?.rotated ? "Secret rotated" : "Webhook created"}</DialogTitle>
+            <DialogDescription>
+              Copy this signing secret now. For security, it is masked afterwards and cannot be shown again.
+            </DialogDescription>
+          </DialogHeader>
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Store it securely</AlertTitle>
+            <AlertDescription>
+              You won't be able to view this secret again. Rotate it if you lose it.
+            </AlertDescription>
+          </Alert>
+          <div className="flex items-center gap-2">
+            <Input readOnly value={revealedSecret?.secret ?? ""} className="font-mono text-xs" />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => revealedSecret && copySecret(revealedSecret.secret)}
+              title="Copy secret"
+            >
+              <Copy className="w-4 h-4" />
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setRevealedSecret(null)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
