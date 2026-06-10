@@ -19,7 +19,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!user) {
-    return <Navigate to="/auth" state={{ from: location }} replace />;
+    // BR-6: preserve the originally requested path (and query) as a return target.
+    const returnTo = `${location.pathname}${location.search}`;
+    const redirectTo = `/auth?returnTo=${encodeURIComponent(returnTo)}`;
+    return <Navigate to={redirectTo} replace />;
   }
 
   return <>{children}</>;
