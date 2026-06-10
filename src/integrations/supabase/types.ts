@@ -1507,10 +1507,12 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          delivery_timeout_seconds: number
           events: string[]
           id: string
           included_fields: string[] | null
           is_active: boolean
+          max_backoff_seconds: number | null
           max_retries: number | null
           name: string
           retry_backoff_seconds: number | null
@@ -1522,10 +1524,12 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          delivery_timeout_seconds?: number
           events?: string[]
           id?: string
           included_fields?: string[] | null
           is_active?: boolean
+          max_backoff_seconds?: number | null
           max_retries?: number | null
           name: string
           retry_backoff_seconds?: number | null
@@ -1537,10 +1541,12 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          delivery_timeout_seconds?: number
           events?: string[]
           id?: string
           included_fields?: string[] | null
           is_active?: boolean
+          max_backoff_seconds?: number | null
           max_retries?: number | null
           name?: string
           retry_backoff_seconds?: number | null
@@ -2161,43 +2167,52 @@ export type Database = {
       }
       webhook_request_logs: {
         Row: {
+          attempt_number: number | null
           client_ip: string | null
           created_at: string
           duration_ms: number | null
           endpoint: string
           error_message: string | null
+          final_state: string | null
           id: string
           method: string
           rate_limited: boolean | null
           request_id: string
           status_code: number
           user_agent: string | null
+          will_retry: boolean | null
         }
         Insert: {
+          attempt_number?: number | null
           client_ip?: string | null
           created_at?: string
           duration_ms?: number | null
           endpoint: string
           error_message?: string | null
+          final_state?: string | null
           id?: string
           method?: string
           rate_limited?: boolean | null
           request_id: string
           status_code: number
           user_agent?: string | null
+          will_retry?: boolean | null
         }
         Update: {
+          attempt_number?: number | null
           client_ip?: string | null
           created_at?: string
           duration_ms?: number | null
           endpoint?: string
           error_message?: string | null
+          final_state?: string | null
           id?: string
           method?: string
           rate_limited?: boolean | null
           request_id?: string
           status_code?: number
           user_agent?: string | null
+          will_retry?: boolean | null
         }
         Relationships: []
       }
