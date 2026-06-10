@@ -64,12 +64,34 @@ export type WebhookEntityCategory = "client" | "visa_application";
 
 // ============= Configuration Types =============
 
+/**
+ * Sensitivity taxonomy (DOC-52 BR-8).
+ * Categorizes the privacy classification of a field. Today only a subset maps to
+ * actual payload fields, but the taxonomy documents how future fields should be
+ * classified (passport, DOB, address, visa/immigration history, financial,
+ * health, biometric, etc.).
+ */
+export type WebhookSensitivityCategory =
+  | "identity"        // name
+  | "contact"         // email, phone, address
+  | "government_id"   // passport, immigration/visa details
+  | "demographic"     // date of birth, racial/ethnic origin, religion, etc.
+  | "financial"
+  | "health"
+  | "biometric";
+
 /** Field definition for webhook payloads */
 export interface WebhookFieldDefinition {
   id: string;
   label: string;
   description: string;
   default: boolean;
+  /** BR-6/BR-7: always included and locked in the UI. */
+  mandatory?: boolean;
+  /** BR-8: PII/sensitive — excluded by default, gated behind a warning toggle. */
+  sensitive?: boolean;
+  /** Optional sensitivity classification for documentation/audit. */
+  sensitivityCategory?: WebhookSensitivityCategory;
 }
 
 /** Topic configuration for grouping events */
