@@ -54,13 +54,30 @@ const Auth = () => {
   // Redirect based on authentication and company status
   useEffect(() => {
     if (!authLoading && !companyLoading && user) {
+      // BR-7 / UI-5: honour a preserved deep link after successful auth.
+      const rawReturnTo = searchParams.get("returnTo");
+      const safeReturnTo = getSafeReturnTo(rawReturnTo);
+
+      if (safeReturnTo) {
+        navigate(safeReturnTo, { replace: true });
+        return;
+      }
+
+      // BR-9 / UI-7 / AC-5: an unsafe return target is ignored with a warning.
+      if (rawReturnTo) {
+        toast.warning("Returning to a safe page", {
+          description: "The requested link could not be opened.",
+        });
+      }
+
+      // UI-6 / BR-8: fall back to a safe default destination.
       if (currentCompany) {
-        navigate(`/app/${currentCompany.niche}/dashboard`);
+        navigate(`/app/${currentCompany.niche}/dashboard`, { replace: true });
       } else {
-        navigate("/onboarding");
+        navigate("/onboarding", { replace: true });
       }
     }
-  }, [user, authLoading, currentCompany, companyLoading, navigate]);
+  }, [user, authLoading, currentCompany, companyLoading, navigate, searchParams]);
 
   // Handle magic-link errors in URL fragment (e.g. #error_code=otp_expired)
   useEffect(() => {
