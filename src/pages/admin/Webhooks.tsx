@@ -379,18 +379,52 @@ export default function AdminWebhooks() {
       }).select("id").single();
       if (error) throw error;
       await writeSensitiveAudit(resolved, data?.id ?? null);
+      return { name: newWebhook.name, secret: secretKey };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
       setIsDialogOpen(false);
       resetForm();
       toast.success("Webhook created successfully");
+      // UI-6/BR-6: show the secret once (copy-once)
+      setRevealedSecret({ name: result.name, secret: result.secret, rotated: false });
     },
     onError: (error) => {
       if (error.message === "validation") return;
       toast.error("Failed to create webhook: " + error.message);
     },
   });
+
+  // BR-7/PERM-2: rotate an endpoint's signing secret
+  const rotateSecret = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const secretKey = crypto.randomUUID();
+      const { error } = await supabase
+        .from("platform_webhooks")
+        .update({ secret_key: secretKey })
+        .eq("id", id);
+      if (error) throw error;
+      await supabase.from("platform_audit_logs").insert({
+        user_id: user?.id ?? null,
+        action: "webhook.secret_rotated",
+        entity_type: "platform_webhook",
+        entity_id: id,
+        details: { webhook_name: name },
+      });
+      return { name, secret: secretKey };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
+      setRotatingWebhook(null);
+      toast.success("Secret rotated");
+      setRevealedSecret({ name: result.name, secret: result.secret, rotated: true });
+    },
+    onError: (error) => {
+      setRotatingWebhook(null);
+      toast.error("Failed to rotate secret: " + error.message);
+    },
+  });
+
 
   const updateWebhook = useMutation({
     mutationFn: async () => {
