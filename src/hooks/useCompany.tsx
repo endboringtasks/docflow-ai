@@ -27,8 +27,11 @@ interface CompanyContextType {
   currentRole: CompanyRole | null;
   companies: CompanyMembership[];
   loading: boolean;
+  switching: boolean;
+  defaultCompanyReselected: Company | null;
+  clearDefaultReselected: () => void;
   createCompany: (name: string, niche: Niche) => Promise<{ error: Error | null; company: Company | null }>;
-  switchCompany: (companyId: string) => void;
+  switchCompany: (companyId: string) => Promise<{ error: Error | null }>;
   refetch: () => Promise<void>;
 }
 
@@ -36,10 +39,13 @@ const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 
 export function CompanyProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [companies, setCompanies] = useState<CompanyMembership[]>([]);
   const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
   const [currentRole, setCurrentRole] = useState<CompanyRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [switching, setSwitching] = useState(false);
+  const [defaultCompanyReselected, setDefaultCompanyReselected] = useState<Company | null>(null);
 
   const fetchCompanies = async () => {
     if (!user) {
