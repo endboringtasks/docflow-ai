@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Settings, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { SettingGuidancePopover } from "@/components/admin/SettingGuidancePopover";
 
 interface ConfigParam {
   key: string;
@@ -131,8 +132,9 @@ export function UploadSyncConfigCard() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {CONFIG_PARAMS.map((param) => (
               <div key={param.key} className="space-y-1.5">
-                <Label htmlFor={param.key} className="text-sm font-medium">
+                <Label htmlFor={param.key} className="text-sm font-medium flex items-center gap-1.5">
                   {param.label}
+                  <SettingGuidancePopover settingKey={param.key} />
                 </Label>
                 <div className="flex items-center gap-2">
                   <Input

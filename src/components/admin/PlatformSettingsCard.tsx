@@ -56,6 +56,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import { SettingGuidancePopover } from "@/components/admin/SettingGuidancePopover";
 
 const PAGE_SIZE = 10;
 const KEY_REGEX = /^[a-z0-9]+(\.[a-z0-9_]+)*$/;
@@ -317,6 +318,7 @@ export function PlatformSettingsCard() {
                 <TableRow>
                   <TableHead>Key</TableHead>
                   <TableHead>Value</TableHead>
+                  <TableHead>Description</TableHead>
                   <TableHead>Secret</TableHead>
                   <TableHead>Updated at</TableHead>
                   <TableHead>Updated by</TableHead>
@@ -352,6 +354,16 @@ export function PlatformSettingsCard() {
                               {revealed.has(setting.id) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                             </Button>
                           )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-start gap-1.5 max-w-[320px]">
+                          <span className="text-sm text-muted-foreground">
+                            {setting.description || "—"}
+                          </span>
+                          <span className="shrink-0 pt-0.5">
+                            <SettingGuidancePopover settingKey={setting.key} />
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell>
