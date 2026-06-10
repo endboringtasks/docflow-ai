@@ -258,15 +258,68 @@ export default function AdminWebhooks() {
     },
   });
 
+  // Field ids valid for the currently selected events (BR-5/BR-14)
+  const getAvailableFieldIds = () => {
+    const ids = new Set<string>();
+    if (newWebhook.events.some((e) => e.startsWith("client."))) {
+      ALL_FIELDS.client.forEach((f) => ids.add(f.id));
+    }
+    if (newWebhook.events.some((e) => e.startsWith("application."))) {
+      ALL_FIELDS.visa_application.forEach((f) => ids.add(f.id));
+    }
+    return ids;
+  };
+
+  // BR-14: validate selection before save. Returns the resolved field list or null.
+  const resolveAndValidateFields = (): string[] | null => {
+    const available = getAvailableFieldIds();
+    // Mandatory fields that apply to the selected events
+    const requiredMandatory = MANDATORY_FIELD_IDS.filter((id) => available.has(id));
+    const resolved = [...new Set([...newWebhook.included_fields, ...requiredMandatory])];
+
+    // Every selected field must exist for the chosen events
+    const invalid = resolved.filter((id) => !available.has(id));
+    if (invalid.length > 0) {
+      setValidationError(`These fields are not valid for the selected events: ${invalid.join(", ")}`);
+      return null;
+    }
+    // Mandatory fields must all be present
+    const missing = requiredMandatory.filter((id) => !resolved.includes(id));
+    if (missing.length > 0) {
+      setValidationError(`Mandatory fields cannot be removed: ${missing.join(", ")}`);
+      return null;
+    }
+    setValidationError(null);
+    return resolved;
+  };
+
+  // BR-9/AC-6/PERM-3: audit when sensitive fields are saved
+  const writeSensitiveAudit = async (fields: string[], webhookId: string | null) => {
+    const sensitiveSelected = fields.filter((f) => isSensitiveField(f));
+    if (sensitiveSelected.length === 0) return;
+    await supabase.from("platform_audit_logs").insert({
+      user_id: user?.id ?? null,
+      action: "webhook.sensitive_fields_enabled",
+      entity_type: "platform_webhook",
+      entity_id: webhookId,
+      details: {
+        webhook_name: newWebhook.name,
+        sensitive_fields: sensitiveSelected,
+      },
+    });
+  };
+
   const createWebhook = useMutation({
     mutationFn: async () => {
+      const resolved = resolveAndValidateFields();
+      if (!resolved) throw new Error("validation");
       const secretKey = crypto.randomUUID();
-      
-      const { error } = await supabase.from("platform_webhooks").insert({
+
+      const { data, error } = await supabase.from("platform_webhooks").insert({
         name: newWebhook.name,
         url: newWebhook.url,
         events: newWebhook.events,
-        included_fields: newWebhook.included_fields,
+        included_fields: resolved,
         timeout_seconds: newWebhook.timeout_seconds,
         max_retries: newWebhook.max_retries,
         retry_backoff_seconds: newWebhook.retry_backoff_seconds,
@@ -274,8 +327,9 @@ export default function AdminWebhooks() {
         max_backoff_seconds: newWebhook.max_backoff_seconds,
         secret_key: secretKey,
         created_by: user?.id,
-      });
+      }).select("id").single();
       if (error) throw error;
+      await writeSensitiveAudit(resolved, data?.id ?? null);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
@@ -284,6 +338,7 @@ export default function AdminWebhooks() {
       toast.success("Webhook created successfully");
     },
     onError: (error) => {
+      if (error.message === "validation") return;
       toast.error("Failed to create webhook: " + error.message);
     },
   });
@@ -291,14 +346,16 @@ export default function AdminWebhooks() {
   const updateWebhook = useMutation({
     mutationFn: async () => {
       if (!editingWebhook) throw new Error("No webhook selected for editing");
-      
+      const resolved = resolveAndValidateFields();
+      if (!resolved) throw new Error("validation");
+
       const { error } = await supabase
         .from("platform_webhooks")
         .update({
           name: newWebhook.name,
           url: newWebhook.url,
           events: newWebhook.events,
-          included_fields: newWebhook.included_fields,
+          included_fields: resolved,
           timeout_seconds: newWebhook.timeout_seconds,
           max_retries: newWebhook.max_retries,
           retry_backoff_seconds: newWebhook.retry_backoff_seconds,
@@ -307,6 +364,7 @@ export default function AdminWebhooks() {
         })
         .eq("id", editingWebhook.id);
       if (error) throw error;
+      await writeSensitiveAudit(resolved, editingWebhook.id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
@@ -315,9 +373,11 @@ export default function AdminWebhooks() {
       toast.success("Webhook updated successfully");
     },
     onError: (error) => {
+      if (error.message === "validation") return;
       toast.error("Failed to update webhook: " + error.message);
     },
   });
+
 
   const updateTimeout = useMutation({
     mutationFn: async ({ id, timeout }: { id: string; timeout: number }) => {
