@@ -13,6 +13,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { TeamMembers } from "@/components/settings/TeamMembers";
 import { UserProfile } from "@/components/settings/UserProfile";
 import { GoogleDriveConnection } from "@/components/settings/GoogleDriveConnection";
+import { DeleteAccountCard } from "@/components/settings/DeleteAccountCard";
 import { SEO } from "@/components/SEO";
 
 const Settings = () => {
@@ -221,7 +222,11 @@ const Settings = () => {
 
         {/* Team Members */}
         <TeamMembers />
+
+        {/* Danger Zone - Account Deletion (DOC-84) */}
+        <DeleteAccountCard />
       </div>
+
       </AppLayout>
     </>
   );

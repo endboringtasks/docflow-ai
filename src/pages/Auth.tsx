@@ -35,6 +35,18 @@ const Auth = () => {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [expiredEmail, setExpiredEmail] = useState("");
+
+  // DOC-84: confirmation after self-initiated account deletion
+  useEffect(() => {
+    if (searchParams.get("deleted") === "1") {
+      toast.success("Your account has been deleted", {
+        description: "All your personal data has been permanently removed. You have been signed out.",
+        duration: 8000,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   
   const getAuthErrorDescription = (error: Error) => {
     const message = error?.message || "Unknown error";

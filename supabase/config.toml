@@ -62,3 +62,7 @@ verify_jwt = false
 
 [functions.cleanup-synced-storage]
 verify_jwt = false
+
+[functions.delete-my-account]
+verify_jwt = true
+
