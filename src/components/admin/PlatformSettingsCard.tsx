@@ -356,6 +356,16 @@ export function PlatformSettingsCard() {
                         </div>
                       </TableCell>
                       <TableCell>
+                        <div className="flex items-start gap-1.5 max-w-[320px]">
+                          <span className="text-sm text-muted-foreground">
+                            {setting.description || "—"}
+                          </span>
+                          <span className="shrink-0 pt-0.5">
+                            <SettingGuidancePopover settingKey={setting.key} />
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
                         <Badge variant={setting.is_secret ? "secondary" : "outline"}>
                           {setting.is_secret ? "Yes" : "No"}
                         </Badge>
