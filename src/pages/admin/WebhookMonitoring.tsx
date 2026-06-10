@@ -235,7 +235,7 @@ export default function WebhookMonitoring() {
     return <Badge variant="destructive">{statusCode}</Badge>;
   };
 
-  const endpoints = ["all", "webhook-visa-application-folder", "webhook-client-folder", "webhook-automation-event"];
+  const endpoints = ["all", ...(endpointList ?? [])];
 
   return (
     <AdminLayout>
