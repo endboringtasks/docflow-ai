@@ -1060,7 +1060,7 @@ export default function AdminWebhooks() {
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-2">
             <p>• Use the webhook URL in Make.com, Zapier, or n8n as a trigger</p>
-            <p>• The secret key is used for verifying webhook signatures (HMAC-SHA256)</p>
+            <p>• Each delivery is authenticated with the endpoint secret sent in the <code>x-make-apikey</code> header</p>
             <p>• Each event sends a JSON payload with event type and data</p>
           </CardContent>
         </Card>
