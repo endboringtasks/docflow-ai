@@ -128,6 +128,8 @@ export default function AdminWebhooks() {
     timeout_seconds: number;
     max_retries: number;
     retry_backoff_seconds: number;
+    delivery_timeout_seconds: number;
+    max_backoff_seconds: number | null;
   }>({
     name: "",
     url: "",
@@ -136,6 +138,8 @@ export default function AdminWebhooks() {
     timeout_seconds: 10,
     max_retries: 3,
     retry_backoff_seconds: 5,
+    delivery_timeout_seconds: 30,
+    max_backoff_seconds: null,
   });
 
   const [deletingWebhook, setDeletingWebhook] = useState<{ id: string; name: string } | null>(null);
@@ -149,6 +153,8 @@ export default function AdminWebhooks() {
       timeout_seconds: 10,
       max_retries: 3,
       retry_backoff_seconds: 5,
+      delivery_timeout_seconds: 30,
+      max_backoff_seconds: null,
     });
     setEditingWebhook(null);
   };
@@ -163,6 +169,8 @@ export default function AdminWebhooks() {
       timeout_seconds: webhook.timeout_seconds ?? 10,
       max_retries: webhook.max_retries ?? 3,
       retry_backoff_seconds: webhook.retry_backoff_seconds ?? 5,
+      delivery_timeout_seconds: webhook.delivery_timeout_seconds ?? 30,
+      max_backoff_seconds: webhook.max_backoff_seconds ?? null,
     });
     setIsDialogOpen(true);
   };
@@ -177,9 +185,12 @@ export default function AdminWebhooks() {
       timeout_seconds: webhook.timeout_seconds ?? 10,
       max_retries: webhook.max_retries ?? 3,
       retry_backoff_seconds: webhook.retry_backoff_seconds ?? 5,
+      delivery_timeout_seconds: webhook.delivery_timeout_seconds ?? 30,
+      max_backoff_seconds: webhook.max_backoff_seconds ?? null,
     });
     setIsDialogOpen(true);
   };
+
 
   const { data: webhooks, isLoading } = useQuery({
     queryKey: ["admin-webhooks"],
