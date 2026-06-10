@@ -449,11 +449,38 @@ export default function AdminWebhooks() {
   };
 
   const handleFieldToggle = (fieldId: string) => {
+    // AC-4/TC-2: mandatory fields cannot be toggled
+    if (isMandatoryField(fieldId)) return;
+    // BR-8: sensitive fields can only be toggled when the gate is on
+    if (isSensitiveField(fieldId) && !includeSensitive) return;
+    setValidationError(null);
     setNewWebhook((prev) => ({
       ...prev,
       included_fields: prev.included_fields.includes(fieldId)
         ? prev.included_fields.filter((f) => f !== fieldId)
         : [...prev.included_fields, fieldId],
+    }));
+  };
+
+  // UI-5: toggle the sensitive-field gate. Disabling strips any selected PII.
+  const handleIncludeSensitiveToggle = (enabled: boolean) => {
+    setIncludeSensitive(enabled);
+    setValidationError(null);
+    if (!enabled) {
+      setNewWebhook((prev) => ({
+        ...prev,
+        included_fields: prev.included_fields.filter((f) => !isSensitiveField(f)),
+      }));
+    }
+  };
+
+  // UI-4: select all non-sensitive fields for a category
+  const handleSelectAllNonSensitive = (categoryKey: "client" | "visa_application") => {
+    setValidationError(null);
+    const ids = ALL_FIELDS[categoryKey].filter((f) => !f.sensitive).map((f) => f.id);
+    setNewWebhook((prev) => ({
+      ...prev,
+      included_fields: [...new Set([...prev.included_fields, ...ids])],
     }));
   };
 
@@ -473,6 +500,49 @@ export default function AdminWebhooks() {
     if (hasApplicationEvents) categories.push({ key: "visa_application", label: "Application Fields" });
     return categories;
   };
+
+  // UI-8: build a sample payload preview reflecting the current selection
+  const buildPreviewPayload = () => {
+    const sampleValues: Record<string, unknown> = {
+      client_id: "550e8400-e29b-41d4-a716-446655440000",
+      application_id: "660e8400-e29b-41d4-a716-446655440001",
+      organization_id: "123e4567-e89b-12d3-a456-426614174000",
+      created_at: "2026-01-15T09:30:00.000Z",
+      client_type: "personal",
+      first_name: "Jane",
+      last_name: "Doe",
+      company_name: "Acme Pty Ltd",
+      email: "jane.doe@example.com",
+      phone: "+61 400 000 000",
+      client_folder_id: "1AbCdEfGhIjKlMnOpQrStUv",
+      root_folder_id: "0XyZrootFolderId",
+      folder_status: "created",
+      folder_status_updated_at: "2026-01-15T09:31:00.000Z",
+      application_name: "Partner Visa Application",
+      subclass: "820/801",
+      status: "active",
+      application_folder_id: "1ZyXwVuTsRqPoNmLkJiHgFe",
+    };
+
+    const eventType = newWebhook.events[0] || "client.created";
+    const available = getAvailableFieldIds();
+    const selected = withMandatoryFields(newWebhook.included_fields).filter((id) => available.has(id));
+
+    const data: Record<string, unknown> = {};
+    selected.forEach((id) => {
+      const key = id === "company_id" ? "organization_id" : id;
+      const sampleKey = id === "company_id" ? "organization_id" : id;
+      if (sampleValues[sampleKey] !== undefined) data[key] = sampleValues[sampleKey];
+    });
+
+    return {
+      event: eventType,
+      event_id: "f0e9d8c7-b6a5-4321-9876-543210fedcba",
+      timestamp: "2026-01-15T09:31:05.000Z",
+      data,
+    };
+  };
+
 
   // Test webhook mutation
   const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null);
