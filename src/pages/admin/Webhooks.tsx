@@ -1040,7 +1040,7 @@ export default function AdminWebhooks() {
                 </Button>
                 <Button
                   onClick={() => editingWebhook ? updateWebhook.mutate() : createWebhook.mutate()}
-                  disabled={!newWebhook.name || !newWebhook.url || newWebhook.events.length === 0}
+                  disabled={!newWebhook.name || !newWebhook.url || !!urlError || !isValidHttpsUrl(newWebhook.url) || newWebhook.events.length === 0}
                 >
                   {editingWebhook ? "Update Webhook" : "Create Webhook"}
                 </Button>
