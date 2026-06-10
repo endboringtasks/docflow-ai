@@ -1,28 +1,54 @@
-# Audit Log Viewing (DOC-62)
+# DOC-84 — Account Settings: Client-Initiated Account Deletion
 
-## Context
-The platform already has an Audit Logs page (`src/pages/admin/AuditLogs.tsx`), a route (`/admin/audit-logs`), admin-only access (`AdminProtectedRoute` + `is_platform_admin` RLS on `platform_audit_logs`), and the table columns (action, entity type, entity ID, timestamp, user, IP, details preview). This work closes the remaining gaps against the BDD rather than rebuilding from scratch.
+Lets an authenticated user permanently delete their own account and all data they own, with a strict two-step confirmation, server-side identity validation, an audit trail, and forced sign-out. (Client-portal users are token-based, not auth accounts, so this applies to authenticated platform users — the only real "accounts".)
 
-The `platform_audit_logs` table already has all required fields: `action`, `entity_type`, `entity_id`, `details` (jsonb), `ip_address`, `created_at`, `user_id`. No database changes are needed — RLS already restricts SELECT to platform admins (AC-1, BR-6, PERM-1).
+## Decisions (confirmed)
+- Owner cascade: deleting an account hard-deletes every company the user OWNS and all that company's data (clients, applications, documents, files).
+- Personal data: hard-delete the user's profile + auth user; keep audit/operational logs but strip identifying fields (anonymize).
+- Secondary confirmation: user must type `DELETE`.
 
-## Gaps to close
-1. **Action-type filter (UI-2, BR-8, AC-5)** — current page filters by *entity type*, not *action*. Add an Action dropdown populated with distinct actions (e.g. `impersonate_start`, `delete_user`). Keep the existing entity-type filter and search; all filters combine (BR-9). Date-range picker already exists.
-2. **Details panel (PF-3, UI-5, UI-6, AC-3)** — clicking a row opens a side panel (shadcn `Sheet`) showing pretty-printed JSON `details`, actor user, timestamp, action, entity reference, and IP address. Include a copy-to-clipboard button for the JSON.
-3. **Secret redaction (BR-7, PERM-2, TC-6)** — before rendering JSON in the panel and the inline preview, recursively mask values whose keys match sensitive patterns (`token`, `access_token`, `refresh_token`, `password`, `secret`, `api_key`, `authorization`, `client_secret`) with `"***REDACTED***"`.
-4. **Pagination, newest first (UI-3, BR-10, AC-6)** — replace the single `.limit(500)` fetch with server-side range pagination (e.g. 50 rows/page) ordered by `created_at desc`, with Prev/Next controls and a page indicator using Supabase `.range()` and `count: "exact"`.
-5. **Error + retry (BR-12)** — when the query errors, show a clear error state with a Retry button (react-query `refetch`).
+## What the user sees
+1. In **Settings**, a new **Danger Zone** card (red styling), separated from normal settings, with a **Delete My Account** button (UI-1, UI-2).
+2. Clicking it opens a confirmation modal (UI-3, UI-4):
+   - Clear irreversible-action warning.
+   - Plain-language list of what will be deleted vs retained (BR-9, AC-5): "Your profile and login will be permanently deleted. Companies you own — including their clients, applications, and documents — will be permanently removed. Operational and audit logs are kept but stripped of your identifying details for compliance."
+   - A text input requiring the user to type `DELETE`.
+   - **Delete My Account** confirm button disabled until `DELETE` is typed exactly (UI-5, UI-6, AC-3); a clearly available **Cancel** (UI-7).
+3. On confirm: spinner while the server works.
+   - Success → user is signed out and redirected to a "Your account has been deleted" confirmation state, then to the auth page (UI-8, UI-9, AC-4, TC-3).
+   - Failure → friendly inline error with retry / contact-support guidance; account stays usable (UI-10, UI-11, AC-6, TC-5).
 
-## Technical details
-- All changes are confined to `src/pages/admin/AuditLogs.tsx` (presentation/data-fetching only); no schema or RLS changes.
-- **Action filter options:** add a small react-query call selecting distinct `action` values (simple `select("action")` + client-side de-dupe, ordered) to populate the dropdown. Action filter applied server-side via `.eq("action", ...)` when not "all".
-- **Pagination state:** `page` state; query key includes `page`, `actionFilter`, `entityFilter`, date range. Fetch uses `.order("created_at",{ascending:false}).range(page*size,(page+1)*size-1)` with `{ count: "exact" }`. Move the email/display_name search to be combined with server filters (keep client-side text search on the current page, or note it only searches the loaded page).
-- **Redaction helper:** pure function `redactSecrets(value)` that deep-clones and masks matching keys; used both for the inline preview cell and the details panel.
-- **Details panel:** new `Sheet` (already in the UI kit) controlled by `selectedLog` state; `<pre>` block with `JSON.stringify(redacted, null, 2)`; copy button uses `navigator.clipboard.writeText` + toast.
-- Row gets `onClick` + `cursor-pointer`; keep existing company-filter badge behavior intact.
+## Ownership warning (safety)
+Before showing the destructive modal, fetch the user's owned companies (where `company_members.role = 'owner'`). If any exist, the modal explicitly lists each company name and a count of clients/applications that will be destroyed, so the impact is unmistakable.
 
-## Verification
-- As a platform admin, open Admin → Audit Logs: list loads newest-first, paginated (AC-2, AC-6).
-- Filter by an action (e.g. `delete_user`) and a date range — only matching rows show (AC-5, TC-3, TC-4).
-- Click a row — panel shows pretty JSON, actor, timestamp, entity, IP; copy works (AC-3, AC-4, TC-5).
-- Insert/confirm a details payload containing a `token`/`access_token` field renders as `***REDACTED***` (TC-6).
-- Non-admins remain blocked via existing route guard + RLS (AC-1, TC-1).
+## Backend — `delete-my-account` edge function
+A new edge function performs all deletion server-side after re-validating the caller's JWT (BR-1, BR-2, PERM-1, PERM-2). It uses the service-role client for cascading writes. Steps:
+
+1. Validate `Authorization` header → resolve `auth.getUser`; reject if missing/invalid.
+2. Capture the user's email/display_name (for the audit entry) then immediately drop them from memory after hashing-free redaction.
+3. Find companies where the user is `owner`. For each owned company, hard-delete in dependency order:
+   - List `document_attachments` for the company's checklists → delete their objects from the `document-attachments` storage bucket (CDR hard delete), then delete the rows.
+   - Best-effort Google Drive cleanup per existing pattern (detach/delete company connection records); failures are logged but don't block (BR-12, best-effort).
+   - Delete company-scoped rows across all company_id tables: `application_timeline, automation_events, beta_feedback, client_form_data, client_portal_access, clients, document_checklist, document_checklist_templates, document_definitions, google_drive_connections, notifications, team_invitations, visa_applications, re_* tables, company_members`, then the `companies` row.
+4. Remove the user from companies they're a member of (non-owner): delete their `company_members` rows.
+5. Anonymize logs (BR-6, BR-7, BR-14): `UPDATE platform_audit_logs` rows where `user_id` = caller — null/redact identifying `details` fields; keep the row + timestamp + action.
+6. Delete the user's `profiles` row.
+7. Insert an audit event: `action='delete_account'`, `entity_type='user'`, `entity_id=user.id`, `details` containing only non-sensitive outcome data (companies_deleted count, outcome) — never plaintext personal data (BR-13, BR-14, AC-4).
+8. `auth.admin.deleteUser(user.id)` — revokes sessions/tokens and blocks future login under that identity (BR-10, TC-3).
+9. Return `{ success: true, companiesDeleted, retained }`. The function is wrapped so a mid-way failure returns a clear error and avoids leaving a half-deleted, login-able account (BR-15); calling again when already deleted returns an "already deleted" style success (BR-16, idempotent).
+
+Reuses existing patterns from `admin-delete-user` (service-role client, audit insert) but scoped to self-deletion with full cascade.
+
+## Frontend wiring
+- New `DeleteAccountCard` component (in `src/components/settings/`) rendered at the bottom of `src/pages/Settings.tsx`.
+- New `DeleteAccountDialog` using the existing `AlertDialog`/`Dialog` + `Input` components, type-`DELETE` gate, loading + error states.
+- On success: call `supabase.functions.invoke('delete-my-account')`, then `signOut()` from `useAuth`, clear query cache, and navigate to `/auth` with a deleted-confirmation toast/state.
+
+## Technical notes
+- Public schema has **no enforced foreign keys**, so every dependent table must be deleted explicitly in the function — relying on DB cascade will orphan data.
+- Owner detection via `company_members.role='owner'`; company ownership also recorded in `companies.created_by`.
+- Storage bucket `document-attachments` is private; deletion uses the service-role client.
+- No new tables required; only the new edge function. `supabase/config.toml` gets the function entry (JWT validated in-code).
+
+## Out of scope
+Admin-initiated deletion (already exists), DSAR data export, and legal-hold workflows.
