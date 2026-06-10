@@ -437,12 +437,22 @@ Deno.serve(async (req) => {
       return result;
     };
 
+    // BR-6/BR-7/BR-13: fields that must always be present in the data payload,
+    // regardless of the admin's allowlist selection. company_id is renamed to
+    // organization_id before filtering, so the mandatory set uses the renamed key.
+    const MANDATORY_DATA_FIELDS = new Set([
+      "client_id",
+      "application_id",
+      "organization_id",
+      "created_at",
+    ]);
+
     // Helper to filter data based on webhook's included_fields setting
     const filterPayloadData = (data: Record<string, unknown>, includedFields: string[] | null) => {
       // First rename company_id to organization_id
       const renamedData = renameCompanyIdToOrganizationId(data);
 
-      // If no included_fields specified or empty array, include all fields
+      // BR-15 safe fallback: if no included_fields specified, include all fields
       if (!includedFields || includedFields.length === 0) {
         return renamedData;
       }
@@ -452,7 +462,8 @@ Deno.serve(async (req) => {
 
       const filteredData: Record<string, unknown> = {};
       for (const key of Object.keys(renamedData)) {
-        if (fieldsToInclude.has(key)) {
+        // BR-7/BR-13: never drop a mandatory field even if the allowlist omits it
+        if (fieldsToInclude.has(key) || MANDATORY_DATA_FIELDS.has(key)) {
           filteredData[key] = renamedData[key];
         }
       }

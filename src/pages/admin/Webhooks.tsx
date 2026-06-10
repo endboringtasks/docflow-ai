@@ -42,7 +42,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Webhook, Plus, Trash2, Copy, ExternalLink, ChevronDown, ChevronRight, Send, Loader2, Pencil, CopyPlus } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Webhook, Plus, Trash2, Copy, ExternalLink, ChevronDown, ChevronRight, Send, Loader2, Pencil, CopyPlus, Search, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
@@ -73,47 +74,78 @@ const WEBHOOK_TOPICS: WebhookTopic[] = [
 ];
 
 // All available fields for webhook payloads (organized by entity)
+// DOC-52: `mandatory` fields are always sent and locked; `sensitive` fields are
+// PII, excluded by default and gated behind an explicit toggle.
 const ALL_FIELDS: Record<WebhookEntityCategory, WebhookFieldDefinition[]> = {
   client: [
-    { id: "client_id", label: "Client ID", description: "Unique client identifier", default: true },
+    { id: "client_id", label: "Client ID", description: "Unique client identifier (resource id)", default: true, mandatory: true },
+    { id: "company_id", label: "Organization ID", description: "Your firm/agency identifier", default: true, mandatory: true },
+    { id: "created_at", label: "Created At", description: "Timestamp when client was created", default: true, mandatory: true },
     { id: "client_type", label: "Client Type", description: "Personal or corporate", default: true },
-    { id: "first_name", label: "First Name", description: "Client first name", default: true },
-    { id: "last_name", label: "Last Name", description: "Client last name", default: true },
-    { id: "company_name", label: "Company Name", description: "Company name (for corporate clients)", default: true },
-    { id: "company_id", label: "Organization ID", description: "Your firm/agency identifier", default: true },
-    { id: "email", label: "Email", description: "Client email address", default: true },
-    { id: "phone", label: "Phone", description: "Client phone number", default: true },
+    { id: "first_name", label: "First Name", description: "Client first name", default: false, sensitive: true, sensitivityCategory: "identity" },
+    { id: "last_name", label: "Last Name", description: "Client last name", default: false, sensitive: true, sensitivityCategory: "identity" },
+    { id: "company_name", label: "Company Name", description: "Company name (for corporate clients)", default: false, sensitive: true, sensitivityCategory: "identity" },
+    { id: "email", label: "Email", description: "Client email address", default: false, sensitive: true, sensitivityCategory: "contact" },
+    { id: "phone", label: "Phone", description: "Client phone number", default: false, sensitive: true, sensitivityCategory: "contact" },
     { id: "client_folder_id", label: "Client Folder ID", description: "Client's Google Drive folder", default: true },
     { id: "root_folder_id", label: "Root Folder ID", description: "Company's root Google Drive folder", default: true },
     { id: "folder_status", label: "Folder Status", description: "Drive folder creation status", default: true },
     { id: "folder_status_updated_at", label: "Folder Status Updated At", description: "When folder status last changed", default: true },
-    { id: "created_at", label: "Created At", description: "Timestamp when client was created", default: true },
   ],
   visa_application: [
-    { id: "application_id", label: "Application ID", description: "Unique application identifier", default: true },
+    { id: "application_id", label: "Application ID", description: "Unique application identifier (resource id)", default: true, mandatory: true },
+    { id: "company_id", label: "Organization ID", description: "Your firm/agency identifier", default: true, mandatory: true },
+    { id: "created_at", label: "Created At", description: "Timestamp when application was created", default: true, mandatory: true },
     { id: "application_name", label: "Application Name", description: "Name of the application", default: true },
     { id: "subclass", label: "Subclass", description: "Visa type being applied for", default: true },
-    { id: "company_id", label: "Organization ID", description: "Your firm/agency identifier", default: true },
     { id: "client_id", label: "Client ID", description: "Associated client identifier", default: true },
     { id: "client_folder_id", label: "Client Folder ID", description: "Client's Google Drive folder", default: true },
     { id: "status", label: "Status", description: "Application status (draft, active, done)", default: true },
     { id: "application_folder_id", label: "Drive Folder ID", description: "Application's Google Drive folder", default: true },
     { id: "folder_status", label: "Folder Status", description: "Drive folder creation status", default: true },
     { id: "folder_status_updated_at", label: "Folder Status Updated At", description: "When folder status last changed", default: true },
-    { id: "created_at", label: "Created At", description: "Timestamp when application was created", default: true },
   ],
 };
 
-// Get default selected fields
+// Flat lookup of every field definition by id (last definition wins for shared ids)
+const FIELD_DEF_BY_ID: Record<string, WebhookFieldDefinition> = (() => {
+  const map: Record<string, WebhookFieldDefinition> = {};
+  Object.values(ALL_FIELDS).forEach((fields) => {
+    fields.forEach((f) => {
+      // Prefer a mandatory/sensitive definition if any category marks it so
+      const existing = map[f.id];
+      map[f.id] = {
+        ...f,
+        mandatory: f.mandatory || existing?.mandatory,
+        sensitive: f.sensitive || existing?.sensitive,
+      };
+    });
+  });
+  return map;
+})();
+
+const MANDATORY_FIELD_IDS = Object.values(FIELD_DEF_BY_ID)
+  .filter((f) => f.mandatory)
+  .map((f) => f.id);
+
+const SENSITIVE_FIELD_IDS = new Set(
+  Object.values(FIELD_DEF_BY_ID).filter((f) => f.sensitive).map((f) => f.id)
+);
+
+const isMandatoryField = (id: string) => !!FIELD_DEF_BY_ID[id]?.mandatory;
+const isSensitiveField = (id: string) => SENSITIVE_FIELD_IDS.has(id);
+
+// Get default selected fields: mandatory + non-sensitive defaults (BR-8: never PII)
 const getDefaultFields = () => {
   const defaults: string[] = [];
   Object.values(ALL_FIELDS).forEach(fields => {
-    fields.filter(f => f.default).forEach(f => defaults.push(f.id));
+    fields.filter(f => (f.default || f.mandatory) && !f.sensitive).forEach(f => defaults.push(f.id));
   });
   return [...new Set(defaults)]; // Remove duplicates
 };
 
 // Sample payloads for each event type (matches actual webhook structure)
+
 
 export default function AdminWebhooks() {
   const { user } = useAuth();
@@ -143,6 +175,16 @@ export default function AdminWebhooks() {
   });
 
   const [deletingWebhook, setDeletingWebhook] = useState<{ id: string; name: string } | null>(null);
+  // DOC-52 UI state
+  const [includeSensitive, setIncludeSensitive] = useState(false);
+  const [fieldSearch, setFieldSearch] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const hasSensitiveSelected = (fields: string[]) => fields.some((f) => isSensitiveField(f));
+
+  // Always ensure mandatory fields are present in a selection (BR-7/BR-13)
+  const withMandatoryFields = (fields: string[]) =>
+    [...new Set([...fields, ...MANDATORY_FIELD_IDS])];
 
   const resetForm = () => {
     setNewWebhook({
@@ -157,39 +199,51 @@ export default function AdminWebhooks() {
       max_backoff_seconds: null,
     });
     setEditingWebhook(null);
+    setIncludeSensitive(false);
+    setFieldSearch("");
+    setValidationError(null);
   };
 
   const openEditDialog = (webhook: any) => {
     setEditingWebhook({ id: webhook.id });
+    const fields = withMandatoryFields(webhook.included_fields || getDefaultFields());
     setNewWebhook({
       name: webhook.name,
       url: webhook.url,
       events: (webhook.events || []) as WebhookEventType[],
-      included_fields: webhook.included_fields || getDefaultFields(),
+      included_fields: fields,
       timeout_seconds: webhook.timeout_seconds ?? 10,
       max_retries: webhook.max_retries ?? 3,
       retry_backoff_seconds: webhook.retry_backoff_seconds ?? 5,
       delivery_timeout_seconds: webhook.delivery_timeout_seconds ?? 30,
       max_backoff_seconds: webhook.max_backoff_seconds ?? null,
     });
+    setIncludeSensitive(hasSensitiveSelected(fields));
+    setFieldSearch("");
+    setValidationError(null);
     setIsDialogOpen(true);
   };
 
   const openDuplicateDialog = (webhook: any) => {
     setEditingWebhook(null);
+    const fields = withMandatoryFields(webhook.included_fields || getDefaultFields());
     setNewWebhook({
       name: `${webhook.name} (Copy)`,
       url: webhook.url,
       events: (webhook.events || []) as WebhookEventType[],
-      included_fields: webhook.included_fields || getDefaultFields(),
+      included_fields: fields,
       timeout_seconds: webhook.timeout_seconds ?? 10,
       max_retries: webhook.max_retries ?? 3,
       retry_backoff_seconds: webhook.retry_backoff_seconds ?? 5,
       delivery_timeout_seconds: webhook.delivery_timeout_seconds ?? 30,
       max_backoff_seconds: webhook.max_backoff_seconds ?? null,
     });
+    setIncludeSensitive(hasSensitiveSelected(fields));
+    setFieldSearch("");
+    setValidationError(null);
     setIsDialogOpen(true);
   };
+
 
 
   const { data: webhooks, isLoading } = useQuery({
@@ -205,15 +259,68 @@ export default function AdminWebhooks() {
     },
   });
 
+  // Field ids valid for the currently selected events (BR-5/BR-14)
+  const getAvailableFieldIds = () => {
+    const ids = new Set<string>();
+    if (newWebhook.events.some((e) => e.startsWith("client."))) {
+      ALL_FIELDS.client.forEach((f) => ids.add(f.id));
+    }
+    if (newWebhook.events.some((e) => e.startsWith("application."))) {
+      ALL_FIELDS.visa_application.forEach((f) => ids.add(f.id));
+    }
+    return ids;
+  };
+
+  // BR-14: validate selection before save. Returns the resolved field list or null.
+  const resolveAndValidateFields = (): string[] | null => {
+    const available = getAvailableFieldIds();
+    // Mandatory fields that apply to the selected events
+    const requiredMandatory = MANDATORY_FIELD_IDS.filter((id) => available.has(id));
+    const resolved = [...new Set([...newWebhook.included_fields, ...requiredMandatory])];
+
+    // Every selected field must exist for the chosen events
+    const invalid = resolved.filter((id) => !available.has(id));
+    if (invalid.length > 0) {
+      setValidationError(`These fields are not valid for the selected events: ${invalid.join(", ")}`);
+      return null;
+    }
+    // Mandatory fields must all be present
+    const missing = requiredMandatory.filter((id) => !resolved.includes(id));
+    if (missing.length > 0) {
+      setValidationError(`Mandatory fields cannot be removed: ${missing.join(", ")}`);
+      return null;
+    }
+    setValidationError(null);
+    return resolved;
+  };
+
+  // BR-9/AC-6/PERM-3: audit when sensitive fields are saved
+  const writeSensitiveAudit = async (fields: string[], webhookId: string | null) => {
+    const sensitiveSelected = fields.filter((f) => isSensitiveField(f));
+    if (sensitiveSelected.length === 0) return;
+    await supabase.from("platform_audit_logs").insert({
+      user_id: user?.id ?? null,
+      action: "webhook.sensitive_fields_enabled",
+      entity_type: "platform_webhook",
+      entity_id: webhookId,
+      details: {
+        webhook_name: newWebhook.name,
+        sensitive_fields: sensitiveSelected,
+      },
+    });
+  };
+
   const createWebhook = useMutation({
     mutationFn: async () => {
+      const resolved = resolveAndValidateFields();
+      if (!resolved) throw new Error("validation");
       const secretKey = crypto.randomUUID();
-      
-      const { error } = await supabase.from("platform_webhooks").insert({
+
+      const { data, error } = await supabase.from("platform_webhooks").insert({
         name: newWebhook.name,
         url: newWebhook.url,
         events: newWebhook.events,
-        included_fields: newWebhook.included_fields,
+        included_fields: resolved,
         timeout_seconds: newWebhook.timeout_seconds,
         max_retries: newWebhook.max_retries,
         retry_backoff_seconds: newWebhook.retry_backoff_seconds,
@@ -221,8 +328,9 @@ export default function AdminWebhooks() {
         max_backoff_seconds: newWebhook.max_backoff_seconds,
         secret_key: secretKey,
         created_by: user?.id,
-      });
+      }).select("id").single();
       if (error) throw error;
+      await writeSensitiveAudit(resolved, data?.id ?? null);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
@@ -231,6 +339,7 @@ export default function AdminWebhooks() {
       toast.success("Webhook created successfully");
     },
     onError: (error) => {
+      if (error.message === "validation") return;
       toast.error("Failed to create webhook: " + error.message);
     },
   });
@@ -238,14 +347,16 @@ export default function AdminWebhooks() {
   const updateWebhook = useMutation({
     mutationFn: async () => {
       if (!editingWebhook) throw new Error("No webhook selected for editing");
-      
+      const resolved = resolveAndValidateFields();
+      if (!resolved) throw new Error("validation");
+
       const { error } = await supabase
         .from("platform_webhooks")
         .update({
           name: newWebhook.name,
           url: newWebhook.url,
           events: newWebhook.events,
-          included_fields: newWebhook.included_fields,
+          included_fields: resolved,
           timeout_seconds: newWebhook.timeout_seconds,
           max_retries: newWebhook.max_retries,
           retry_backoff_seconds: newWebhook.retry_backoff_seconds,
@@ -254,6 +365,7 @@ export default function AdminWebhooks() {
         })
         .eq("id", editingWebhook.id);
       if (error) throw error;
+      await writeSensitiveAudit(resolved, editingWebhook.id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-webhooks"] });
@@ -262,9 +374,11 @@ export default function AdminWebhooks() {
       toast.success("Webhook updated successfully");
     },
     onError: (error) => {
+      if (error.message === "validation") return;
       toast.error("Failed to update webhook: " + error.message);
     },
   });
+
 
   const updateTimeout = useMutation({
     mutationFn: async ({ id, timeout }: { id: string; timeout: number }) => {
@@ -336,11 +450,38 @@ export default function AdminWebhooks() {
   };
 
   const handleFieldToggle = (fieldId: string) => {
+    // AC-4/TC-2: mandatory fields cannot be toggled
+    if (isMandatoryField(fieldId)) return;
+    // BR-8: sensitive fields can only be toggled when the gate is on
+    if (isSensitiveField(fieldId) && !includeSensitive) return;
+    setValidationError(null);
     setNewWebhook((prev) => ({
       ...prev,
       included_fields: prev.included_fields.includes(fieldId)
         ? prev.included_fields.filter((f) => f !== fieldId)
         : [...prev.included_fields, fieldId],
+    }));
+  };
+
+  // UI-5: toggle the sensitive-field gate. Disabling strips any selected PII.
+  const handleIncludeSensitiveToggle = (enabled: boolean) => {
+    setIncludeSensitive(enabled);
+    setValidationError(null);
+    if (!enabled) {
+      setNewWebhook((prev) => ({
+        ...prev,
+        included_fields: prev.included_fields.filter((f) => !isSensitiveField(f)),
+      }));
+    }
+  };
+
+  // UI-4: select all non-sensitive fields for a category
+  const handleSelectAllNonSensitive = (categoryKey: "client" | "visa_application") => {
+    setValidationError(null);
+    const ids = ALL_FIELDS[categoryKey].filter((f) => !f.sensitive).map((f) => f.id);
+    setNewWebhook((prev) => ({
+      ...prev,
+      included_fields: [...new Set([...prev.included_fields, ...ids])],
     }));
   };
 
@@ -360,6 +501,49 @@ export default function AdminWebhooks() {
     if (hasApplicationEvents) categories.push({ key: "visa_application", label: "Application Fields" });
     return categories;
   };
+
+  // UI-8: build a sample payload preview reflecting the current selection
+  const buildPreviewPayload = () => {
+    const sampleValues: Record<string, unknown> = {
+      client_id: "550e8400-e29b-41d4-a716-446655440000",
+      application_id: "660e8400-e29b-41d4-a716-446655440001",
+      organization_id: "123e4567-e89b-12d3-a456-426614174000",
+      created_at: "2026-01-15T09:30:00.000Z",
+      client_type: "personal",
+      first_name: "Jane",
+      last_name: "Doe",
+      company_name: "Acme Pty Ltd",
+      email: "jane.doe@example.com",
+      phone: "+61 400 000 000",
+      client_folder_id: "1AbCdEfGhIjKlMnOpQrStUv",
+      root_folder_id: "0XyZrootFolderId",
+      folder_status: "created",
+      folder_status_updated_at: "2026-01-15T09:31:00.000Z",
+      application_name: "Partner Visa Application",
+      subclass: "820/801",
+      status: "active",
+      application_folder_id: "1ZyXwVuTsRqPoNmLkJiHgFe",
+    };
+
+    const eventType = newWebhook.events[0] || "client.created";
+    const available = getAvailableFieldIds();
+    const selected = withMandatoryFields(newWebhook.included_fields).filter((id) => available.has(id));
+
+    const data: Record<string, unknown> = {};
+    selected.forEach((id) => {
+      const key = id === "company_id" ? "organization_id" : id;
+      const sampleKey = id === "company_id" ? "organization_id" : id;
+      if (sampleValues[sampleKey] !== undefined) data[key] = sampleValues[sampleKey];
+    });
+
+    return {
+      event: eventType,
+      event_id: "f0e9d8c7-b6a5-4321-9876-543210fedcba",
+      timestamp: "2026-01-15T09:31:05.000Z",
+      data,
+    };
+  };
+
 
   // Test webhook mutation
   const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null);
@@ -540,38 +724,134 @@ export default function AdminWebhooks() {
                   </div>
                 </div>
                 
-                {/* Optional Fields Section */}
+                {/* Payload Field Selection (DOC-52) */}
                 {newWebhook.events.length > 0 && (
                   <div className="space-y-2">
                     <Label>Fields to Include</Label>
                     <p className="text-xs text-muted-foreground">
-                      Select which fields to include in webhook payloads:
+                      Choose which fields are included in webhook payloads. Mandatory fields are always sent.
                     </p>
+
+                    {/* UI-3: search */}
+                    <div className="relative mt-2">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        className="pl-8"
+                        placeholder="Search fields..."
+                        value={fieldSearch}
+                        onChange={(e) => setFieldSearch(e.target.value)}
+                      />
+                    </div>
+
+                    {/* UI-5: sensitive gate + warning */}
+                    <div className="flex items-center justify-between rounded-lg border p-3 mt-2">
+                      <div className="space-y-0.5 pr-3">
+                        <span className="text-sm font-medium">Include sensitive fields</span>
+                        <p className="text-xs text-muted-foreground">
+                          Allow selecting PII fields (name, email, phone). Excluded by default.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={includeSensitive}
+                        onCheckedChange={handleIncludeSensitiveToggle}
+                      />
+                    </div>
+                    {includeSensitive && (
+                      <Alert variant="destructive" className="mt-2">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle>Sensitive data warning</AlertTitle>
+                        <AlertDescription>
+                          Including PII in webhook payloads increases privacy and security exposure.
+                          Enabling sensitive fields is recorded in the platform audit log.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
                     <div className="space-y-3 mt-2">
-                      {getRelevantFieldCategories().map((category) => (
-                        <div key={category.key} className="p-3 border rounded-lg space-y-2">
-                          <span className="text-sm font-medium">{category.label}</span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {ALL_FIELDS[category.key].map((field) => {
-                              const isSelected = newWebhook.included_fields.includes(field.id);
-                              return (
-                                <Badge
-                                  key={field.id}
-                                  variant={isSelected ? "default" : "outline"}
-                                  className="text-xs cursor-pointer hover:opacity-80 transition-opacity"
-                                  onClick={() => handleFieldToggle(field.id)}
-                                  title={field.description}
-                                >
-                                  {field.label}
-                                </Badge>
-                              );
-                            })}
+                      {getRelevantFieldCategories().map((category) => {
+                        const term = fieldSearch.trim().toLowerCase();
+                        const fields = ALL_FIELDS[category.key].filter(
+                          (f) =>
+                            !term ||
+                            f.label.toLowerCase().includes(term) ||
+                            f.description.toLowerCase().includes(term)
+                        );
+                        if (fields.length === 0) return null;
+                        return (
+                          <div key={category.key} className="p-3 border rounded-lg space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">{category.label}</span>
+                              {/* UI-4 */}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => handleSelectAllNonSensitive(category.key)}
+                              >
+                                Select all non-sensitive
+                              </Button>
+                            </div>
+                            <div className="space-y-1.5">
+                              {fields.map((field) => {
+                                const isSelected =
+                                  field.mandatory || newWebhook.included_fields.includes(field.id);
+                                const locked =
+                                  field.mandatory || (field.sensitive && !includeSensitive);
+                                return (
+                                  <div key={field.id} className="flex items-start gap-2">
+                                    <Checkbox
+                                      id={`field-${category.key}-${field.id}`}
+                                      checked={isSelected}
+                                      disabled={locked}
+                                      onCheckedChange={() => handleFieldToggle(field.id)}
+                                      className="mt-0.5"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <label
+                                        htmlFor={`field-${category.key}-${field.id}`}
+                                        className="text-sm flex items-center gap-1.5 flex-wrap cursor-pointer"
+                                      >
+                                        {field.label}
+                                        {/* UI-2 badges */}
+                                        {field.mandatory && (
+                                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                            Mandatory
+                                          </Badge>
+                                        )}
+                                        {field.sensitive && (
+                                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                                            Sensitive
+                                          </Badge>
+                                        )}
+                                      </label>
+                                      <p className="text-xs text-muted-foreground">{field.description}</p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
+                    </div>
+
+                    {/* UI-7: inline validation */}
+                    {validationError && (
+                      <p className="text-sm font-medium text-destructive mt-1">{validationError}</p>
+                    )}
+
+                    {/* UI-8: payload preview */}
+                    <div className="mt-3 space-y-1.5">
+                      <span className="text-sm font-medium">Payload preview</span>
+                      <pre className="max-h-56 overflow-auto rounded-lg border bg-muted/50 p-3 text-xs">
+                        {JSON.stringify(buildPreviewPayload(), null, 2)}
+                      </pre>
                     </div>
                   </div>
                 )}
+                
+
                 
                 <div className="space-y-2">
                   <Label htmlFor="timeout">Folder Creation Timeout (seconds)</Label>
