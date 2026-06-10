@@ -623,7 +623,7 @@ export default function WebhookMonitoring() {
                                 </TableCell>
                               </TableRow>
                             )}
-                          </>
+                          </Fragment>
                         );
                       })}
                     </TableBody>
