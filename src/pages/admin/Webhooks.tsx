@@ -621,6 +621,42 @@ export default function AdminWebhooks() {
                     </p>
                   </div>
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="delivery_timeout">Delivery Timeout (seconds)</Label>
+                    <Input
+                      id="delivery_timeout"
+                      type="number"
+                      min={1}
+                      max={120}
+                      placeholder="30"
+                      value={newWebhook.delivery_timeout_seconds}
+                      onChange={(e) => setNewWebhook((prev) => ({ ...prev, delivery_timeout_seconds: parseInt(e.target.value) || 30 }))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Per-attempt request timeout (1-120 seconds)
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="max_backoff">Max Backoff Cap (seconds)</Label>
+                    <Input
+                      id="max_backoff"
+                      type="number"
+                      min={1}
+                      max={600}
+                      placeholder="Optional"
+                      value={newWebhook.max_backoff_seconds ?? ""}
+                      onChange={(e) => setNewWebhook((prev) => ({
+                        ...prev,
+                        max_backoff_seconds: e.target.value === "" ? null : (parseInt(e.target.value) || null),
+                      }))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Optional upper limit on backoff delay
+                    </p>
+                  </div>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => {
