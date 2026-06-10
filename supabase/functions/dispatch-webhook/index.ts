@@ -666,16 +666,12 @@ Deno.serve(async (req) => {
           console.log(`Webhook ${webhook.name} succeeded after ${attempts} attempt(s):`, response.status);
           return { webhook_id: webhook.id, status: "success", attempts, folder_id: responseData?.folder_id };
         } catch (e) {
-          await safeLogWebhookRequest(supabase, {
-            endpoint: webhook.url,
-            method: "POST",
-            request_id: deliveryRequestId,
-            status_code: 599,
-            duration_ms: Date.now() - deliveryStartedAt,
-            error_message: `${String(e)} ${contextSnippet}`.slice(0, 800),
-          });
+          // Individual attempts (including the final failure) are already logged by
+          // sendWebhookWithRetry via the onAttempt callback (BR-12). Avoid double-logging.
+          console.error(`Webhook ${webhook.name} delivery failed:`, String(e));
           throw e;
         }
+
       })
     );
 
