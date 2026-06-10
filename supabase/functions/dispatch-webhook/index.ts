@@ -31,20 +31,43 @@ interface WebhookConfig {
   included_fields: string[] | null;
   max_retries: number;
   retry_backoff_seconds: number;
+  delivery_timeout_seconds?: number | null;
+  max_backoff_seconds?: number | null;
 }
 
 // Sleep helper for retry backoff
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Send webhook with retry logic
+interface AttemptLog {
+  attempt_number: number;
+  duration_ms: number;
+  status_code: number;
+  error_message: string | null;
+  will_retry: boolean;
+  final_state: string | null;
+}
+
+// Send webhook with retry logic.
+// BR-3/AC-4: enforces a per-attempt timeout via AbortController.
+// BR-12: records every individual attempt via onAttempt callback.
 async function sendWebhookWithRetry(
   webhook: WebhookConfig,
   webhookPayload: Record<string, unknown>,
-  maxRetries: number,
-  baseBackoffSeconds: number
+  idempotencyKey: string,
+  options: {
+    maxRetries: number;
+    baseBackoffSeconds: number;
+    timeoutSeconds: number;
+    maxBackoffSeconds: number | null;
+  },
+  onAttempt: (log: AttemptLog) => Promise<void> | void
 ): Promise<{ response: Response; attempts: number }> {
+  const { maxRetries, baseBackoffSeconds, timeoutSeconds, maxBackoffSeconds } = options;
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    // BR-10: stable idempotency key across retries of the same delivery
+    "x-idempotency-key": idempotencyKey,
   };
 
   if (webhook.secret_key) {
@@ -56,22 +79,42 @@ async function sendWebhookWithRetry(
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     attempts = attempt + 1;
-    
+
     if (attempt > 0) {
-      // Exponential backoff: baseBackoff * 2^(attempt-1)
-      const backoffMs = baseBackoffSeconds * 1000 * Math.pow(2, attempt - 1);
+      // Exponential backoff: baseBackoff * 2^(attempt-1), optionally capped
+      let backoffMs = baseBackoffSeconds * 1000 * Math.pow(2, attempt - 1);
+      if (maxBackoffSeconds && maxBackoffSeconds > 0) {
+        backoffMs = Math.min(backoffMs, maxBackoffSeconds * 1000);
+      }
       console.log(`Retry attempt ${attempt}/${maxRetries} for ${webhook.name}, waiting ${backoffMs}ms`);
       await sleep(backoffMs);
     }
+
+    const attemptStartedAt = Date.now();
+    const willHaveMoreAttempts = attempt < maxRetries;
+
+    // BR-3/AC-4: enforce per-attempt timeout
+    const controller = new AbortController();
+    const timeoutMs = Math.max(1, timeoutSeconds) * 1000;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(webhook.url, {
         method: "POST",
         headers,
         body: JSON.stringify(webhookPayload),
+        signal: controller.signal,
       });
 
       if (response.ok) {
+        await onAttempt({
+          attempt_number: attempts,
+          duration_ms: Date.now() - attemptStartedAt,
+          status_code: response.status,
+          error_message: null,
+          will_retry: false,
+          final_state: "delivered",
+        });
         if (attempt > 0) {
           console.log(`Webhook ${webhook.name} succeeded after ${attempt} retries`);
         }
@@ -85,6 +128,14 @@ async function sendWebhookWithRetry(
         console.log(
           `Webhook ${webhook.name} returned non-retryable status ${response.status}${snippet ? `; body: ${snippet}` : ""}`
         );
+        await onAttempt({
+          attempt_number: attempts,
+          duration_ms: Date.now() - attemptStartedAt,
+          status_code: response.status,
+          error_message: `http_${response.status}${snippet ? `: ${snippet}` : ""}`.slice(0, 800),
+          will_retry: false,
+          final_state: "failed",
+        });
         return { response, attempts };
       }
 
@@ -96,9 +147,30 @@ async function sendWebhookWithRetry(
       console.log(
         `Webhook ${webhook.name} attempt ${attempt + 1} failed: ${response.status} (content-type: ${contentType})${snippet ? `; body: ${snippet}` : ""}`
       );
+      await onAttempt({
+        attempt_number: attempts,
+        duration_ms: Date.now() - attemptStartedAt,
+        status_code: response.status,
+        error_message: `http_${response.status}${snippet ? `: ${snippet}` : ""}`.slice(0, 800),
+        will_retry: willHaveMoreAttempts,
+        final_state: willHaveMoreAttempts ? null : "failed",
+      });
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
+      const aborted = error instanceof DOMException && error.name === "AbortError";
+      lastError = aborted
+        ? new Error(`Request timed out after ${timeoutSeconds}s`)
+        : (error instanceof Error ? error : new Error(String(error)));
       console.log(`Webhook ${webhook.name} attempt ${attempt + 1} error: ${lastError.message}`);
+      await onAttempt({
+        attempt_number: attempts,
+        duration_ms: Date.now() - attemptStartedAt,
+        status_code: aborted ? 408 : 599,
+        error_message: lastError.message.slice(0, 800),
+        will_retry: willHaveMoreAttempts,
+        final_state: willHaveMoreAttempts ? null : "failed",
+      });
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -223,6 +295,9 @@ async function safeLogWebhookRequest(
     error_message?: string | null;
     client_ip?: string | null;
     user_agent?: string | null;
+    attempt_number?: number | null;
+    will_retry?: boolean | null;
+    final_state?: string | null;
   }
 ) {
   try {
@@ -236,6 +311,9 @@ async function safeLogWebhookRequest(
       client_ip: log.client_ip ?? null,
       user_agent: log.user_agent ?? null,
       rate_limited: null,
+      attempt_number: log.attempt_number ?? null,
+      will_retry: log.will_retry ?? null,
+      final_state: log.final_state ?? null,
     });
 
     if (error) {
@@ -245,6 +323,7 @@ async function safeLogWebhookRequest(
     console.log("Failed to write webhook_request_logs (exception)", { endpoint: log.endpoint, error: String(e) });
   }
 }
+
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -388,6 +467,8 @@ Deno.serve(async (req) => {
       webhooks.map(async (webhook) => {
         const deliveryRequestId = `${requestId}:${webhook.id}`;
         const deliveryStartedAt = Date.now();
+        // BR-10: one stable idempotency/event id per delivery, constant across retries
+        const idempotencyKey = crypto.randomUUID();
 
         try {
           // Filter the data based on this webhook's included_fields
@@ -395,6 +476,7 @@ Deno.serve(async (req) => {
 
           const webhookPayload = {
             event: payload.event_type,
+            event_id: idempotencyKey,
             timestamp: new Date().toISOString(),
             data: filteredData,
           };
@@ -404,27 +486,41 @@ Deno.serve(async (req) => {
           // Get retry configuration with defaults
           const maxRetries = webhook.max_retries ?? 3;
           const retryBackoffSeconds = webhook.retry_backoff_seconds ?? 5;
+          const deliveryTimeoutSeconds = (webhook as any).delivery_timeout_seconds ?? 30;
+          const maxBackoffSeconds = (webhook as any).max_backoff_seconds ?? null;
 
-          console.log(`Webhook ${webhook.name} retry config: max_retries=${maxRetries}, backoff=${retryBackoffSeconds}s`);
+          console.log(`Webhook ${webhook.name} retry config: max_retries=${maxRetries}, backoff=${retryBackoffSeconds}s, timeout=${deliveryTimeoutSeconds}s, backoff_cap=${maxBackoffSeconds ?? "none"}`);
 
+          // BR-12: persist every individual delivery attempt as it happens
           const { response, attempts } = await sendWebhookWithRetry(
             webhook as WebhookConfig,
             webhookPayload,
-            maxRetries,
-            retryBackoffSeconds
+            idempotencyKey,
+            {
+              maxRetries,
+              baseBackoffSeconds: retryBackoffSeconds,
+              timeoutSeconds: deliveryTimeoutSeconds,
+              maxBackoffSeconds,
+            },
+            (attemptLog) =>
+              safeLogWebhookRequest(supabase, {
+                endpoint: webhook.url,
+                method: "POST",
+                request_id: `${deliveryRequestId}:attempt-${attemptLog.attempt_number}`,
+                status_code: attemptLog.status_code,
+                duration_ms: attemptLog.duration_ms,
+                error_message: attemptLog.error_message
+                  ? `${attemptLog.error_message} ${contextSnippet}`.slice(0, 800)
+                  : null,
+                attempt_number: attemptLog.attempt_number,
+                will_retry: attemptLog.will_retry,
+                final_state: attemptLog.final_state,
+              })
           );
 
           const deliveryDurationMs = Date.now() - deliveryStartedAt;
+          console.log(`Webhook ${webhook.name} total delivery time: ${deliveryDurationMs}ms over ${attempts} attempt(s)`);
 
-          // Persist delivery attempt
-          await safeLogWebhookRequest(supabase, {
-            endpoint: webhook.url,
-            method: "POST",
-            request_id: deliveryRequestId,
-            status_code: response.status,
-            duration_ms: deliveryDurationMs,
-            error_message: response.ok ? null : `http_${response.status} ${contextSnippet}`,
-          });
 
           if (!response.ok) {
             const errorText = await response.text();
@@ -570,16 +666,12 @@ Deno.serve(async (req) => {
           console.log(`Webhook ${webhook.name} succeeded after ${attempts} attempt(s):`, response.status);
           return { webhook_id: webhook.id, status: "success", attempts, folder_id: responseData?.folder_id };
         } catch (e) {
-          await safeLogWebhookRequest(supabase, {
-            endpoint: webhook.url,
-            method: "POST",
-            request_id: deliveryRequestId,
-            status_code: 599,
-            duration_ms: Date.now() - deliveryStartedAt,
-            error_message: `${String(e)} ${contextSnippet}`.slice(0, 800),
-          });
+          // Individual attempts (including the final failure) are already logged by
+          // sendWebhookWithRetry via the onAttempt callback (BR-12). Avoid double-logging.
+          console.error(`Webhook ${webhook.name} delivery failed:`, String(e));
           throw e;
         }
+
       })
     );
 

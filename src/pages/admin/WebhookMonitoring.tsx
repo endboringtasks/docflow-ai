@@ -49,6 +49,9 @@ interface WebhookLog {
   error_message: string | null;
   rate_limited: boolean;
   created_at: string;
+  attempt_number: number | null;
+  will_retry: boolean | null;
+  final_state: string | null;
 }
 
 interface HourlyStat {
@@ -425,8 +428,9 @@ export default function WebhookMonitoring() {
                       <TableHead>Request ID</TableHead>
                       <TableHead>Endpoint</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Attempt</TableHead>
+                      <TableHead>Outcome</TableHead>
                       <TableHead>Duration</TableHead>
-                      <TableHead>Client IP</TableHead>
                       <TableHead>Time</TableHead>
                       <TableHead>Error</TableHead>
                     </TableRow>
@@ -438,10 +442,26 @@ export default function WebhookMonitoring() {
                         <TableCell className="text-sm">{log.endpoint}</TableCell>
                         <TableCell>{getStatusBadge(log.status_code, log.rate_limited)}</TableCell>
                         <TableCell className="text-sm">
-                          {log.duration_ms ? `${log.duration_ms}ms` : "-"}
+                          {log.attempt_number != null ? `#${log.attempt_number}` : "-"}
                         </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {log.client_ip || "-"}
+                        <TableCell>
+                          {log.final_state === "delivered" ? (
+                            <Badge variant="default" className="bg-green-600 hover:bg-green-600/90">Delivered</Badge>
+                          ) : log.final_state === "failed" ? (
+                            <Badge variant="destructive">Failed</Badge>
+                          ) : log.final_state === "disabled" ? (
+                            <Badge variant="secondary">Disabled</Badge>
+                          ) : log.will_retry ? (
+                            <Badge variant="outline" className="text-amber-600 border-amber-600">
+                              <RefreshCw className="w-3 h-3 mr-1" />
+                              Retry pending
+                            </Badge>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {log.duration_ms ? `${log.duration_ms}ms` : "-"}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground" title={format(new Date(log.created_at), "PPpp")}>
                           {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
@@ -452,6 +472,7 @@ export default function WebhookMonitoring() {
                       </TableRow>
                     ))}
                   </TableBody>
+
                 </Table>
               </div>
             )}
