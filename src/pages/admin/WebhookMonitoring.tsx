@@ -482,7 +482,9 @@ export default function WebhookMonitoring() {
                   <SelectContent>
                     {endpoints.map((ep) => (
                       <SelectItem key={ep} value={ep}>
-                        {ep === "all" ? "All Endpoints" : ep}
+                        <span className="block max-w-[280px] truncate" title={ep === "all" ? "All Endpoints" : ep}>
+                          {ep === "all" ? "All Endpoints" : ep}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
