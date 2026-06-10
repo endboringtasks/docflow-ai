@@ -158,7 +158,7 @@ async function sendWebhookWithRetry(
       const response = await fetch(webhook.url, {
         method: "POST",
         headers,
-        body: JSON.stringify(webhookPayload),
+        body: rawBody,
         signal: controller.signal,
       });
 
