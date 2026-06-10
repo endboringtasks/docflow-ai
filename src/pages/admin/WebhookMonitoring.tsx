@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, Fragment } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -30,11 +30,11 @@ import {
   Clock, 
   RefreshCw,
   Search,
-  TrendingUp,
-  TrendingDown,
   Zap,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
-import { format, formatDistanceToNow, subHours } from "date-fns";
+import { format, formatDistanceToNow, subHours, subDays } from "date-fns";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
 interface WebhookLog {
@@ -74,20 +74,41 @@ interface RateLimitEntry {
   window_start: string;
 }
 
+const PAGE_SIZE = 50;
+
+const TIME_RANGES: Record<string, { label: string; cutoff: () => string }> = {
+  "1h": { label: "Last 1 hour", cutoff: () => subHours(new Date(), 1).toISOString() },
+  "24h": { label: "Last 24 hours", cutoff: () => subHours(new Date(), 24).toISOString() },
+  "7d": { label: "Last 7 days", cutoff: () => subDays(new Date(), 7).toISOString() },
+  "30d": { label: "Last 30 days", cutoff: () => subDays(new Date(), 30).toISOString() },
+};
+
 export default function WebhookMonitoring() {
   const [searchTerm, setSearchTerm] = useState("");
   const [endpointFilter, setEndpointFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [timeRange, setTimeRange] = useState("24h");
+  const [page, setPage] = useState(1);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Reset pagination whenever filters change
+  const resetPage = () => setPage(1);
 
   // Fetch recent webhook logs
-  const { data: logs, isLoading: logsLoading, refetch: refetchLogs } = useQuery({
-    queryKey: ["webhook-logs", endpointFilter, statusFilter],
+  const {
+    data: logs,
+    isLoading: logsLoading,
+    isError: logsError,
+    refetch: refetchLogs,
+  } = useQuery({
+    queryKey: ["webhook-logs", endpointFilter, statusFilter, timeRange, page],
     queryFn: async () => {
       let query = supabase
         .from("webhook_request_logs")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(100);
+        .gte("created_at", TIME_RANGES[timeRange].cutoff())
+        .range(0, page * PAGE_SIZE - 1);
 
       if (endpointFilter !== "all") {
         query = query.eq("endpoint", endpointFilter);
@@ -108,8 +129,15 @@ export default function WebhookMonitoring() {
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
+  const hasMore = (logs?.length ?? 0) >= page * PAGE_SIZE;
+
   // Fetch hourly stats using RPC function
-  const { data: hourlyStats, isLoading: statsLoading } = useQuery({
+  const {
+    data: hourlyStats,
+    isLoading: statsLoading,
+    isError: statsError,
+    refetch: refetchStats,
+  } = useQuery({
     queryKey: ["webhook-hourly-stats"],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_webhook_hourly_stats");
@@ -138,7 +166,7 @@ export default function WebhookMonitoring() {
     refetchInterval: 10000,
   });
 
-  // Calculate summary stats
+  // Calculate summary stats (within the selected time window)
   const summaryStats = logs ? {
     total: logs.length,
     success: logs.filter(l => l.status_code >= 200 && l.status_code < 300).length,
@@ -172,6 +200,9 @@ export default function WebhookMonitoring() {
     log.client_ip?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const isFailedLog = (log: WebhookLog) =>
+    log.status_code >= 400 || !!log.error_message || log.final_state === "failed";
+
   const getStatusBadge = (statusCode: number, rateLimited: boolean) => {
     if (rateLimited) {
       return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">429 Rate Limited</Badge>;
@@ -197,10 +228,28 @@ export default function WebhookMonitoring() {
               Real-time insights into webhook performance and health
             </p>
           </div>
-          <Button variant="outline" onClick={() => refetchLogs()}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select
+              value={timeRange}
+              onValueChange={(v) => {
+                setTimeRange(v);
+                resetPage();
+              }}
+            >
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Time range" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(TIME_RANGES).map(([key, { label }]) => (
+                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={() => refetchLogs()}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {/* Summary Stats */}
@@ -274,51 +323,71 @@ export default function WebhookMonitoring() {
         </div>
 
         {/* Charts */}
-        <div className="grid md:grid-cols-2 gap-6">
+        {statsError ? (
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Request Volume (24h)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {statsLoading ? (
-                <Skeleton className="h-[200px] w-full" />
-              ) : (
-                <ResponsiveContainer width="100%" height={200}>
-                  <AreaChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="hour" className="text-xs" />
-                    <YAxis className="text-xs" />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="success" stackId="1" stroke="#22c55e" fill="#22c55e" fillOpacity={0.6} name="Success" />
-                    <Area type="monotone" dataKey="errors" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} name="Errors" />
-                    <Area type="monotone" dataKey="rateLimited" stackId="1" stroke="#eab308" fill="#eab308" fillOpacity={0.6} name="Rate Limited" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )}
+            <CardContent className="py-12">
+              <div className="text-center space-y-3">
+                <AlertTriangle className="w-10 h-10 mx-auto text-destructive" />
+                <div>
+                  <p className="font-medium">Couldn't load webhook stats</p>
+                  <p className="text-sm text-muted-foreground">
+                    There was a problem retrieving hourly aggregates.
+                  </p>
+                </div>
+                <Button variant="outline" onClick={() => refetchStats()}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Retry
+                </Button>
+              </div>
             </CardContent>
           </Card>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Request Volume (24h)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <Skeleton className="h-[200px] w-full" />
+                ) : (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <AreaChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="hour" className="text-xs" />
+                      <YAxis className="text-xs" />
+                      <Tooltip />
+                      <Area type="monotone" dataKey="success" stackId="1" stroke="#22c55e" fill="#22c55e" fillOpacity={0.6} name="Success" />
+                      <Area type="monotone" dataKey="errors" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} name="Errors" />
+                      <Area type="monotone" dataKey="rateLimited" stackId="1" stroke="#eab308" fill="#eab308" fillOpacity={0.6} name="Rate Limited" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Response Time (24h)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {statsLoading ? (
-                <Skeleton className="h-[200px] w-full" />
-              ) : (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="hour" className="text-xs" />
-                    <YAxis className="text-xs" unit="ms" />
-                    <Tooltip formatter={(value) => [`${value}ms`, 'Avg Duration']} />
-                    <Bar dataKey="avgDuration" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Avg Duration" />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Response Time (24h)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {statsLoading ? (
+                  <Skeleton className="h-[200px] w-full" />
+                ) : (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="hour" className="text-xs" />
+                      <YAxis className="text-xs" unit="ms" />
+                      <Tooltip formatter={(value) => [`${value}ms`, 'Avg Duration']} />
+                      <Bar dataKey="avgDuration" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Avg Duration" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Current Rate Limits */}
         <Card>
@@ -381,7 +450,13 @@ export default function WebhookMonitoring() {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
-                <Select value={endpointFilter} onValueChange={setEndpointFilter}>
+                <Select
+                  value={endpointFilter}
+                  onValueChange={(v) => {
+                    setEndpointFilter(v);
+                    resetPage();
+                  }}
+                >
                   <SelectTrigger className="w-48">
                     <SelectValue placeholder="Endpoint" />
                   </SelectTrigger>
@@ -393,7 +468,13 @@ export default function WebhookMonitoring() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => {
+                    setStatusFilter(v);
+                    resetPage();
+                  }}
+                >
                   <SelectTrigger className="w-36">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
@@ -414,6 +495,18 @@ export default function WebhookMonitoring() {
                   <Skeleton key={i} className="h-12 w-full" />
                 ))}
               </div>
+            ) : logsError ? (
+              <div className="text-center py-12 space-y-3">
+                <AlertTriangle className="w-10 h-10 mx-auto text-destructive" />
+                <div>
+                  <p className="font-medium">Couldn't load request logs</p>
+                  <p className="text-sm text-muted-foreground">There was a problem retrieving webhook logs.</p>
+                </div>
+                <Button variant="outline" onClick={() => refetchLogs()}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Retry
+                </Button>
+              </div>
             ) : !filteredLogs?.length ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -421,60 +514,129 @@ export default function WebhookMonitoring() {
                 <p className="text-sm mt-1">Requests will appear here in real-time</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Request ID</TableHead>
-                      <TableHead>Endpoint</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Attempt</TableHead>
-                      <TableHead>Outcome</TableHead>
-                      <TableHead>Duration</TableHead>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Error</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredLogs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell className="font-mono text-xs">{log.request_id}</TableCell>
-                        <TableCell className="text-sm">{log.endpoint}</TableCell>
-                        <TableCell>{getStatusBadge(log.status_code, log.rate_limited)}</TableCell>
-                        <TableCell className="text-sm">
-                          {log.attempt_number != null ? `#${log.attempt_number}` : "-"}
-                        </TableCell>
-                        <TableCell>
-                          {log.final_state === "delivered" ? (
-                            <Badge variant="default" className="bg-green-600 hover:bg-green-600/90">Delivered</Badge>
-                          ) : log.final_state === "failed" ? (
-                            <Badge variant="destructive">Failed</Badge>
-                          ) : log.final_state === "disabled" ? (
-                            <Badge variant="secondary">Disabled</Badge>
-                          ) : log.will_retry ? (
-                            <Badge variant="outline" className="text-amber-600 border-amber-600">
-                              <RefreshCw className="w-3 h-3 mr-1" />
-                              Retry pending
-                            </Badge>
-                          ) : (
-                            "-"
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {log.duration_ms ? `${log.duration_ms}ms` : "-"}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground" title={format(new Date(log.created_at), "PPpp")}>
-                          {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
-                        </TableCell>
-                        <TableCell className="text-sm text-destructive max-w-[200px] truncate" title={log.error_message || ""}>
-                          {log.error_message || "-"}
-                        </TableCell>
+              <>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8"></TableHead>
+                        <TableHead>Request ID</TableHead>
+                        <TableHead>Endpoint</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Attempt</TableHead>
+                        <TableHead>Outcome</TableHead>
+                        <TableHead>Duration</TableHead>
+                        <TableHead>Time</TableHead>
+                        <TableHead>Error</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredLogs.map((log) => {
+                        const failed = isFailedLog(log);
+                        const expanded = expandedId === log.id;
+                        return (
+                          <Fragment key={log.id}>
+                            <TableRow
+                              key={log.id}
+                              className={failed ? "cursor-pointer" : ""}
+                              onClick={failed ? () => setExpandedId(expanded ? null : log.id) : undefined}
+                            >
+                              <TableCell>
+                                {failed ? (
+                                  expanded ? (
+                                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                                  )
+                                ) : null}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">{log.request_id}</TableCell>
+                              <TableCell className="text-sm">{log.endpoint}</TableCell>
+                              <TableCell>{getStatusBadge(log.status_code, log.rate_limited)}</TableCell>
+                              <TableCell className="text-sm">
+                                {log.attempt_number != null ? `#${log.attempt_number}` : "-"}
+                              </TableCell>
+                              <TableCell>
+                                {log.final_state === "delivered" ? (
+                                  <Badge variant="default" className="bg-green-600 hover:bg-green-600/90">Delivered</Badge>
+                                ) : log.final_state === "failed" ? (
+                                  <Badge variant="destructive">Failed</Badge>
+                                ) : log.final_state === "disabled" ? (
+                                  <Badge variant="secondary">Disabled</Badge>
+                                ) : log.will_retry ? (
+                                  <Badge variant="outline" className="text-amber-600 border-amber-600">
+                                    <RefreshCw className="w-3 h-3 mr-1" />
+                                    Retry pending
+                                  </Badge>
+                                ) : (
+                                  "-"
+                                )}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {log.duration_ms ? `${log.duration_ms}ms` : "-"}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground" title={format(new Date(log.created_at), "PPpp")}>
+                                {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
+                              </TableCell>
+                              <TableCell className="text-sm text-destructive max-w-[200px] truncate" title={log.error_message || ""}>
+                                {log.error_message || "-"}
+                              </TableCell>
+                            </TableRow>
+                            {failed && expanded && (
+                              <TableRow key={`${log.id}-detail`} className="bg-muted/40 hover:bg-muted/40">
+                                <TableCell colSpan={9}>
+                                  <div className="p-2 space-y-3">
+                                    <p className="text-sm font-medium">Error details</p>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                                      <div>
+                                        <p className="text-xs text-muted-foreground">Status code</p>
+                                        <p>{log.status_code || "—"}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-muted-foreground">Duration</p>
+                                        <p>{log.duration_ms != null ? `${log.duration_ms}ms` : "—"}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-muted-foreground">Attempt</p>
+                                        <p>{log.attempt_number != null ? `#${log.attempt_number}` : "—"}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-muted-foreground">Outcome</p>
+                                        <p>{log.final_state || "—"}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-muted-foreground">Will retry</p>
+                                        <p>{log.will_retry ? "Yes" : "No"}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-muted-foreground">Timestamp</p>
+                                        <p>{format(new Date(log.created_at), "PPpp")}</p>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-1">Error message</p>
+                                      <p className="text-sm text-destructive font-mono break-words whitespace-pre-wrap rounded bg-background border p-2">
+                                        {log.error_message || "No error message recorded."}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                {hasMore && (
+                  <div className="flex justify-center pt-4">
+                    <Button variant="outline" onClick={() => setPage((p) => p + 1)} disabled={logsLoading}>
+                      Load more
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
