@@ -317,6 +317,7 @@ export function PlatformSettingsCard() {
                 <TableRow>
                   <TableHead>Key</TableHead>
                   <TableHead>Value</TableHead>
+                  <TableHead>Description</TableHead>
                   <TableHead>Secret</TableHead>
                   <TableHead>Updated at</TableHead>
                   <TableHead>Updated by</TableHead>
