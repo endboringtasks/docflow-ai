@@ -95,9 +95,13 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         setCurrentCompany(storedMembership.company);
         setCurrentRole(storedMembership.role);
       } else if (memberships.length > 0) {
+        // BR-12: stored company no longer accessible — fall back to a valid default
         setCurrentCompany(memberships[0].company);
         setCurrentRole(memberships[0].role);
         localStorage.setItem("currentCompanyId", memberships[0].company_id);
+        if (storedCompanyId) {
+          setDefaultCompanyReselected(memberships[0].company);
+        }
       }
     } catch (error) {
       console.error("Error fetching companies:", error);
