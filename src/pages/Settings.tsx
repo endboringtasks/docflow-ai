@@ -222,7 +222,11 @@ const Settings = () => {
 
         {/* Team Members */}
         <TeamMembers />
+
+        {/* Danger Zone - Account Deletion (DOC-84) */}
+        <DeleteAccountCard />
       </div>
+
       </AppLayout>
     </>
   );
