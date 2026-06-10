@@ -31,20 +31,43 @@ interface WebhookConfig {
   included_fields: string[] | null;
   max_retries: number;
   retry_backoff_seconds: number;
+  delivery_timeout_seconds?: number | null;
+  max_backoff_seconds?: number | null;
 }
 
 // Sleep helper for retry backoff
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Send webhook with retry logic
+interface AttemptLog {
+  attempt_number: number;
+  duration_ms: number;
+  status_code: number;
+  error_message: string | null;
+  will_retry: boolean;
+  final_state: string | null;
+}
+
+// Send webhook with retry logic.
+// BR-3/AC-4: enforces a per-attempt timeout via AbortController.
+// BR-12: records every individual attempt via onAttempt callback.
 async function sendWebhookWithRetry(
   webhook: WebhookConfig,
   webhookPayload: Record<string, unknown>,
-  maxRetries: number,
-  baseBackoffSeconds: number
+  idempotencyKey: string,
+  options: {
+    maxRetries: number;
+    baseBackoffSeconds: number;
+    timeoutSeconds: number;
+    maxBackoffSeconds: number | null;
+  },
+  onAttempt: (log: AttemptLog) => Promise<void> | void
 ): Promise<{ response: Response; attempts: number }> {
+  const { maxRetries, baseBackoffSeconds, timeoutSeconds, maxBackoffSeconds } = options;
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    // BR-10: stable idempotency key across retries of the same delivery
+    "x-idempotency-key": idempotencyKey,
   };
 
   if (webhook.secret_key) {
@@ -56,22 +79,42 @@ async function sendWebhookWithRetry(
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     attempts = attempt + 1;
-    
+
     if (attempt > 0) {
-      // Exponential backoff: baseBackoff * 2^(attempt-1)
-      const backoffMs = baseBackoffSeconds * 1000 * Math.pow(2, attempt - 1);
+      // Exponential backoff: baseBackoff * 2^(attempt-1), optionally capped
+      let backoffMs = baseBackoffSeconds * 1000 * Math.pow(2, attempt - 1);
+      if (maxBackoffSeconds && maxBackoffSeconds > 0) {
+        backoffMs = Math.min(backoffMs, maxBackoffSeconds * 1000);
+      }
       console.log(`Retry attempt ${attempt}/${maxRetries} for ${webhook.name}, waiting ${backoffMs}ms`);
       await sleep(backoffMs);
     }
+
+    const attemptStartedAt = Date.now();
+    const willHaveMoreAttempts = attempt < maxRetries;
+
+    // BR-3/AC-4: enforce per-attempt timeout
+    const controller = new AbortController();
+    const timeoutMs = Math.max(1, timeoutSeconds) * 1000;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(webhook.url, {
         method: "POST",
         headers,
         body: JSON.stringify(webhookPayload),
+        signal: controller.signal,
       });
 
       if (response.ok) {
+        await onAttempt({
+          attempt_number: attempts,
+          duration_ms: Date.now() - attemptStartedAt,
+          status_code: response.status,
+          error_message: null,
+          will_retry: false,
+          final_state: "delivered",
+        });
         if (attempt > 0) {
           console.log(`Webhook ${webhook.name} succeeded after ${attempt} retries`);
         }
@@ -85,6 +128,14 @@ async function sendWebhookWithRetry(
         console.log(
           `Webhook ${webhook.name} returned non-retryable status ${response.status}${snippet ? `; body: ${snippet}` : ""}`
         );
+        await onAttempt({
+          attempt_number: attempts,
+          duration_ms: Date.now() - attemptStartedAt,
+          status_code: response.status,
+          error_message: `http_${response.status}${snippet ? `: ${snippet}` : ""}`.slice(0, 800),
+          will_retry: false,
+          final_state: "failed",
+        });
         return { response, attempts };
       }
 
@@ -96,9 +147,30 @@ async function sendWebhookWithRetry(
       console.log(
         `Webhook ${webhook.name} attempt ${attempt + 1} failed: ${response.status} (content-type: ${contentType})${snippet ? `; body: ${snippet}` : ""}`
       );
+      await onAttempt({
+        attempt_number: attempts,
+        duration_ms: Date.now() - attemptStartedAt,
+        status_code: response.status,
+        error_message: `http_${response.status}${snippet ? `: ${snippet}` : ""}`.slice(0, 800),
+        will_retry: willHaveMoreAttempts,
+        final_state: willHaveMoreAttempts ? null : "failed",
+      });
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
+      const aborted = error instanceof DOMException && error.name === "AbortError";
+      lastError = aborted
+        ? new Error(`Request timed out after ${timeoutSeconds}s`)
+        : (error instanceof Error ? error : new Error(String(error)));
       console.log(`Webhook ${webhook.name} attempt ${attempt + 1} error: ${lastError.message}`);
+      await onAttempt({
+        attempt_number: attempts,
+        duration_ms: Date.now() - attemptStartedAt,
+        status_code: aborted ? 408 : 599,
+        error_message: lastError.message.slice(0, 800),
+        will_retry: willHaveMoreAttempts,
+        final_state: willHaveMoreAttempts ? null : "failed",
+      });
+    } finally {
+      clearTimeout(timer);
     }
   }
 
