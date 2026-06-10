@@ -200,7 +200,32 @@ export default function AdminWebhooks() {
   const [fieldSearch, setFieldSearch] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // DOC-50: secret reveal (copy-once) + rotation
+  const [revealedSecret, setRevealedSecret] = useState<{ name: string; secret: string; rotated: boolean } | null>(null);
+  const [rotatingWebhook, setRotatingWebhook] = useState<{ id: string; name: string } | null>(null);
+
   const hasSensitiveSelected = (fields: string[]) => fields.some((f) => isSensitiveField(f));
+
+  // BR-2/AC-3: URL must be a valid HTTPS URL
+  const urlError = newWebhook.url.trim() && !isValidHttpsUrl(newWebhook.url)
+    ? "Enter a valid HTTPS URL (must start with https://)."
+    : null;
+
+  // BR-14: warn (non-blocking) when an identical URL + event set already exists
+  const duplicateWarning = (() => {
+    if (!newWebhook.url.trim() || newWebhook.events.length === 0 || !webhooks) return null;
+    const normalizedUrl = newWebhook.url.trim().toLowerCase();
+    const sortedEvents = [...newWebhook.events].sort().join(",");
+    const match = webhooks.some((w: any) =>
+      w.id !== editingWebhook?.id &&
+      (w.url || "").trim().toLowerCase() === normalizedUrl &&
+      [...(w.events || [])].sort().join(",") === sortedEvents
+    );
+    return match
+      ? "A webhook with the same URL and event selection already exists."
+      : null;
+  })();
+
 
   // Always ensure mandatory fields are present in a selection (BR-7/BR-13)
   const withMandatoryFields = (fields: string[]) =>
