@@ -174,6 +174,16 @@ export default function AdminWebhooks() {
   });
 
   const [deletingWebhook, setDeletingWebhook] = useState<{ id: string; name: string } | null>(null);
+  // DOC-52 UI state
+  const [includeSensitive, setIncludeSensitive] = useState(false);
+  const [fieldSearch, setFieldSearch] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const hasSensitiveSelected = (fields: string[]) => fields.some((f) => isSensitiveField(f));
+
+  // Always ensure mandatory fields are present in a selection (BR-7/BR-13)
+  const withMandatoryFields = (fields: string[]) =>
+    [...new Set([...fields, ...MANDATORY_FIELD_IDS])];
 
   const resetForm = () => {
     setNewWebhook({
@@ -188,39 +198,51 @@ export default function AdminWebhooks() {
       max_backoff_seconds: null,
     });
     setEditingWebhook(null);
+    setIncludeSensitive(false);
+    setFieldSearch("");
+    setValidationError(null);
   };
 
   const openEditDialog = (webhook: any) => {
     setEditingWebhook({ id: webhook.id });
+    const fields = withMandatoryFields(webhook.included_fields || getDefaultFields());
     setNewWebhook({
       name: webhook.name,
       url: webhook.url,
       events: (webhook.events || []) as WebhookEventType[],
-      included_fields: webhook.included_fields || getDefaultFields(),
+      included_fields: fields,
       timeout_seconds: webhook.timeout_seconds ?? 10,
       max_retries: webhook.max_retries ?? 3,
       retry_backoff_seconds: webhook.retry_backoff_seconds ?? 5,
       delivery_timeout_seconds: webhook.delivery_timeout_seconds ?? 30,
       max_backoff_seconds: webhook.max_backoff_seconds ?? null,
     });
+    setIncludeSensitive(hasSensitiveSelected(fields));
+    setFieldSearch("");
+    setValidationError(null);
     setIsDialogOpen(true);
   };
 
   const openDuplicateDialog = (webhook: any) => {
     setEditingWebhook(null);
+    const fields = withMandatoryFields(webhook.included_fields || getDefaultFields());
     setNewWebhook({
       name: `${webhook.name} (Copy)`,
       url: webhook.url,
       events: (webhook.events || []) as WebhookEventType[],
-      included_fields: webhook.included_fields || getDefaultFields(),
+      included_fields: fields,
       timeout_seconds: webhook.timeout_seconds ?? 10,
       max_retries: webhook.max_retries ?? 3,
       retry_backoff_seconds: webhook.retry_backoff_seconds ?? 5,
       delivery_timeout_seconds: webhook.delivery_timeout_seconds ?? 30,
       max_backoff_seconds: webhook.max_backoff_seconds ?? null,
     });
+    setIncludeSensitive(hasSensitiveSelected(fields));
+    setFieldSearch("");
+    setValidationError(null);
     setIsDialogOpen(true);
   };
+
 
 
   const { data: webhooks, isLoading } = useQuery({
