@@ -249,6 +249,8 @@ export default function AdminWebhooks() {
           timeout_seconds: newWebhook.timeout_seconds,
           max_retries: newWebhook.max_retries,
           retry_backoff_seconds: newWebhook.retry_backoff_seconds,
+          delivery_timeout_seconds: newWebhook.delivery_timeout_seconds,
+          max_backoff_seconds: newWebhook.max_backoff_seconds,
         })
         .eq("id", editingWebhook.id);
       if (error) throw error;
