@@ -166,6 +166,25 @@ export default function WebhookMonitoring() {
     refetchInterval: 10000,
   });
 
+  // Distinct endpoints actually present in the logs (for the filter dropdown)
+  const { data: endpointList } = useQuery({
+    queryKey: ["webhook-endpoints"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("webhook_request_logs")
+        .select("endpoint")
+        .order("endpoint", { ascending: true })
+        .limit(1000);
+
+      if (error) throw error;
+      const unique = Array.from(
+        new Set((data as { endpoint: string }[]).map((d) => d.endpoint).filter(Boolean))
+      );
+      return unique;
+    },
+    refetchInterval: 60000,
+  });
+
   // Calculate summary stats (within the selected time window)
   const summaryStats = logs ? {
     total: logs.length,
@@ -216,7 +235,7 @@ export default function WebhookMonitoring() {
     return <Badge variant="destructive">{statusCode}</Badge>;
   };
 
-  const endpoints = ["all", "webhook-visa-application-folder", "webhook-client-folder", "webhook-automation-event"];
+  const endpoints = ["all", ...(endpointList ?? [])];
 
   return (
     <AdminLayout>
@@ -463,7 +482,9 @@ export default function WebhookMonitoring() {
                   <SelectContent>
                     {endpoints.map((ep) => (
                       <SelectItem key={ep} value={ep}>
-                        {ep === "all" ? "All Endpoints" : ep}
+                        <span className="block max-w-[280px] truncate" title={ep === "all" ? "All Endpoints" : ep}>
+                          {ep === "all" ? "All Endpoints" : ep}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
