@@ -535,7 +535,7 @@ export default function WebhookMonitoring() {
                         const failed = isFailedLog(log);
                         const expanded = expandedId === log.id;
                         return (
-                          <>
+                          <Fragment key={log.id}>
                             <TableRow
                               key={log.id}
                               className={failed ? "cursor-pointer" : ""}
