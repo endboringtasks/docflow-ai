@@ -295,6 +295,9 @@ async function safeLogWebhookRequest(
     error_message?: string | null;
     client_ip?: string | null;
     user_agent?: string | null;
+    attempt_number?: number | null;
+    will_retry?: boolean | null;
+    final_state?: string | null;
   }
 ) {
   try {
@@ -308,6 +311,9 @@ async function safeLogWebhookRequest(
       client_ip: log.client_ip ?? null,
       user_agent: log.user_agent ?? null,
       rate_limited: null,
+      attempt_number: log.attempt_number ?? null,
+      will_retry: log.will_retry ?? null,
+      final_state: log.final_state ?? null,
     });
 
     if (error) {
@@ -317,6 +323,7 @@ async function safeLogWebhookRequest(
     console.log("Failed to write webhook_request_logs (exception)", { endpoint: log.endpoint, error: String(e) });
   }
 }
+
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
