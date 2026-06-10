@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -8,97 +7,36 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useNotifications, type AppNotification } from "@/hooks/useNotifications";
 import { Bell, CheckCheck, FileText, User, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router-dom";
 
-interface Notification {
-  id: string;
-  type: string;
-  title: string;
-  message: string;
-  metadata: {
-    matter_id?: string; // Legacy - kept for backwards compatibility
-    visa_application_id?: string;
-    client_id?: string;
-    portal_access_id?: string;
-  };
-  is_read: boolean;
-  created_at: string;
-}
-
 export function NotificationBell() {
-  const { user } = useAuth();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const {
+    notifications,
+    unreadCount,
+    isLoading,
+    markAsRead,
+    markAllAsRead,
+    isMarkingAllAsRead,
+  } = useNotifications();
 
-  const { data: notifications = [], isLoading } = useQuery({
-    queryKey: ["notifications", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      if (error) throw error;
-      return data as Notification[];
-    },
-    enabled: !!user?.id,
-    refetchInterval: 30000, // Refetch every 30 seconds
-  });
-
-  const markAsReadMutation = useMutation({
-    mutationFn: async (notificationId: string) => {
-      const { error } = await supabase
-        .from("notifications")
-        .update({ is_read: true, read_at: new Date().toISOString() })
-        .eq("id", notificationId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications", user?.id] });
-    },
-  });
-
-  const markAllAsReadMutation = useMutation({
-    mutationFn: async () => {
-      if (!user?.id) return;
-      
-      const { error } = await supabase
-        .from("notifications")
-        .update({ is_read: true, read_at: new Date().toISOString() })
-        .eq("user_id", user.id)
-        .eq("is_read", false);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications", user?.id] });
-    },
-  });
-
-  const handleNotificationClick = (notification: Notification) => {
+  const handleNotificationClick = (notification: AppNotification) => {
     if (!notification.is_read) {
-      markAsReadMutation.mutate(notification.id);
+      markAsRead(notification.id);
     }
 
     // Support both legacy matter_id and new visa_application_id
-    const applicationId = notification.metadata?.visa_application_id || notification.metadata?.matter_id;
+    const applicationId =
+      notification.metadata?.visa_application_id || notification.metadata?.matter_id;
     if (applicationId) {
       navigate(`/app/migration/applications/${applicationId}`);
       setOpen(false);
     }
   };
-
-  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -131,10 +69,10 @@ export function NotificationBell() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => markAllAsReadMutation.mutate()}
-              disabled={markAllAsReadMutation.isPending}
+              onClick={() => markAllAsRead()}
+              disabled={isMarkingAllAsRead}
             >
-              {markAllAsReadMutation.isPending ? (
+              {isMarkingAllAsRead ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
